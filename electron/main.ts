@@ -1,25 +1,51 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { setupGatewayIPC } from './ipc/gateway.js';
 import { setupConfigIPC } from './ipc/config.js';
+import { setupCoreConfigIPC } from './ipc/coreConfig.js';
+import { setupNodeConfigIPC } from './ipc/nodeConfig.js';
 import { setupTasksIPC } from './ipc/tasks.js';
 import { setupLogsIPC } from './ipc/logs.js';
 import { setupSettingsIPC } from './ipc/settings.js';
+import { setupTailscaleIPC } from './ipc/tailscale.js';
 import { setupAgentsIPC } from './ipc/agents.js';
 import { setupSystemIPC } from './ipc/system.js';
 import { setupSessionsIPC } from './ipc/sessions.js';
 import { setupInstancesIPC } from './ipc/instances.js';
 import { setupSkillsIPC } from './ipc/skills.js';
+import { setupCronIPC } from './ipc/cron.js';
+import { setupApprovalsIPC } from './ipc/approvals.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const appName = 'OpenClaw Desktop';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174';
+const iconCandidates = [
+  path.join(__dirname, '../../resources/app-icon.svg'),
+  path.join(__dirname, '../../resources/icon_128.png'),
+  path.join(__dirname, '../../resources/icon_32.png'),
+  path.join(__dirname, '../../resources/icon.png'),
+  path.join(__dirname, '../../resources/icon_512.ico'),
+];
+const iconPath = iconCandidates.find((candidate) => fs.existsSync(candidate));
 
 let mainWindow: BrowserWindow | null = null;
+
+app.setName(appName);
+
+function setupAppIcon() {
+  if (!iconPath) {
+    return;
+  }
+
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(nativeImage.createFromPath(iconPath));
+  }
+}
 
 function createWindow() {
   try {
@@ -32,10 +58,11 @@ function createWindow() {
       height: 800,
       minWidth: 800,
       minHeight: 600,
+      icon: iconPath,
       titleBarStyle: 'hiddenInset',
       show: true,
       autoHideMenuBar: false,
-      title: 'OpenClaw Desktop',
+      title: appName,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -95,6 +122,15 @@ function createWindow() {
   }
 }
 
+// shell 工具 IPC
+function setupShellIPC() {
+  ipcMain.handle('shell:openPath', async (_event, targetPath: string) => {
+    const { shell } = await import('electron');
+    const err = await shell.openPath(targetPath);
+    return { success: !err, error: err || undefined };
+  });
+}
+
 // 窗口控制IPC设置
 function setupWindowIPC() {
   ipcMain.handle('window:minimize', () => {
@@ -118,16 +154,23 @@ function setupWindowIPC() {
 
 // IPC 设置
 app.whenReady().then(() => {
+  setupAppIcon();
   setupGatewayIPC();
   setupConfigIPC();
+  setupCoreConfigIPC();
+  setupNodeConfigIPC();
   setupTasksIPC();
   setupLogsIPC();
   setupSettingsIPC();
+  setupTailscaleIPC();
   setupAgentsIPC();
   setupSystemIPC();
   setupSessionsIPC();
   setupInstancesIPC();
   setupSkillsIPC();
+  setupCronIPC();
+  setupApprovalsIPC();
+  setupShellIPC();
   setupWindowIPC();
   createWindow();
 });
@@ -139,6 +182,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
+  setupAppIcon();
   if (mainWindow === null) {
     createWindow();
   }

@@ -1,7 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Play, StopCircle, RotateCcw, RefreshCw, FolderOpen, Cpu, HardDrive, Network, Clock } from 'lucide-react';
+import {
+  Play,
+  StopCircle,
+  RefreshCw,
+  FolderOpen,
+  Cpu,
+  HardDrive,
+  Clock,
+  Sparkles,
+  ShieldCheck,
+  Settings2,
+  Wrench,
+} from 'lucide-react';
+
 import GlassCard from '../components/GlassCard';
+import RuntimeUpdateNotice from '../components/RuntimeUpdateNotice';
+import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useI18n } from '../i18n/I18nContext';
+import { createGatewayRepairLoadingState, runGatewayRepair } from '../services/gatewayRepair';
+import AppButton from '../components/AppButton';
 // OpenClawRootDiagnostic type should be defined locally
 interface OpenClawRootDiagnostic {
   rootDir: string;
@@ -27,6 +44,10 @@ interface GatewayStatus {
 function Dashboard() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const {
+    repairCapabilityAvailable,
+    runtimeInfo,
+  } = useDesktopRuntime();
   const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus>({ status: 'checking' });
   const [systemStats, setSystemStats] = useState({
     cpu: 0,
@@ -40,11 +61,34 @@ function Dashboard() {
   const [rootDiagnosticError, setRootDiagnosticError] = useState('');
   const [showRootDiagnosticDetails, setShowRootDiagnosticDetails] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isRepairingGateway, setIsRepairingGateway] = useState(false);
+  const [gatewayRepairSteps, setGatewayRepairSteps] = useState<string[]>([]);
+  const [showGatewayErrorDetails, setShowGatewayErrorDetails] = useState(false);
+  const [gatewayRepairMessage, setGatewayRepairMessage] = useState('');
+  const [gatewayRepairTone, setGatewayRepairTone] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [dashboardMessage, setDashboardMessage] = useState('');
+  const [dashboardMessageTone, setDashboardMessageTone] = useState<'idle' | 'success' | 'error' | 'info'>('idle');
 
   const shouldShowRootDiagnostic = Boolean(
     rootDiagnosticError
     || (rootDiagnostic && (!rootDiagnostic.exists || !rootDiagnostic.hasOpenClawJson || !rootDiagnostic.hasNodeJson))
   );
+
+  const setActionMessage = (
+    tone: 'idle' | 'success' | 'error' | 'info',
+    message: string,
+  ) => {
+    setDashboardMessageTone(tone);
+    setDashboardMessage(message);
+    
+    // 成功消息 3 秒后自动消失
+    if (tone === 'success') {
+      setTimeout(() => {
+        setDashboardMessageTone('idle');
+        setDashboardMessage('');
+      }, 3000);
+    }
+  };
 
   const handleGatewayStart = async () => {
     setLoading(true);
@@ -57,6 +101,39 @@ function Dashboard() {
       console.error('Error starting gateway:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGatewayRepairCompatibility = async () => {
+    setIsRepairingGateway(true);
+    try {
+      const loadingState = createGatewayRepairLoadingState();
+      setGatewayRepairTone(loadingState.tone);
+      setGatewayRepairMessage(loadingState.message);
+      setGatewayRepairSteps(loadingState.steps);
+      setShowGatewayErrorDetails(loadingState.shouldShowDetails);
+
+      const result = await runGatewayRepair({
+        issueHint: gatewayStatus.error,
+        repairCapabilityAvailable,
+        runtimeInfo,
+      });
+
+      setGatewayRepairTone(result.tone);
+      setGatewayRepairMessage(result.message);
+      setGatewayRepairSteps(result.steps);
+      setShowGatewayErrorDetails(result.shouldShowDetails);
+      await Promise.all([fetchGatewayStatus(), fetchSystemStats(), fetchRootDiagnostic()]);
+    } catch (error) {
+      console.error('Error repairing gateway compatibility:', error);
+      setGatewayRepairTone('error');
+      setGatewayRepairMessage('修复没有完成，请查看详情后重试。');
+      setShowGatewayErrorDetails(true);
+      setGatewayRepairSteps([
+        error instanceof Error ? error.message : String(error),
+      ]);
+    } finally {
+      setIsRepairingGateway(false);
     }
   };
 
@@ -92,9 +169,31 @@ function Dashboard() {
     setLoading(true);
     try {
       await Promise.all([fetchGatewayStatus(), fetchSystemStats(), fetchRootDiagnostic()]);
+      setActionMessage('success', '首页状态已经刷新完成。');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePrimaryAssistAction = async () => {
+    if (gatewayStatus.status === 'error') {
+      setActionMessage('info', '正在执行一键修复，请稍候。');
+      await handleGatewayRepairCompatibility();
+      return;
+    }
+
+    if (gatewayStatus.status === 'stopped') {
+      setActionMessage('info', '正在启动 OpenClaw 服务。');
+      await handleGatewayStart();
+      await Promise.all([fetchSystemStats(), fetchRootDiagnostic()]);
+      setActionMessage('success', 'OpenClaw 服务已尝试启动。');
+      return;
+    }
+
+    setActionMessage('info', '正在重启 OpenClaw 服务。');
+    await handleGatewayRestart();
+    await Promise.all([fetchSystemStats(), fetchRootDiagnostic()]);
+    setActionMessage('success', 'OpenClaw 服务已重启。');
   };
 
   const fetchGatewayStatus = async () => {
@@ -211,6 +310,32 @@ function Dashboard() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getGatewayUserMessage = (error?: string) => {
+    const text = (error || '').toLowerCase();
+
+    if (!text) {
+      return 'OpenClaw 当前暂时无法连接，你可以尝试一键修复。';
+    }
+
+    if (text.includes('bindings') || text.includes('schema') || text.includes('config invalid') || text.includes('invalid config')) {
+      return 'OpenClaw 升级后，当前配置需要自动修复。点击“一键修复”即可继续使用。';
+    }
+
+    if (text.includes('connect.challenge') || text.includes('device identity required')) {
+      return 'OpenClaw 升级后需要新的设备认证流程。点击“一键修复”自动检查并恢复连接。';
+    }
+
+    if (text.includes('pairing required')) {
+      return '当前设备需要重新确认连接授权。点击“一键修复”继续处理。';
+    }
+
+    if (text.includes('unauthorized') || text.includes('auth')) {
+      return '当前连接凭据需要更新。点击“一键修复”自动检查配置。';
+    }
+
+    return 'OpenClaw 当前无法正常连接。建议先点击“一键修复”。';
+  };
+
   const parseElapsedTimeToSeconds = (value?: string) => {
     if (!value) {
       return 0;
@@ -246,79 +371,304 @@ function Dashboard() {
     ? systemStats.uptime
     : parseElapsedTimeToSeconds(gatewayStatus.uptime);
 
+  const gatewayHeadline = gatewayStatus.status === 'running'
+    ? 'OpenClaw 已连接，可以直接开始使用。'
+    : gatewayStatus.status === 'checking'
+      ? '正在确认 OpenClaw 当前状态。'
+      : gatewayStatus.status === 'stopped'
+        ? 'OpenClaw 当前未启动，点击下方即可恢复。'
+        : getGatewayUserMessage(gatewayStatus.error);
+
+  const primaryActionLabel = gatewayStatus.status === 'error'
+    ? '一键修复连接'
+    : gatewayStatus.status === 'stopped'
+      ? '启动 OpenClaw'
+      : '重启 OpenClaw';
+
+  const gatewayStatusDetail = gatewayStatus.status === 'running'
+    ? '服务正常'
+    : gatewayStatus.status === 'checking'
+      ? '状态检测中'
+      : gatewayStatus.status === 'stopped'
+        ? '等待启动'
+        : '需要处理';
+
+  const healthCards = [
+    {
+      icon: ShieldCheck,
+      label: '服务状态',
+      value: getStatusText(gatewayStatus.status),
+      accent: gatewayStatus.status === 'running'
+        ? '#34d399'
+        : gatewayStatus.status === 'checking'
+          ? '#fbbf24'
+          : '#f87171',
+    },
+    {
+      icon: Cpu,
+      label: t('cpuUsage'),
+      value: `${systemStats.cpu}%`,
+      accent: '#60a5fa',
+    },
+    {
+      icon: HardDrive,
+      label: t('memoryUsage'),
+      value: `${systemStats.memory}%`,
+      accent: '#2dd4bf',
+    },
+    {
+      icon: Clock,
+      label: t('uptime'),
+      value: formatUptime(displayUptimeSeconds),
+      accent: '#a78bfa',
+    },
+  ];
+
+  const quickActions = [
+    {
+      key: 'logs',
+      title: '查看运行日志',
+      description: '打开日志页，快速查看最近运行记录与错误。',
+      icon: FolderOpen,
+      onClick: () => navigate('/logs'),
+    },
+    {
+      key: 'agents',
+      title: '配置 Agent',
+      description: '进入 Agent 管理页，查看、编辑或新建 Agent 配置。',
+      icon: Settings2,
+      onClick: () => navigate('/agents'),
+    },
+    {
+      key: 'channels',
+      title: '配置模型渠道',
+      description: '前往渠道设置，管理 AI 模型接入与 API 配置。',
+      icon: Cpu,
+      onClick: () => navigate('/settings?section=channels'),
+    },
+  ];
+
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>{t('openclawDesktop')}</h1>
-          <p className="mt-1" style={{ color: 'var(--app-text-muted)' }}>{t('monitorAndControl')}</p>
-        </div>
-        <button 
-          onClick={handleRefreshStats}
-          className="px-4 py-2 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
-          style={{
-            backgroundColor: 'var(--app-bg-elevated)',
-            border: '1px solid var(--app-border)',
-            color: 'var(--app-text)',
-          }}
-        >
-          <RefreshCw size={18} /> {t('refreshStats')}
-        </button>
-      </div>
-
-      {/* Gateway Status Card */}
       <GlassCard className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${getStatusBgColor(gatewayStatus.status)}`}>
-              <Play className={`${getStatusColor(gatewayStatus.status)}`} size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>{t('gatewayStatus')}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(gatewayStatus.status)}`} />
-                <span className={`font-medium ${getStatusColor(gatewayStatus.status)}`}>
-                  {getStatusText(gatewayStatus.status)}
-                </span>
-                {gatewayStatus.version && (
-                  <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>v{gatewayStatus.version}</span>
-                )}
+        <div className="flex items-start justify-between gap-4">
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
+            style={{
+              backgroundColor: 'var(--app-bg-elevated)',
+              border: '1px solid var(--app-border)',
+              color: 'var(--app-text-muted)',
+            }}
+          >
+            <Sparkles size={14} />
+            今日控制台
+          </div>
+          <AppButton
+            variant="secondary"
+            onClick={() => void handleRefreshStats()}
+            disabled={loading}
+            icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />}
+          >
+            刷新首页状态
+          </AppButton>
+        </div>
+
+        <div className="mt-2 flex flex-col gap-6">
+          <div className="max-w-3xl">
+            <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--app-text)' }}>
+              {t('openclawDesktop')}
+            </h1>
+            <p className="max-w-2xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
+              {gatewayHeadline}
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium ${getStatusBgColor(gatewayStatus.status)}`}>
+                <div className={`h-2.5 w-2.5 rounded-full ${getStatusColor(gatewayStatus.status)}`} />
+                <span className={getStatusColor(gatewayStatus.status)}>{getStatusText(gatewayStatus.status)}</span>
+                <span style={{ color: 'var(--app-text-muted)' }}>· {gatewayStatusDetail}</span>
               </div>
+              {gatewayStatus.version ? (
+                <div className="rounded-full px-3 py-2 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+                  版本 {gatewayStatus.version}
+                </div>
+              ) : null}
+              {(gatewayStatus.host || gatewayStatus.port) ? (
+                <div className="rounded-full px-3 py-2 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+                  {gatewayStatus.host || 'localhost'}:{gatewayStatus.port || 'unknown'}
+                </div>
+              ) : null}
+            </div>
+            {/* 服务控制 */}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <AppButton
+                variant="success"
+                onClick={() => void handleGatewayStart()}
+                disabled={loading || gatewayStatus.status === 'running'}
+                icon={<Play size={16} />}
+              >
+                {t('start')}
+              </AppButton>
+              <AppButton
+                variant="danger"
+                onClick={() => void handleGatewayStop()}
+                disabled={loading || gatewayStatus.status !== 'running'}
+                icon={<StopCircle size={16} />}
+              >
+                {t('stop')}
+              </AppButton>
+              <AppButton
+                variant={gatewayStatus.status === 'error' ? 'danger' : 'primary'}
+                onClick={() => void handlePrimaryAssistAction()}
+                disabled={loading || isRepairingGateway}
+                icon={gatewayStatus.status === 'error' ? <Wrench size={16} /> : <RefreshCw size={16} />}
+              >
+                {primaryActionLabel}
+              </AppButton>
+            </div>
+            {/* 导航跳转 */}
+            <div className="mt-3 flex flex-wrap gap-3">
+              <AppButton
+                variant="secondary"
+                onClick={() => navigate('/sessions')}
+                icon={<FolderOpen size={16} />}
+              >
+                进入会话中心
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                onClick={() => navigate('/settings?section=general')}
+                icon={<Settings2 size={16} />}
+              >
+                查看高级设置
+              </AppButton>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleGatewayStart}
-              disabled={loading || gatewayStatus.status === 'running'}
-              className="px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <Play size={18} /> {t('start')}
-            </button>
-            <button 
-              onClick={handleGatewayStop}
-              disabled={loading || gatewayStatus.status !== 'running'}
-              className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <StopCircle size={18} /> {t('stop')}
-            </button>
-            <button 
-              onClick={handleGatewayRestart}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-tech-cyan/20 hover:bg-tech-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <RotateCcw size={18} /> {t('restart')}
-            </button>
+
+          <div className="grid grid-cols-4 gap-3">
+            {healthCards.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border p-4"
+                  style={{
+                    backgroundColor: 'var(--app-bg-subtle)',
+                    borderColor: 'var(--app-border)',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-11 w-11 items-center justify-center rounded-2xl"
+                      style={{
+                        backgroundColor: `${item.accent}1f`,
+                        color: item.accent,
+                      }}
+                    >
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{item.label}</div>
+                      <div className="mt-1 text-lg font-semibold" style={{ color: 'var(--app-text)' }}>{item.value}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {gatewayStatus.error && (
-          <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-            <p className="text-red-400 text-sm">{gatewayStatus.error}</p>
-            {(gatewayStatus.host || gatewayStatus.port) && (
-              <p className="text-red-300/80 text-xs mt-2">
-                target: {gatewayStatus.host || 'unknown'}:{gatewayStatus.port || 'unknown'}
-              </p>
+          <div className="mt-6 rounded-2xl border p-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.18)' }}>
+            <p className="text-sm font-medium" style={{ color: '#fca5a5' }}>{getGatewayUserMessage(gatewayStatus.error)}</p>
+
+            {!repairCapabilityAvailable && runtimeInfo && (
+              <RuntimeUpdateNotice
+                className="mt-3"
+                message={`当前是 ${runtimeInfo.appVersionLabel}，但修复能力还未完成加载。请重启桌面应用完成更新。`}
+                runtimeInfo={runtimeInfo}
+              />
+            )}
+
+            {gatewayRepairTone !== 'idle' && gatewayRepairMessage && (
+              <div
+                className="mt-3 rounded-lg px-3 py-2 text-sm"
+                style={{
+                  backgroundColor: gatewayRepairTone === 'success'
+                    ? 'rgba(16, 185, 129, 0.14)'
+                    : gatewayRepairTone === 'error'
+                      ? 'rgba(239, 68, 68, 0.14)'
+                      : 'rgba(59, 130, 246, 0.14)',
+                  border: `1px solid ${gatewayRepairTone === 'success'
+                    ? 'rgba(16, 185, 129, 0.24)'
+                    : gatewayRepairTone === 'error'
+                      ? 'rgba(239, 68, 68, 0.24)'
+                      : 'rgba(59, 130, 246, 0.24)'}`,
+                  color: gatewayRepairTone === 'success'
+                    ? '#A7F3D0'
+                    : gatewayRepairTone === 'error'
+                      ? '#FCA5A5'
+                      : '#BFDBFE',
+                }}
+              >
+                {gatewayRepairMessage}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <AppButton
+                variant="danger"
+                onClick={() => void handleGatewayRepairCompatibility()}
+                disabled={isRepairingGateway || !repairCapabilityAvailable}
+                icon={<RefreshCw size={16} className={isRepairingGateway ? 'animate-spin' : ''} />}
+              >
+                {isRepairingGateway ? '修复中...' : repairCapabilityAvailable ? '立即修复' : '重启后可用'}
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                onClick={() => setShowGatewayErrorDetails((value) => !value)}
+              >
+                {showGatewayErrorDetails ? '隐藏详情' : '查看详情'}
+              </AppButton>
+            </div>
+
+            {showGatewayErrorDetails && (
+              <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.04)' }}>
+                <p className="text-xs font-medium" style={{ color: 'var(--app-text)' }}>技术详情</p>
+                <div className="mt-2 space-y-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {isRepairingGateway && (
+                    <div>
+                      <div style={{ color: 'var(--app-text)' }}>当前状态</div>
+                      <div className="mt-1">正在执行官方修复流程，请不要关闭窗口。</div>
+                    </div>
+                  )}
+                  {runtimeInfo && (
+                    <div>
+                      <div style={{ color: 'var(--app-text)' }}>运行时版本</div>
+                      <div className="mt-1">{runtimeInfo.appVersionLabel} · compat tail {runtimeInfo.openclawCompatTail}</div>
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ color: 'var(--app-text)' }}>原始错误</div>
+                    <div className="mt-1 break-words">{gatewayStatus.error}</div>
+                  </div>
+                  {(gatewayStatus.host || gatewayStatus.port) && (
+                    <div>
+                      <div style={{ color: 'var(--app-text)' }}>连接目标</div>
+                      <div className="mt-1">{gatewayStatus.host || 'unknown'}:{gatewayStatus.port || 'unknown'}</div>
+                    </div>
+                  )}
+                  {gatewayRepairSteps.length > 0 && (
+                    <div>
+                      <div style={{ color: 'var(--app-text)' }}>修复进度</div>
+                      <div className="mt-1 space-y-1">
+                        {gatewayRepairSteps.map((step, index) => (
+                          <div key={`${index}-${step}`}>{index + 1}. {step}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -329,50 +679,81 @@ function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-            <div className="flex items-center gap-3">
-              <Cpu className="text-tech-cyan" size={24} />
-              <div>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('cpuUsage')}</p>
-                <p className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>{systemStats.cpu}%</p>
-              </div>
-            </div>
+        {dashboardMessage ? (
+          <div
+            className="mt-5 rounded-2xl border px-4 py-3 text-sm"
+            style={{
+              backgroundColor: dashboardMessageTone === 'success'
+                ? 'rgba(16, 185, 129, 0.12)'
+                : dashboardMessageTone === 'error'
+                  ? 'rgba(239, 68, 68, 0.12)'
+                  : 'rgba(59, 130, 246, 0.12)',
+              borderColor: dashboardMessageTone === 'success'
+                ? 'rgba(16, 185, 129, 0.24)'
+                : dashboardMessageTone === 'error'
+                  ? 'rgba(239, 68, 68, 0.24)'
+                  : 'rgba(59, 130, 246, 0.24)',
+              color: dashboardMessageTone === 'success'
+                ? '#065f46'  /* 深绿色，与浅绿背景形成足够对比度 */
+                : dashboardMessageTone === 'error'
+                  ? '#991b1b'  /* 深红色 */
+                  : '#1e40af',  /* 深蓝色 */
+            }}
+          >
+            {dashboardMessage}
           </div>
-          
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-            <div className="flex items-center gap-3">
-              <HardDrive className="text-tech-teal" size={24} />
-              <div>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('memoryUsage')}</p>
-                <p className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>{systemStats.memory}%</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-            <div className="flex items-center gap-3">
-              <Network className="text-tech-green" size={24} />
-              <div>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('networkActivity')}</p>
-                <p className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>{systemStats.network}%</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-            <div className="flex items-center gap-3">
-              <Clock className="text-tech-mint" size={24} />
-              <div>
-                <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('uptime')}</p>
-                <p className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>{formatUptime(displayUptimeSeconds)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        ) : null}
+      </GlassCard>
 
-        {shouldShowRootDiagnostic && (
-          <div className="mt-6 rounded-xl p-4 border" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
+      <div className="space-y-6">
+        <GlassCard className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>快捷操作</h3>
+              <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                快速跳转到常用功能，或刷新当前状态。
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            {quickActions.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  onClick={item.onClick}
+                  className="w-full rounded-xl border px-4 py-3 text-left transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+                  style={{
+                    backgroundColor: 'var(--app-bg-subtle)',
+                    borderColor: 'var(--app-border)',
+                    color: 'var(--app-text)',
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-xl"
+                      style={{
+                        backgroundColor: 'var(--app-active-bg)',
+                        color: 'var(--app-active-text)',
+                      }}
+                    >
+                      <Icon size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{item.title}</div>
+                      <div className="mt-1 text-xs leading-5" style={{ color: 'var(--app-text-muted)' }}>
+                        {item.description}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </GlassCard>
+
+        {shouldShowRootDiagnostic ? (
+          <GlassCard className="p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
@@ -387,20 +768,20 @@ function Dashboard() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <AppButton
+                  variant="secondary"
+                  size="sm"
                   onClick={() => setShowRootDiagnosticDetails((value) => !value)}
-                  className="px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: 'var(--app-bg-elevated)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
                 >
                   {showRootDiagnosticDetails ? '隐藏详情' : '查看详情'}
-                </button>
-                <button
+                </AppButton>
+                <AppButton
+                  variant="primary"
+                  size="sm"
                   onClick={() => navigate('/settings?section=config')}
-                  className="px-3 py-2 rounded-lg text-sm"
-                  style={{ backgroundColor: 'var(--app-active-bg)', color: 'var(--app-active-text)', border: '1px solid var(--app-active-border)' }}
                 >
                   前往配置
-                </button>
+                </AppButton>
               </div>
             </div>
 
@@ -434,41 +815,10 @@ function Dashboard() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-      </GlassCard>
-
-      {/* Quick Actions */}
-      <div>
-        <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>{t('quickActions')}</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button className="p-4 rounded-xl transition-all duration-300 border flex items-center gap-3 cursor-pointer" style={{ background: 'var(--app-active-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <FolderOpen size={24} />
-            <div className="text-left">
-              <p className="font-medium">{t('openLogs')}</p>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('viewRecentActivity')}</p>
-            </div>
-          </button>
-          
-          <button className="p-4 rounded-xl transition-all duration-300 border flex items-center gap-3 cursor-pointer" style={{ background: 'var(--app-active-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <RotateCcw size={24} />
-            <div className="text-left">
-              <p className="font-medium">{t('restartAgents')}</p>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('reloadAllRunningAgents')}</p>
-            </div>
-          </button>
-          
-          <button className="p-4 rounded-xl transition-all duration-300 border flex items-center gap-3 cursor-pointer" style={{ background: 'var(--app-active-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <RefreshCw size={24} />
-            <div className="text-left">
-              <p className="font-medium">{t('cleanCache')}</p>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('freeUpSystemResources')}</p>
-            </div>
-          </button>
-        </div>
+          </GlassCard>
+        ) : null}
       </div>
     </div>
   );
 }
-
 export default Dashboard;

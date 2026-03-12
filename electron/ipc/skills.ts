@@ -1,9 +1,8 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
 import { existsSync, readdirSync, readFileSync } from 'fs';
-import { homedir } from 'os';
 import { join } from 'path';
-import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
+import { getOpenClawRootDir, resolveOpenClawCommand, runCommand as runShellCommand } from './settings.js';
 
 export interface SkillInfo {
   id: string;
@@ -21,348 +20,251 @@ export interface SkillInfo {
   downloads?: number;
   enabled: boolean;
   path?: string;
+  eligible?: boolean;
+  missingRequirements?: string[];
 }
 
-// 运行 OpenClaw 命令的辅助函数
-async function runOpenClawCommand(args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const { spawn } = require('child_process');
-      const process = spawn(resolveOpenClawCommand(), args);
-      
-      let output = '';
-      let errorOutput = '';
-      
-      process.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      process.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      process.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true, output });
-        } else {
-          resolve({ success: false, output: '', error: errorOutput || `Command exited with code ${code}` });
-        }
-      });
-      
-      process.on('error', (error) => {
-        resolve({ success: false, output: '', error: error.message });
-      });
-      
-      // 设置超时
-      setTimeout(() => {
-        try {
-          process.kill();
-        } catch (e) {
-          // ignore
-        }
-        resolve({ success: false, output: '', error: 'Command timeout' });
-      }, 15000);
-      
-    } catch (error: any) {
-      resolve({ success: false, output: '', error: error.message });
-    }
-  });
+// 运行 openclaw 命令，复用 settings 中带完整 shell PATH 的 runCommand
+async function runCommand(args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
+  const cmd = resolveOpenClawCommand();
+  return runShellCommand(cmd, args);
 }
 
-// 获取已安装的技能
-async function getInstalledSkills(): Promise<SkillInfo[]> {
+function stripAnsi(s: string): string {
+  return s.replace(/\u001b\[[0-9;]*m/g, '').replace(/\x1B\[[0-9;]*m/g, '');
+}
+
+function tryParseJson<T>(raw: string): T | null {
+  const text = stripAnsi(raw).trim();
+  if (!text) return null;
+  try { return JSON.parse(text) as T; } catch { return null; }
+}
+
+// 从本地 skills 目录读取已安装技能
+function readInstalledSkillsFromDisk(): SkillInfo[] {
   const skills: SkillInfo[] = [];
   const rootDir = getOpenClawRootDir();
   const skillsDir = join(rootDir, 'skills');
-  
-  if (!existsSync(skillsDir)) {
-    return skills;
-  }
-  
+
+  if (!existsSync(skillsDir)) return skills;
+
   try {
     const entries = readdirSync(skillsDir, { withFileTypes: true });
-    
     for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const skillId = entry.name;
-        const skillPath = join(skillsDir, skillId);
-        const packageJsonPath = join(skillPath, 'package.json');
-        const skillMetadataPath = join(skillPath, 'SKILL.md');
-        
-        if (existsSync(packageJsonPath)) {
-          try {
-            const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-            
-            // 尝试从 SKILL.md 读取描述
-            let description = packageJson.description || 'No description available';
-            if (existsSync(skillMetadataPath)) {
-              const skillContent = readFileSync(skillMetadataPath, 'utf-8');
-              const descMatch = skillContent.match(/## Description\s*\n([\s\S]*?)(?:\n##|\n#|\n$)/);
-              if (descMatch) {
-                description = descMatch[1].trim();
-              }
-            }
-            
-            skills.push({
-              id: skillId,
-              name: packageJson.name || skillId,
-              description: description,
-              version: packageJson.version || '1.0.0',
-              author: typeof packageJson.author === 'string' 
-                ? packageJson.author 
-                : packageJson.author?.name || 'Unknown',
-              category: packageJson.category || 'tools',
-              status: 'installed',
-              installedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              enabled: true,
-              path: skillPath,
-              dependencies: packageJson.dependencies ? Object.keys(packageJson.dependencies) : []
-            });
-          } catch (e) {
-            console.error(`Error reading skill ${skillId}:`, e);
-          }
+      if (!entry.isDirectory()) continue;
+      const skillId = entry.name;
+      const skillPath = join(skillsDir, skillId);
+      const pkgPath = join(skillPath, 'package.json');
+      if (!existsSync(pkgPath)) continue;
+
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+        let description = pkg.description || '';
+
+        // 尝试从 SKILL.md 读取描述
+        const skillMdPath = join(skillPath, 'SKILL.md');
+        if (existsSync(skillMdPath)) {
+          const md = readFileSync(skillMdPath, 'utf-8');
+          const m = md.match(/## Description\s*\n([\s\S]*?)(?:\n##|\n#|$)/);
+          if (m) description = m[1].trim();
         }
-      }
+
+        skills.push({
+          id: skillId,
+          name: pkg.name || skillId,
+          description,
+          version: pkg.version || '1.0.0',
+          author: typeof pkg.author === 'string' ? pkg.author : (pkg.author?.name || 'Unknown'),
+          category: pkg.category || 'tools',
+          status: 'installed',
+          enabled: true,
+          path: skillPath,
+          dependencies: pkg.dependencies ? Object.keys(pkg.dependencies) : [],
+        });
+      } catch { /* 跳过解析失败的技能 */ }
     }
-  } catch (error) {
-    console.error('Error reading skills directory:', error);
+  } catch (err) {
+    console.error('读取 skills 目录失败:', err);
   }
-  
+
   return skills;
 }
 
-// 获取可用的技能（从官方仓库）
-async function getAvailableSkills(): Promise<SkillInfo[]> {
-  const skills: SkillInfo[] = [];
-  
-  try {
-    // 这里应该调用 OpenClaw 官方技能仓库 API
-    // 暂时返回一些示例技能
-    skills.push({
-      id: 'github-integration',
-      name: 'GitHub Integration',
-      description: 'Integrate with GitHub for issue tracking, PR management, and repository operations',
-      version: '1.2.0',
-      author: 'OpenClaw Team',
-      category: 'development',
-      status: 'available',
-      size: 245760,
-      dependencies: ['axios', 'octokit'],
-      rating: 4.8,
-      downloads: 1245,
-      enabled: false
-    });
-    
-    skills.push({
-      id: 'calendar-integration',
-      name: 'Calendar Integration',
-      description: 'Integrate with calendar services for scheduling and event management',
-      version: '1.0.0',
-      author: 'OpenClaw Team',
-      category: 'productivity',
-      status: 'available',
-      size: 204800,
-      dependencies: ['googleapis'],
-      rating: 4.5,
-      downloads: 567,
-      enabled: false
-    });
-    
-    skills.push({
-      id: 'weather',
-      name: 'Weather',
-      description: 'Get current weather and forecasts for any location',
-      version: '1.1.0',
-      author: 'OpenClaw Team',
-      category: 'tools',
-      status: 'available',
-      size: 102400,
-      dependencies: ['axios'],
-      rating: 4.7,
-      downloads: 890,
-      enabled: false
-    });
-    
-  } catch (error) {
-    console.error('Error fetching available skills:', error);
+// 调用 openclaw skills list --json 获取技能列表
+async function fetchSkillsFromCLI(): Promise<SkillInfo[]> {
+  // 先尝试带 --json 标志
+  const result = await runCommand(['skills', 'list', '--json']);
+  const parsed = tryParseJson<unknown>(result.output);
+
+  if (parsed) {
+    const list = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as any)?.skills)
+        ? (parsed as any).skills
+        : Array.isArray((parsed as any)?.items)
+          ? (parsed as any).items
+          : [];
+
+    return list
+      .filter((item: any) => typeof item === 'object' && item !== null)
+      .map((item: any): SkillInfo => ({
+        id: String(item.id || item.name || ''),
+        name: String(item.name || item.id || ''),
+        description: String(item.description || ''),
+        version: String(item.version || '1.0.0'),
+        author: String(item.author || 'Unknown'),
+        category: String(item.category || 'tools'),
+        status: item.installed ? 'installed' : 'available',
+        enabled: item.enabled !== false,
+        eligible: item.eligible,
+        missingRequirements: Array.isArray(item.missingRequirements) ? item.missingRequirements : [],
+      }));
   }
-  
-  return skills;
+
+  // 回退：从磁盘读取
+  return readInstalledSkillsFromDisk();
+}
+
+// 调用 openclaw skills list --eligible --json 获取可用技能
+async function fetchEligibleSkillsFromCLI(): Promise<SkillInfo[]> {
+  const result = await runCommand(['skills', 'list', '--eligible', '--json']);
+  const parsed = tryParseJson<unknown>(result.output);
+  if (!parsed) return [];
+
+  const list = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray((parsed as any)?.skills)
+      ? (parsed as any).skills
+      : [];
+
+  return list
+    .filter((item: any) => typeof item === 'object' && item !== null)
+    .map((item: any): SkillInfo => ({
+      id: String(item.id || item.name || ''),
+      name: String(item.name || item.id || ''),
+      description: String(item.description || ''),
+      version: String(item.version || '1.0.0'),
+      author: String(item.author || 'Unknown'),
+      category: String(item.category || 'tools'),
+      status: 'available',
+      enabled: false,
+      eligible: true,
+    }));
 }
 
 export function setupSkillsIPC() {
-  // 获取所有技能
+  // 获取所有技能（已安装 + 可用）
   ipcMain.handle('skills:getAll', async (): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }> => {
     try {
-      const [installedSkills, availableSkills] = await Promise.all([
-        getInstalledSkills(),
-        getAvailableSkills()
+      const [allSkills, eligibleSkills] = await Promise.all([
+        fetchSkillsFromCLI(),
+        fetchEligibleSkillsFromCLI(),
       ]);
-      
-      // 合并技能，避免重复
-      const allSkills = [...installedSkills];
-      const installedIds = new Set(installedSkills.map(s => s.id));
-      
-      for (const availableSkill of availableSkills) {
-        if (!installedIds.has(availableSkill.id)) {
-          allSkills.push(availableSkill);
+
+      // 合并：已安装优先，eligible 补充未安装的
+      const installedIds = new Set(allSkills.filter(s => s.status === 'installed').map(s => s.id));
+      const merged = [...allSkills];
+      for (const s of eligibleSkills) {
+        if (!installedIds.has(s.id) && !merged.some(m => m.id === s.id)) {
+          merged.push(s);
         }
       }
-      
-      return { success: true, skills: allSkills };
-    } catch (error) {
-      return { 
-        success: false, 
-        error: `Failed to get skills: ${error instanceof Error ? error.message : String(error)}` 
-      };
+
+      return { success: true, skills: merged };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
 
-  // 安装技能
+  // 安装技能（openclaw skills install <id> 或 openclaw clawbot install <id>）
   ipcMain.handle('skills:install', async (_, skillId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // 这里应该调用真实的技能安装命令
-      // 暂时模拟安装过程
-      console.log(`Installing skill: ${skillId}`);
-      
-      // 模拟安装延迟
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
+    // 尝试 skills install，再尝试 clawbot install
+    let result = await runCommand(['skills', 'install', skillId]);
+    if (!result.success) {
+      result = await runCommand(['clawbot', 'install', skillId]);
     }
+    if (!result.success) {
+      return { success: false, error: result.error || '安装技能失败' };
+    }
+    return { success: true };
   });
 
   // 卸载技能
   ipcMain.handle('skills:uninstall', async (_, skillId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // 这里应该调用真实的技能卸载命令
-      // 暂时模拟卸载过程
-      console.log(`Uninstalling skill: ${skillId}`);
-      
-      // 模拟卸载延迟
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
+    let result = await runCommand(['skills', 'uninstall', skillId]);
+    if (!result.success) {
+      result = await runCommand(['clawbot', 'uninstall', skillId]);
     }
+    if (!result.success) {
+      return { success: false, error: result.error || '卸载技能失败' };
+    }
+    return { success: true };
   });
 
   // 更新技能
   ipcMain.handle('skills:update', async (_, skillId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // 这里应该调用真实的技能更新命令
-      // 暂时模拟更新过程
-      console.log(`Updating skill: ${skillId}`);
-      
-      // 模拟更新延迟
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
+    let result = await runCommand(['skills', 'update', skillId]);
+    if (!result.success) {
+      result = await runCommand(['clawbot', 'update', skillId]);
     }
+    if (!result.success) {
+      return { success: false, error: result.error || '更新技能失败' };
+    }
+    return { success: true };
   });
 
   // 启用技能
   ipcMain.handle('skills:enable', async (_, skillId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // 这里应该启用技能
-      console.log(`Enabling skill: ${skillId}`);
-      
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
+    const result = await runCommand(['skills', 'enable', skillId]);
+    if (!result.success) {
+      return { success: false, error: result.error || '启用技能失败' };
     }
+    return { success: true };
   });
 
   // 禁用技能
   ipcMain.handle('skills:disable', async (_, skillId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      // 这里应该禁用技能
-      console.log(`Disabling skill: ${skillId}`);
-      
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: String(error) };
+    const result = await runCommand(['skills', 'disable', skillId]);
+    if (!result.success) {
+      return { success: false, error: result.error || '禁用技能失败' };
     }
+    return { success: true };
   });
 
-  // 获取技能统计信息
-  ipcMain.handle('skills:stats', async (): Promise<{ 
-    success: boolean; 
-    stats?: {
-      total: number;
-      installed: number;
-      available: number;
-      updatable: number;
-      enabled: number;
-      byCategory: Record<string, number>;
-    }; 
-    error?: string 
-  }> => {
+  // 技能统计
+  ipcMain.handle('skills:stats', async (): Promise<{ success: boolean; stats?: Record<string, unknown>; error?: string }> => {
     try {
-      const [installedSkills, availableSkills] = await Promise.all([
-        getInstalledSkills(),
-        getAvailableSkills()
-      ]);
-      
-      const allSkills = [...installedSkills];
-      const installedIds = new Set(installedSkills.map(s => s.id));
-      
-      for (const availableSkill of availableSkills) {
-        if (!installedIds.has(availableSkill.id)) {
-          allSkills.push(availableSkill);
-        }
-      }
-      
+      const skills = await fetchSkillsFromCLI();
       const stats = {
-        total: allSkills.length,
-        installed: installedSkills.length,
-        available: availableSkills.length,
-        updatable: installedSkills.filter(s => s.status === 'updatable').length,
-        enabled: installedSkills.filter(s => s.enabled).length,
-        byCategory: allSkills.reduce((acc, skill) => {
-          acc[skill.category] = (acc[skill.category] || 0) + 1;
+        total: skills.length,
+        installed: skills.filter(s => s.status === 'installed').length,
+        available: skills.filter(s => s.status === 'available').length,
+        updatable: skills.filter(s => s.status === 'updatable').length,
+        enabled: skills.filter(s => s.enabled && s.status === 'installed').length,
+        byCategory: skills.reduce((acc, s) => {
+          acc[s.category] = (acc[s.category] || 0) + 1;
           return acc;
-        }, {} as Record<string, number>)
+        }, {} as Record<string, number>),
       };
-      
       return { success: true, stats };
-    } catch (error) {
-      return { success: false, error: String(error) };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
 
   // 搜索技能
   ipcMain.handle('skills:search', async (_, query: string): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }> => {
     try {
-      const [installedSkills, availableSkills] = await Promise.all([
-        getInstalledSkills(),
-        getAvailableSkills()
-      ]);
-      
-      const allSkills = [...installedSkills];
-      const installedIds = new Set(installedSkills.map(s => s.id));
-      
-      for (const availableSkill of availableSkills) {
-        if (!installedIds.has(availableSkill.id)) {
-          allSkills.push(availableSkill);
-        }
-      }
-      
-      const filteredSkills = allSkills.filter(skill => 
-        skill.name.toLowerCase().includes(query.toLowerCase()) ||
-        skill.description.toLowerCase().includes(query.toLowerCase()) ||
-        skill.category.toLowerCase().includes(query.toLowerCase())
+      const skills = await fetchSkillsFromCLI();
+      const q = query.toLowerCase();
+      const filtered = skills.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.category.toLowerCase().includes(q),
       );
-      
-      return { success: true, skills: filteredSkills };
-    } catch (error) {
-      return { success: false, error: String(error) };
+      return { success: true, skills: filtered };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
 }

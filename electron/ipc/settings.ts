@@ -1,10 +1,10 @@
 import pkg from 'electron';
-const { ipcMain } = pkg;
+const { app, ipcMain } = pkg;
 import Store from 'electron-store';
 import { spawn } from 'child_process';
 import os from 'os';
 import path from 'path';
-import { existsSync, statSync } from 'fs';
+import { statSync } from 'fs';
 import fs from 'fs/promises';
 
 interface AppSettings {
@@ -16,6 +16,25 @@ interface AppSettings {
   language?: string;
   showTrayIcon?: boolean;
   trayIconAction?: 'openWindow' | 'showMenu';
+  openclawActive?: boolean;
+  runMode?: 'local';
+  launchAtLogin?: boolean;
+  showDockIcon?: boolean;
+  playMenuBarAnimations?: boolean;
+  allowCanvas?: boolean;
+  allowCamera?: boolean;
+  enablePeekabooBridge?: boolean;
+  enableDebugTools?: boolean;
+  exposureMode?: 'off' | 'tailnet' | 'public';
+  requireCredentials?: boolean;
+  voiceWakeEnabled?: boolean;
+  holdToTalk?: boolean;
+  recognitionLanguage?: string;
+  additionalLanguages?: string[];
+  microphoneId?: string;
+  triggerSound?: string;
+  sendSound?: string;
+  triggerWords?: string[];
   
   // Existing Settings
   openclawPath?: string;
@@ -35,6 +54,26 @@ interface OpenClawRootDiagnostic {
   error?: string;
 }
 
+interface OpenClawPathDetection {
+  path: string;
+  source: 'configured' | 'bundled' | 'common-path' | 'path-env' | 'directory' | 'not-found';
+  type: 'executable' | 'directory' | 'not-found';
+}
+
+interface OpenClawCommandDiagnostic {
+  configuredPath: string;
+  resolvedCommand: string;
+  rootDir: string;
+  pathEnvHit: boolean;
+  pathEnvCommand?: string;
+  detectedPath?: string;
+  detectedSource?: OpenClawPathDetection['source'];
+  commandExists: boolean;
+  versionSuccess: boolean;
+  versionOutput?: string;
+  error?: string;
+}
+
 const store = new Store<AppSettings>({
   defaults: {
     // General Settings Defaults
@@ -45,6 +84,25 @@ const store = new Store<AppSettings>({
     language: 'system',
     showTrayIcon: true,
     trayIconAction: 'openWindow',
+    openclawActive: true,
+    runMode: 'local',
+    launchAtLogin: false,
+    showDockIcon: false,
+    playMenuBarAnimations: true,
+    allowCanvas: true,
+    allowCamera: true,
+    enablePeekabooBridge: true,
+    enableDebugTools: false,
+    exposureMode: 'tailnet',
+    requireCredentials: false,
+    voiceWakeEnabled: true,
+    holdToTalk: false,
+    recognitionLanguage: 'zh-CN',
+    additionalLanguages: ['en-US'],
+    microphoneId: 'system-default',
+    triggerSound: 'glass',
+    sendSound: 'glass',
+    triggerWords: ['openclaw', 'claude', 'computer'],
     
     // Existing Settings Defaults
     openclawPath: '',
@@ -81,10 +139,45 @@ export function getOpenClawRootDir(): string {
   return path.join(os.homedir(), '.openclaw');
 }
 
+const getBundledOpenClawCandidates = (): string[] => {
+  const executableName = process.platform === 'win32'
+    ? 'openclaw.exe'
+    : 'openclaw';
+  const resourcesRoot = process.resourcesPath;
+  const appRoot = app.getAppPath();
+
+  return Array.from(new Set([
+    path.join(resourcesRoot, 'bin', process.platform, process.arch, executableName),
+    path.join(resourcesRoot, 'bin', `${process.platform}-${process.arch}`, executableName),
+    path.join(resourcesRoot, 'bin', executableName),
+    path.join(appRoot, 'resources', 'bin', process.platform, process.arch, executableName),
+    path.join(appRoot, 'resources', 'bin', `${process.platform}-${process.arch}`, executableName),
+    path.join(appRoot, 'resources', 'bin', executableName),
+  ]));
+};
+
+const resolveBundledOpenClawPathSync = (): string => {
+  for (const candidate of getBundledOpenClawCandidates()) {
+    try {
+      const stats = statSync(candidate);
+      if (stats.isFile()) {
+        return candidate;
+      }
+    } catch {
+    }
+  }
+
+  return '';
+};
+
+export function getBundledOpenClawPath(): string {
+  return resolveBundledOpenClawPathSync();
+}
+
 export function resolveOpenClawCommand(): string {
   const customPath = getOpenClawPath();
   if (!customPath) {
-    return 'openclaw';
+    return resolveBundledOpenClawPathSync() || 'openclaw';
   }
 
   try {
@@ -95,7 +188,124 @@ export function resolveOpenClawCommand(): string {
   } catch {
   }
 
-  return 'openclaw';
+  return resolveBundledOpenClawPathSync() || 'openclaw';
+}
+
+// 通过 login shell 获取用户完整 PATH（解决 Electron 启动时不加载 .zshrc/.bashrc 的问题）
+let _resolvedShellPath: string | null = null;
+async function getShellPath(): Promise<string> {
+  if (_resolvedShellPath) return _resolvedShellPath;
+
+  const extraPaths = [
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    `${os.homedir()}/.nvm/versions/node/current/bin`,
+    `${os.homedir()}/.local/bin`,
+    `${os.homedir()}/.cargo/bin`,
+  ];
+
+  const shellBin = process.env.SHELL && process.env.SHELL.startsWith('/') ? process.env.SHELL : '/bin/sh';
+
+  try {
+    const result = await new Promise<string>((resolve) => {
+      const child = spawn(shellBin, ['-l', '-c', 'echo $PATH'], {
+        env: process.env,
+      });
+      let out = '';
+      child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+      child.on('close', () => resolve(out.trim()));
+      child.on('error', () => resolve(''));
+      setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 3000);
+    });
+
+    if (result) {
+      const combined = Array.from(new Set(result.split(':').concat(extraPaths))).join(':');
+      _resolvedShellPath = combined;
+      return combined;
+    }
+  } catch {}
+
+  const fallback = Array.from(new Set((process.env.PATH || '').split(':').concat(extraPaths))).join(':');
+  _resolvedShellPath = fallback;
+  return fallback;
+}
+
+// 导出供其他 IPC 模块复用，确保打包后也能获取完整 shell PATH
+export async function runCommand(
+  command: string,
+  args: string[],
+): Promise<{ success: boolean; output: string; error?: string }> {
+  const shellPath = await getShellPath();
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(command, args, {
+        env: { ...process.env, PATH: shellPath },
+      });
+      let output = '';
+      let errorOutput = '';
+      let settled = false;
+
+      const finish = (result: { success: boolean; output: string; error?: string }) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(result);
+      };
+
+      child.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      child.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      child.once('error', (error) => {
+        finish({ success: false, output: '', error: error.message });
+      });
+
+      child.once('close', (code) => {
+        if (code === 0) {
+          finish({ success: true, output: output.trim() });
+          return;
+        }
+
+        finish({
+          success: false,
+          output: output.trim(),
+          error: errorOutput.trim() || `Command exited with code ${code}`,
+        });
+      });
+    } catch (error) {
+      finishWithError(error, resolve);
+    }
+  });
+}
+
+function finishWithError(
+  error: unknown,
+  resolve: (value: { success: boolean; output: string; error?: string }) => void,
+) {
+  resolve({
+    success: false,
+    output: '',
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+async function detectCommandInPath(commandName: string): Promise<string> {
+  const result = await runCommand('which', [commandName]);
+  if (!result.success) {
+    return '';
+  }
+
+  return result.output.trim();
 }
 
 async function diagnoseOpenClawRoot(): Promise<OpenClawRootDiagnostic> {
@@ -125,107 +335,166 @@ async function diagnoseOpenClawRoot(): Promise<OpenClawRootDiagnostic> {
 }
 
 // 检测 OpenClaw 安装路径
-async function detectOpenClawInstallation(): Promise<{ path: string; type: 'executable' | 'directory' | 'not-found' }> {
-  const platforms = {
-    darwin: '/usr/local/bin/openclaw',  // macOS (Homebrew)
-    linux: '/usr/bin/openclaw',         // Linux
-    win32: 'C:\\Program Files\\openclaw\\openclaw.exe', // Windows
-  };
+export // 通过 login shell 解析 npm global bin 目录（处理 nvm/nodenv 等版本管理器）
+async function resolveNpmGlobalBin(): Promise<string> {
+  const shellBin = process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/sh';
+  return new Promise((resolve) => {
+    const child = spawn(shellBin, ['-l', '-c', 'npm prefix -g 2>/dev/null'], { env: process.env });
+    let out = '';
+    child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+    child.on('close', () => {
+      const prefix = out.trim();
+      resolve(prefix ? `${prefix}/bin` : '');
+    });
+    child.on('error', () => resolve(''));
+    setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 5000);
+  });
+}
 
-  // 1. 首先检查用户配置的路径
+export async function detectOpenClawInstallation(): Promise<OpenClawPathDetection> {
+  const homeDir = os.homedir();
+
+  // 1. 用户配置的路径
   const userConfiguredPath = getOpenClawPath();
   if (userConfiguredPath) {
     try {
       await fs.access(userConfiguredPath);
       const stat = await fs.stat(userConfiguredPath);
-      return { 
-        path: userConfiguredPath, 
-        type: stat.isDirectory() ? 'directory' : 'executable' 
+      return {
+        path: userConfiguredPath,
+        source: 'configured',
+        type: stat.isDirectory() ? 'directory' : 'executable',
       };
     } catch {
-      // 配置的路径无效，继续其他检测方式
+      // 配置路径无效，继续
     }
   }
 
-  // 2. 检查常见安装路径
-  const defaultPath = platforms[process.platform as keyof typeof platforms];
-  if (defaultPath) {
+  // 2. 常见固定路径（含 install.sh 实际写入的位置）
+  const fixedCandidates: string[] = process.platform === 'win32'
+    ? ['C:\\Program Files\\openclaw\\openclaw.exe']
+    : [
+        `${homeDir}/.local/bin/openclaw`,   // install.sh git 安装方式
+        '/opt/homebrew/bin/openclaw',        // macOS Apple Silicon Homebrew
+        '/usr/local/bin/openclaw',           // macOS Intel Homebrew / Linux
+        '/usr/bin/openclaw',                 // Linux 系统包
+        `${homeDir}/.npm-global/bin/openclaw`, // Linux npm 用户级安装
+      ];
+
+  for (const p of fixedCandidates) {
     try {
-      await fs.access(defaultPath);
-      return { path: defaultPath, type: 'executable' };
+      await fs.access(p, fs.constants.X_OK);
+      return { path: p, source: 'common-path', type: 'executable' };
     } catch {
-      // 默认路径不存在
+      // 继续
     }
   }
 
-  // 3. 检查 PATH 环境变量
-  const pathDetection = await new Promise<{ path: string; type: 'executable' | 'directory' }>((resolve) => {
+  // 3. 通过 login shell 解析 npm global bin（处理 nvm/nodenv）
+  const npmGlobalBin = await resolveNpmGlobalBin();
+  if (npmGlobalBin) {
+    const npmCandidate = path.join(npmGlobalBin, 'openclaw');
     try {
-      const whichProcess = spawn('which', ['openclaw']);
-      let output = '';
-      
-      whichProcess.stdout.on('data', (data) => {
-        output += data.toString().trim();
-      });
-      
-      whichProcess.on('close', (code) => {
-        if (code === 0 && output) {
-          resolve({ path: output, type: 'executable' });
-        } else {
-          // 抛出错误让 catch 块处理
-          throw new Error('not found in PATH');
-        }
-      });
-      
-      whichProcess.on('error', () => {
-        // 抛出错误让 catch 块处理
-        throw new Error('failed to run which command');
-      });
+      await fs.access(npmCandidate, fs.constants.X_OK);
+      return { path: npmCandidate, source: 'common-path', type: 'executable' };
     } catch {
-      // 如果 which 命令失败或未找到
-      resolve({ path: '', type: 'directory' });
+      // 继续
     }
-  }).catch(() => ({ path: '', type: 'directory' as const }));
-
-  if (pathDetection.path) {
-    return pathDetection;
   }
 
-  // 4. 检查默认的 OpenClaw 主目录（~/.openclaw）
-  const homeDir = os.homedir();
+  // 4. 检查 Electron 进程 PATH
+  const pathHit = await detectCommandInPath('openclaw');
+  if (pathHit) {
+    return { path: pathHit, source: 'path-env', type: 'executable' };
+  }
+
+  // 5. ~/.openclaw 目录存在则认为已安装（无可执行文件时的兜底）
   const defaultOpenClawDir = getOpenClawRootDir();
   try {
     await fs.access(defaultOpenClawDir);
-    // 检查目录中是否有关键文件
     const files = await fs.readdir(defaultOpenClawDir);
     const hasConfig = files.includes('openclaw.json') || files.includes('config.json');
     const hasAgentsDir = files.includes('agents');
-    
-    console.log(`OpenClaw directory found at: ${defaultOpenClawDir}`);
-    console.log(`Files in directory: ${files.join(', ')}`);
-    console.log(`Has config: ${hasConfig}, Has agents dir: ${hasAgentsDir}`);
-    
     if (hasConfig || hasAgentsDir) {
-      return { path: defaultOpenClawDir, type: 'directory' };
-    } else {
-      console.log('OpenClaw directory exists but does not contain expected files');
+      return { path: defaultOpenClawDir, source: 'directory', type: 'directory' };
     }
-  } catch (error) {
-    console.log(`OpenClaw directory not found at ${defaultOpenClawDir}: ${error}`);
+  } catch {
+    // 目录不存在
   }
 
-  // 5. 返回检测失败的结果
-  return { 
-    path: `Not found. Please install OpenClaw or configure the path manually. 
-    
-Common locations:
-- macOS (Homebrew): /usr/local/bin/openclaw
-- Linux: /usr/bin/openclaw or /usr/local/bin/openclaw
-- Windows: C:\\Program Files\\openclaw\\openclaw.exe
-- Default directory: ${path.join(homeDir, '.openclaw')}
-    
-Check if OpenClaw is installed by running 'openclaw --version' in your terminal.`,
-    type: 'not-found' as const
+  return {
+    path: '',
+    source: 'not-found' as const,
+    type: 'not-found' as const,
+  };
+}
+
+async function diagnoseOpenClawCommand(): Promise<OpenClawCommandDiagnostic> {
+  const configuredPath = getOpenClawPath();
+  const resolvedCommand = resolveOpenClawCommand();
+  const rootDir = getOpenClawRootDir();
+  const detected = await detectOpenClawInstallation();
+  const pathEnvCommand = await detectCommandInPath('openclaw');
+  const versionResult = await runCommand(resolvedCommand, ['--version']);
+
+  return {
+    configuredPath,
+    resolvedCommand,
+    rootDir,
+    pathEnvHit: Boolean(pathEnvCommand),
+    pathEnvCommand: pathEnvCommand || undefined,
+    detectedPath: detected.path || undefined,
+    detectedSource: detected.source,
+    commandExists: detected.type === 'executable' || versionResult.success,
+    versionSuccess: versionResult.success,
+    versionOutput: versionResult.success
+      ? versionResult.output || undefined
+      : undefined,
+    error: versionResult.success
+      ? undefined
+      : versionResult.error || (detected.type === 'not-found' ? detected.path : undefined),
+  };
+}
+
+async function autoRepairOpenClawCommand(): Promise<{ success: boolean; message: string; steps: string[]; diagnostic: OpenClawCommandDiagnostic }> {
+  const before = await diagnoseOpenClawCommand();
+  const steps: string[] = [];
+
+  if (before.versionSuccess) {
+    steps.push(`当前命令已可执行：${before.resolvedCommand}`);
+    return {
+      success: true,
+      message: 'OpenClaw CLI 已可用，无需修复。',
+      steps,
+      diagnostic: before,
+    };
+  }
+
+  if (before.detectedSource === 'common-path' || before.detectedSource === 'path-env') {
+    if (before.detectedPath && before.configuredPath !== before.detectedPath) {
+      updateSettings({ openclawPath: before.detectedPath });
+      steps.push(`已自动将 openclawPath 设置为 ${before.detectedPath}`);
+    }
+
+    const after = await diagnoseOpenClawCommand();
+    return {
+      success: after.versionSuccess,
+      message: after.versionSuccess
+        ? '已自动修复 OpenClaw 命令路径。'
+        : '已找到候选命令路径，但仍无法执行，请检查该文件权限或安装状态。',
+      steps,
+      diagnostic: after,
+    };
+  }
+
+  steps.push('未发现可直接自动修复的 OpenClaw 可执行文件。');
+  steps.push('请先安装 OpenClaw CLI，或在设置中手动填写 openclaw 可执行文件绝对路径。');
+
+  return {
+    success: false,
+    message: '未找到可自动修复的 OpenClaw 命令路径。',
+    steps,
+    diagnostic: before,
   };
 }
 
@@ -286,6 +555,39 @@ export function setupSettingsIPC() {
     try {
       const diagnostic = await diagnoseOpenClawRoot();
       return { success: true, diagnostic };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('settings:diagnoseOpenClawCommand', async () => {
+    try {
+      const diagnostic = await diagnoseOpenClawCommand();
+      return { success: true, diagnostic };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('settings:testOpenClawCommand', async () => {
+    try {
+      const diagnostic = await diagnoseOpenClawCommand();
+      return {
+        success: diagnostic.versionSuccess,
+        diagnostic,
+        message: diagnostic.versionSuccess
+          ? `OpenClaw CLI 可用：${diagnostic.versionOutput || diagnostic.resolvedCommand}`
+          : diagnostic.error || 'OpenClaw CLI 测试失败',
+      };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('settings:autoRepairOpenClawCommand', async () => {
+    try {
+      const result = await autoRepairOpenClawCommand();
+      return result;
     } catch (error) {
       return { success: false, error: String(error) };
     }

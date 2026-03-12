@@ -29,6 +29,8 @@ import type {
   AgentWorkspaceTrashEntry,
 } from '../../types/electron';
 import AppButton from '../components/AppButton';
+import AppSelect, { type AppSelectOption } from '../components/AppSelect';
+import JsonFormEditor, { type JsonFormSchema, type JsonFormTabItem } from '../components/JsonFormEditor';
 import AppTable from '../components/AppTable';
 import GlassCard from '../components/GlassCard';
 
@@ -81,6 +83,17 @@ type GlobalBindingEditorState = {
   accountConfig?: any;
 };
 
+type AgentModelOption = {
+  description?: string;
+  label: string;
+  value: string;
+};
+
+type GlobalModelEditorState = {
+  fallbacks: string[];
+  primary: string;
+};
+
 const isJsonLikeFile = (fileName: string) => fileName.endsWith('.json');
 const isSessionLogFile = (fileName: string) => fileName.includes('.jsonl');
 
@@ -94,33 +107,6 @@ const tryParseJsonContent = (content: string) => {
 
 const toCanonicalJsonString = (value: any) => JSON.stringify(value ?? {}, null, 2);
 
-const updateJsonValueByPath = (source: any, path: Array<string | number>, nextValue: string) => {
-  const nextSource = Array.isArray(source) ? [...source] : { ...source };
-  let cursor = nextSource;
-
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const key = path[index];
-    const nextCursor = cursor[key];
-    cursor[key] = Array.isArray(nextCursor) ? [...nextCursor] : { ...nextCursor };
-    cursor = cursor[key];
-  }
-
-  const leafKey = path[path.length - 1];
-  const currentValue = cursor[leafKey];
-
-  if (typeof currentValue === 'number') {
-    cursor[leafKey] = Number(nextValue);
-  } else if (typeof currentValue === 'boolean') {
-    cursor[leafKey] = nextValue === 'true';
-  } else if (currentValue === null) {
-    cursor[leafKey] = nextValue === '' ? null : nextValue;
-  } else {
-    cursor[leafKey] = nextValue;
-  }
-
-  return nextSource;
-};
-
 const getTopLevelSections = (value: any) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return [] as string[];
@@ -129,44 +115,14 @@ const getTopLevelSections = (value: any) => {
   return Object.keys(value);
 };
 
-const getValueAtPath = (source: any, path: Array<string | number>) => path.reduce((current, key) => current?.[key], source);
+const buildAgentModelOptions = (config: any): AgentModelOption[] => {
+  const modelRegistry = config?.agents?.models || config?.agents?.defaults?.models || {};
 
-const getValueTypeLabel = (value: any) => {
-  if (Array.isArray(value)) {
-    return `数组 · ${value.length} 项`;
-  }
-
-  if (value === null) {
-    return '空值';
-  }
-
-  if (typeof value === 'object') {
-    return `对象 · ${Object.keys(value).length} 个字段`;
-  }
-
-  if (typeof value === 'boolean') {
-    return '布尔值';
-  }
-
-  if (typeof value === 'number') {
-    return '数字';
-  }
-
-  return '文本';
-};
-
-const getPathKey = (path: Array<string | number>) => path.join('.');
-
-const shouldDefaultCollapse = (value: any) => {
-  if (Array.isArray(value)) {
-    return value.length > 4;
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.keys(value).length > 4;
-  }
-
-  return false;
+  return Object.entries(modelRegistry || {}).map(([key, modelConfig]: [string, any]) => ({
+    value: key,
+    label: typeof modelConfig?.alias === 'string' && modelConfig.alias.trim() ? modelConfig.alias : key,
+    description: key,
+  }));
 };
 
 const matchesSearch = (label: string, search: string) => !search
@@ -191,8 +147,6 @@ const hasSearchMatch = (label: string, value: any, search: string): boolean => {
 
   return String(value ?? '').toLowerCase().includes(search.toLowerCase());
 };
-
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const getEntryKindLabel = (entry: AgentWorkspaceEntry) => {
   if (entry.name === 'sessions.json') {
@@ -402,15 +356,21 @@ const AgentWorkspace: React.FC = () => {
   const [memoryClearing, setMemoryClearing] = useState(false);
   const [entryBrowserOpen, setEntryBrowserOpen] = useState<'workspace' | 'config' | 'sessions' | null>(null);
   const [workspaceBrowse, setWorkspaceBrowse] = useState<AgentWorkspaceBrowseResult | null>(null);
-  const [skillsChannelFilter, setSkillsChannelFilter] = useState<string | null>(null);
-  const [skillsAccountFilter, setSkillsAccountFilter] = useState<string | null>(null);
   const [skillsConfigPreviewOpen, setSkillsConfigPreviewOpen] = useState(false);
   const [skillsConfigPreview, setSkillsConfigPreview] = useState('');
   const [globalAgentConfigOpen, setGlobalAgentConfigOpen] = useState(false);
-  const [globalAgentConfigDraft, setGlobalAgentConfigDraft] = useState('');
+  const [globalAgentConfigDraft, setGlobalAgentConfigDraft] = useState<any | null>(null);
   const [globalAgentConfigSaving, setGlobalAgentConfigSaving] = useState(false);
+  const [globalModelEditorOpen, setGlobalModelEditorOpen] = useState(false);
+  const [globalModelEditor, setGlobalModelEditor] = useState<GlobalModelEditorState>({
+    primary: '',
+    fallbacks: [],
+  });
+  const [globalModelOptions, setGlobalModelOptions] = useState<AgentModelOption[]>([]);
+  const [globalModelSaving, setGlobalModelSaving] = useState(false);
   const [globalBindingEditor, setGlobalBindingEditor] = useState<GlobalBindingEditorState | null>(null);
-  const [globalBindingDraft, setGlobalBindingDraft] = useState('');
+  const [globalBindingDraft, setGlobalBindingDraft] = useState<any | null>(null);
+  const [globalBindingBaseline, setGlobalBindingBaseline] = useState<any | null>(null);
   const [globalBindingSaving, setGlobalBindingSaving] = useState(false);
   const [managedFileOpen, setManagedFileOpen] = useState(false);
   const [managedFile, setManagedFile] = useState<AgentManagedFileDetail | null>(null);
@@ -419,9 +379,6 @@ const AgentWorkspace: React.FC = () => {
   const [managedLoading, setManagedLoading] = useState(false);
   const [managedJsonDraft, setManagedJsonDraft] = useState<any | null>(null);
   const [managedJsonBaseline, setManagedJsonBaseline] = useState<any | null>(null);
-  const [managedActiveSection, setManagedActiveSection] = useState<string>('');
-  const [managedSearch, setManagedSearch] = useState('');
-  const [collapsedJsonPaths, setCollapsedJsonPaths] = useState<Record<string, boolean>>({});
   const [managedViewMode, setManagedViewMode] = useState<'conversation' | 'table' | 'raw'>('raw');
   const [selectedSessionEvent, setSelectedSessionEvent] = useState<SessionEventRecord | null>(null);
 
@@ -443,6 +400,14 @@ const AgentWorkspace: React.FC = () => {
       }
 
       setDetails(result.details);
+      try {
+        const configResult = await window.electronAPI.configGet();
+        if (configResult.success && configResult.config) {
+          setGlobalModelOptions(buildAgentModelOptions(configResult.config));
+        }
+      } catch {
+        setGlobalModelOptions([]);
+      }
       const firstAvailable = result.details.files.find((item) => item.exists)?.name
         || result.details.files[0]?.name
         || CORE_FILES[0];
@@ -452,6 +417,116 @@ const AgentWorkspace: React.FC = () => {
       setError(`加载 Agent Workspace 时发生异常: ${loadError instanceof Error ? loadError.message : String(loadError)}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openGlobalModelEditor = async () => {
+    if (!agentId) {
+      return;
+    }
+
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const configResult = await window.electronAPI.configGet();
+      if (!configResult.success || !configResult.config) {
+        setError(configResult.error || '读取全局配置失败');
+        return;
+      }
+
+      const options = buildAgentModelOptions(configResult.config);
+
+      const currentAgent = (configResult.config?.agents?.list || []).find((item: any) => item?.id === agentId);
+      const currentModel = currentAgent?.model;
+      const primary = typeof currentModel === 'string'
+        ? currentModel
+        : typeof currentModel?.primary === 'string'
+          ? currentModel.primary
+          : '';
+      const fallbacks = Array.isArray(currentModel?.fallbacks)
+        ? currentModel.fallbacks.filter((item: unknown): item is string => typeof item === 'string')
+        : [];
+
+      setGlobalModelOptions(options);
+      setGlobalModelEditor({
+        primary,
+        fallbacks,
+      });
+      setGlobalModelEditorOpen(true);
+    } catch (modelError) {
+      setError(`读取模型配置时发生异常: ${modelError instanceof Error ? modelError.message : String(modelError)}`);
+    }
+  };
+
+  const closeGlobalModelEditor = () => {
+    if (globalModelSaving) {
+      return;
+    }
+
+    setGlobalModelEditorOpen(false);
+  };
+
+  const handleSaveGlobalModelConfig = async () => {
+    if (!agentId) {
+      return;
+    }
+
+    if (!globalModelEditor.primary) {
+      setError('请选择当前模型');
+      return;
+    }
+
+    setGlobalModelSaving(true);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      const configResult = await window.electronAPI.configGet();
+      if (!configResult.success || !configResult.config) {
+        setError(configResult.error || '读取全局配置失败');
+        return;
+      }
+
+      const currentList = Array.isArray(configResult.config?.agents?.list)
+        ? configResult.config.agents.list
+        : [];
+      const nextList = currentList.map((item: any) => {
+        if (item?.id !== agentId) {
+          return item;
+        }
+
+        const nextFallbacks = globalModelEditor.fallbacks.filter((value) => value && value !== globalModelEditor.primary);
+
+        return {
+          ...item,
+          model: {
+            ...(item?.model && typeof item.model === 'object' && !Array.isArray(item.model) ? item.model : {}),
+            primary: globalModelEditor.primary,
+            fallbacks: nextFallbacks,
+          },
+        };
+      });
+
+      const saveResult = await window.electronAPI.configSet({
+        ...configResult.config,
+        agents: {
+          ...configResult.config.agents,
+          list: nextList,
+        },
+      });
+      if (!saveResult.success) {
+        setError(saveResult.error || '保存模型配置失败');
+        return;
+      }
+
+      setSaveMessage('模型配置已保存，重启 Gateway 后会按新配置重新生成派生文件');
+      setGlobalModelEditorOpen(false);
+      await loadWorkspace();
+    } catch (modelError) {
+      setError(`保存模型配置时发生异常: ${modelError instanceof Error ? modelError.message : String(modelError)}`);
+    } finally {
+      setGlobalModelSaving(false);
     }
   };
 
@@ -517,9 +592,6 @@ const AgentWorkspace: React.FC = () => {
       setManagedDraft(result.file.content || '');
       setManagedJsonDraft(parsedJson);
       setManagedJsonBaseline(parsedJson);
-      setManagedActiveSection(getTopLevelSections(parsedJson)[0] || '');
-      setManagedSearch('');
-      setCollapsedJsonPaths({});
       setManagedViewMode(isSessionLogFile(result.file.name) ? 'conversation' : 'raw');
       setManagedFileOpen(true);
     } catch (managedError) {
@@ -538,9 +610,6 @@ const AgentWorkspace: React.FC = () => {
     }
 
     setManagedFileOpen(false);
-    setManagedActiveSection('');
-    setManagedSearch('');
-    setCollapsedJsonPaths({});
     setManagedViewMode('raw');
     setSelectedSessionEvent(null);
   };
@@ -568,8 +637,6 @@ const AgentWorkspace: React.FC = () => {
         : null;
       setManagedJsonDraft(parsedJson);
       setManagedJsonBaseline(parsedJson);
-      setManagedActiveSection((current) => current || getTopLevelSections(parsedJson)[0] || '');
-      setCollapsedJsonPaths({});
       setManagedViewMode(isSessionLogFile(result.file.name) ? 'conversation' : 'raw');
       setSaveMessage(`${result.file.name} 已保存`);
       await loadWorkspace();
@@ -584,7 +651,7 @@ const AgentWorkspace: React.FC = () => {
     const rawConfig = details?.globalAgentConfig?.raw;
     setError(null);
     setSaveMessage(null);
-    setGlobalAgentConfigDraft(JSON.stringify(rawConfig || {}, null, 2));
+    setGlobalAgentConfigDraft(rawConfig || {});
     setGlobalAgentConfigOpen(true);
   };
 
@@ -598,7 +665,7 @@ const AgentWorkspace: React.FC = () => {
     setSaveMessage(null);
 
     try {
-      const parsed = JSON.parse(globalAgentConfigDraft || '{}');
+      const parsed = globalAgentConfigDraft || {};
       const configResult = await window.electronAPI.configGet();
       if (!configResult.success || !configResult.config) {
         setError(configResult.error || '读取全局配置失败');
@@ -630,6 +697,7 @@ const AgentWorkspace: React.FC = () => {
 
       setSaveMessage('全局 Agent 配置已保存，重启 Gateway 后会按新配置重新生成派生文件');
       setGlobalAgentConfigOpen(false);
+      setGlobalAgentConfigDraft(null);
       await loadWorkspace();
     } catch (globalConfigError) {
       setError(`保存全局 Agent 配置时发生异常: ${globalConfigError instanceof Error ? globalConfigError.message : String(globalConfigError)}`);
@@ -653,10 +721,12 @@ const AgentWorkspace: React.FC = () => {
       binding: bindingRecord.binding,
       accountConfig: bindingRecord.accountConfig,
     });
-    setGlobalBindingDraft(JSON.stringify({
+    const nextDraft = {
       binding: bindingRecord.binding,
       accountConfig: bindingRecord.accountConfig ?? null,
-    }, null, 2));
+    };
+    setGlobalBindingDraft(nextDraft);
+    setGlobalBindingBaseline(nextDraft);
   };
 
   const closeGlobalBindingEditor = () => {
@@ -664,12 +734,7 @@ const AgentWorkspace: React.FC = () => {
       return;
     }
 
-    const baseline = JSON.stringify({
-      binding: globalBindingEditor.binding,
-      accountConfig: globalBindingEditor.accountConfig ?? null,
-    }, null, 2);
-
-    if (globalBindingDraft !== baseline) {
+    if (toCanonicalJsonString(globalBindingDraft) !== toCanonicalJsonString(globalBindingBaseline)) {
       const shouldClose = window.confirm('你有未保存的绑定配置修改，确认关闭吗？');
       if (!shouldClose) {
         return;
@@ -677,7 +742,8 @@ const AgentWorkspace: React.FC = () => {
     }
 
     setGlobalBindingEditor(null);
-    setGlobalBindingDraft('');
+    setGlobalBindingDraft(null);
+    setGlobalBindingBaseline(null);
   };
 
   const handleSaveGlobalBindingConfig = async () => {
@@ -690,7 +756,7 @@ const AgentWorkspace: React.FC = () => {
     setSaveMessage(null);
 
     try {
-      const parsed = JSON.parse(globalBindingDraft || '{}');
+      const parsed = globalBindingDraft || {};
       const nextBinding = parsed?.binding;
       const nextAccountConfig = parsed?.accountConfig;
 
@@ -756,202 +822,14 @@ const AgentWorkspace: React.FC = () => {
 
       setSaveMessage('全局 binding / channel 配置已保存');
       setGlobalBindingEditor(null);
-      setGlobalBindingDraft('');
+      setGlobalBindingDraft(null);
+      setGlobalBindingBaseline(null);
       await loadWorkspace();
     } catch (bindingError) {
       setError(`保存全局 binding 配置时发生异常: ${bindingError instanceof Error ? bindingError.message : String(bindingError)}`);
     } finally {
       setGlobalBindingSaving(false);
     }
-  };
-
-  const toggleJsonPath = (pathKey: string) => {
-    setCollapsedJsonPaths((current) => ({
-      ...current,
-      [pathKey]: !(current[pathKey] ?? false),
-    }));
-  };
-
-  const setExpandStateForValue = (value: any, path: Array<string | number>, collapsed: boolean, nextState: Record<string, boolean>) => {
-    if (!value || typeof value !== 'object') {
-      return;
-    }
-
-    nextState[getPathKey(path)] = collapsed;
-
-    if (Array.isArray(value)) {
-      value.forEach((item, index) => {
-        setExpandStateForValue(item, [...path, index], collapsed, nextState);
-      });
-      return;
-    }
-
-    Object.entries(value).forEach(([key, childValue]) => {
-      if (childValue && typeof childValue === 'object') {
-        setExpandStateForValue(childValue, [...path, key], collapsed, nextState);
-      }
-    });
-  };
-
-  const handleExpandAll = () => {
-    const nextState: Record<string, boolean> = {};
-    if (managedActiveSection) {
-      setExpandStateForValue(getValueAtPath(managedJsonDraft, [managedActiveSection]), [managedActiveSection], false, nextState);
-    }
-    setCollapsedJsonPaths((current) => ({ ...current, ...nextState }));
-  };
-
-  const handleCollapseAll = () => {
-    const nextState: Record<string, boolean> = {};
-    if (managedActiveSection) {
-      setExpandStateForValue(getValueAtPath(managedJsonDraft, [managedActiveSection]), [managedActiveSection], true, nextState);
-    }
-    setCollapsedJsonPaths((current) => ({ ...current, ...nextState }));
-  };
-
-  const highlightText = (value: string, search: string) => {
-    if (!search) {
-      return value;
-    }
-
-    const matcher = new RegExp(`(${escapeRegExp(search)})`, 'ig');
-    const parts = value.split(matcher);
-
-    return parts.map((part, index) => part.toLowerCase() === search.toLowerCase()
-      ? (
-          <mark
-            key={`${part}-${index}`}
-            style={{
-              backgroundColor: 'rgba(250, 204, 21, 0.24)',
-              color: 'var(--app-text)',
-              padding: '0 2px',
-              borderRadius: '4px',
-            }}
-          >
-            {part}
-          </mark>
-        )
-      : <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>);
-  };
-
-  const renderJsonEditor = (value: any, path: Array<string | number> = [], depth = 0): React.ReactNode => {
-    if (Array.isArray(value)) {
-      const pathKey = getPathKey(path);
-      const autoExpanded = managedSearch && hasSearchMatch(pathKey, value, managedSearch);
-      const collapsed = autoExpanded ? false : (collapsedJsonPaths[pathKey] ?? shouldDefaultCollapse(value));
-      const visibleItems = managedSearch
-        ? value.filter((item, index) => hasSearchMatch(`${pathKey}.${index}`, item, managedSearch))
-        : value;
-
-      if (!visibleItems.length && managedSearch) {
-        return null;
-      }
-
-      return (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              {getValueTypeLabel(value)}
-            </div>
-            <button
-              onClick={() => toggleJsonPath(pathKey)}
-              className="text-xs px-3 py-1 rounded-lg border transition-all duration-200"
-              style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-            >
-              {collapsed ? '展开' : '折叠'}
-            </button>
-          </div>
-          {!collapsed && visibleItems.map((item, index) => (
-            <div key={`${path.join('.')}-${index}`} className="rounded-xl border p-3" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <div className="font-medium" style={{ color: 'var(--app-text)' }}>{highlightText(`#${index}`, managedSearch)}</div>
-                <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {getValueTypeLabel(item)}
-                </div>
-              </div>
-              {renderJsonEditor(item, [...path, index], depth + 1)}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (value && typeof value === 'object') {
-      const pathKey = getPathKey(path);
-      const autoExpanded = managedSearch && hasSearchMatch(pathKey, value, managedSearch);
-      const collapsed = autoExpanded ? false : (collapsedJsonPaths[pathKey] ?? (depth > 0 && shouldDefaultCollapse(value)));
-      const visibleEntries = Object.entries(value).filter(([key, childValue]) => hasSearchMatch(key, childValue, managedSearch));
-
-      if (!visibleEntries.length && managedSearch) {
-        return null;
-      }
-
-      return (
-        <div className="space-y-2">
-          {depth > 0 && (
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                {getValueTypeLabel(value)}
-              </div>
-              <button
-                onClick={() => toggleJsonPath(pathKey)}
-                className="text-xs px-3 py-1 rounded-lg border transition-all duration-200"
-                style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-              >
-                {collapsed ? '展开' : '折叠'}
-              </button>
-            </div>
-          )}
-          {!collapsed && visibleEntries.map(([key, childValue]) => (
-            <div key={`${path.join('.')}-${key}`} className="rounded-xl border" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-              {childValue && typeof childValue === 'object' ? (
-                <div className="p-3 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold break-all leading-5" style={{ color: 'var(--app-text)' }}>{highlightText(key, managedSearch)}</div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                        {getValueTypeLabel(childValue)}
-                      </div>
-                    </div>
-                  </div>
-                  {renderJsonEditor(childValue, [...path, key], depth + 1)}
-                </div>
-              ) : (
-                <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 items-center p-3">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium break-all leading-5" style={{ color: 'var(--app-text)' }}>{highlightText(key, managedSearch)}</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: 'var(--app-text-muted)' }}>
-                      {getValueTypeLabel(childValue)}
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    {renderJsonEditor(childValue, [...path, key], depth + 1)}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (managedSearch && !matchesSearch(getPathKey(path), managedSearch) && !String(value ?? '').toLowerCase().includes(managedSearch.toLowerCase())) {
-      return null;
-    }
-
-    return (
-      <input
-        value={value === null ? '' : String(value)}
-        onChange={(event) => setManagedJsonDraft((current: any) => updateJsonValueByPath(current, path, event.target.value))}
-        className="w-full rounded-lg px-3 py-2 outline-none text-sm"
-        style={{
-          backgroundColor: 'var(--app-bg-elevated)',
-          border: '1px solid var(--app-border)',
-          color: 'var(--app-text)',
-          minHeight: '36px',
-        }}
-      />
-    );
   };
 
   const openMemoryEditor = async (targetPath: string) => {
@@ -1104,20 +982,21 @@ const AgentWorkspace: React.FC = () => {
     setMemoryDraft('');
     setEntryBrowserOpen(null);
     setWorkspaceBrowse(null);
-    setSkillsChannelFilter(null);
-    setSkillsAccountFilter(null);
     setSkillsConfigPreviewOpen(false);
     setSkillsConfigPreview('');
     setGlobalAgentConfigOpen(false);
-    setGlobalAgentConfigDraft('');
+    setGlobalAgentConfigDraft(null);
+    setGlobalModelEditorOpen(false);
+    setGlobalModelEditor({ primary: '', fallbacks: [] });
+    setGlobalModelOptions([]);
+    setGlobalBindingEditor(null);
+    setGlobalBindingDraft(null);
+    setGlobalBindingBaseline(null);
     setManagedFileOpen(false);
     setManagedFile(null);
     setManagedDraft('');
     setManagedJsonDraft(null);
     setManagedJsonBaseline(null);
-    setManagedActiveSection('');
-    setManagedSearch('');
-    setCollapsedJsonPaths({});
     loadWorkspace();
   }, [agentId]);
 
@@ -1147,22 +1026,100 @@ const AgentWorkspace: React.FC = () => {
   const isManagedDirty = isManagedJson
     ? toCanonicalJsonString(managedJsonDraft) !== toCanonicalJsonString(managedJsonBaseline)
     : managedSerializedContent !== (managedFile?.content ?? '');
-  const managedSections = getTopLevelSections(managedJsonDraft);
   const managedSessionEvents = useMemo(() => isManagedSessionLog ? parseSessionEvents(managedDraft) : [], [isManagedSessionLog, managedDraft]);
   const skillsOverview = details?.skillsOverview;
   const globalAgentConfig = details?.globalAgentConfig as AgentGlobalConfigOverview | undefined;
-  const filteredBindingChannels = useMemo(() => {
-    const channels = skillsOverview?.bindingChannels || [];
-    return skillsChannelFilter
-      ? channels.filter((channel) => channel === skillsChannelFilter)
-      : channels;
-  }, [skillsChannelFilter, skillsOverview]);
-  const filteredBindingAccounts = useMemo(() => {
-    const accounts = skillsOverview?.bindingAccounts || [];
-    return skillsAccountFilter
-      ? accounts.filter((account) => account === skillsAccountFilter)
-      : accounts;
-  }, [skillsAccountFilter, skillsOverview]);
+  const globalBindingTabs = useMemo<JsonFormTabItem[]>(() => ([
+    { key: 'binding', label: '绑定规则' },
+    { key: 'accountConfig', label: '账号配置' },
+  ]), []);
+  const globalBindingSchema = useMemo<JsonFormSchema>(() => {
+    const channelOptions = Array.from(new Set((globalAgentConfig?.bindings || [])
+      .map((item) => item.channel)
+      .filter((value): value is string => Boolean(value))))
+      .map((value) => ({ label: value, value }));
+    const accountOptions = Array.from(new Set((globalAgentConfig?.bindings || [])
+      .map((item) => item.accountId)
+      .filter((value): value is string => Boolean(value))))
+      .map((value) => ({ label: value, value }));
+
+    return {
+      binding: {
+        label: '绑定规则',
+        description: '当前 Agent 在什么条件下命中这条 binding。',
+      },
+      'binding.match': {
+        label: '命中条件',
+        description: '定义通道、账号等匹配条件。',
+      },
+      'binding.match.channel': {
+        label: '通道',
+        description: '用户请求命中时使用的渠道。',
+        control: channelOptions.length ? 'select' : 'text',
+        options: channelOptions,
+        placeholder: '请选择通道',
+      },
+      'binding.match.accountId': {
+        label: '账号 ID',
+        description: '当前通道下绑定的账号标识。',
+        control: accountOptions.length ? 'select' : 'text',
+        options: accountOptions,
+        placeholder: '请选择账号',
+      },
+      'binding.agentId': {
+        label: 'Agent ID',
+        description: '当前 binding 归属的 Agent 标识。',
+      },
+      'binding.enabled': {
+        label: '启用状态',
+        description: '控制该 binding 是否生效。',
+        control: 'switch',
+      },
+      accountConfig: {
+        label: '账号配置',
+        description: '命中该 binding 后实际使用的账号配置。',
+      },
+      'accountConfig.apiKey': {
+        label: 'API Key',
+        description: '对应账号的密钥字段。',
+        control: 'textarea',
+        placeholder: '请输入 API Key',
+      },
+      'accountConfig.baseUrl': {
+        label: 'Base URL',
+        description: '接口基础地址。',
+        placeholder: '请输入接口地址',
+      },
+      'accountConfig.model': {
+        label: '模型',
+        description: '该账号默认使用的模型。',
+      },
+      'accountConfig.enabled': {
+        label: '账号启用状态',
+        description: '控制该账号配置是否可用。',
+        control: 'switch',
+      },
+    };
+  }, [globalAgentConfig]);
+  const globalAgentConfigTabs = useMemo<JsonFormTabItem[]>(() => getTopLevelSections(globalAgentConfigDraft).map((section) => ({
+    key: section,
+    label: section,
+  })), [globalAgentConfigDraft]);
+  const globalModelOptionMap = useMemo(() => Object.fromEntries(globalModelOptions.map((item) => [item.value, item.label])), [globalModelOptions]);
+  const globalModelSelectOptions = useMemo<AppSelectOption[]>(() => globalModelOptions.map((item) => ({
+    label: item.label,
+    value: item.value,
+    description: item.description,
+  })), [globalModelOptions]);
+  const globalPrimaryModelLabel = useMemo(() => {
+    const modelKey = globalAgentConfig?.modelPrimary;
+
+    if (!modelKey) {
+      return '未配置';
+    }
+
+    return globalModelOptionMap[modelKey] || modelKey;
+  }, [globalAgentConfig?.modelPrimary, globalModelOptionMap]);
   const workspaceCanGoUp = useMemo(() => {
     if (!workspaceBrowse?.currentPath || !workspaceBrowse.rootPath) {
       return false;
@@ -1677,6 +1634,9 @@ const AgentWorkspace: React.FC = () => {
                   <h2 className="text-lg font-semibold">Agent 运行配置</h2>
                 </div>
               </div>
+              <code className="block mt-1 break-all" style={{ color: 'var(--app-text)' }}>
+                    {globalAgentConfig?.configPath || '未检测到 Global Agent 配置文件'}
+                  </code>
               <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 汇总当前 Agent 的 Skills 运行状态、全局核心配置与绑定关系，便于统一查看和编辑。
               </div>
@@ -1691,9 +1651,6 @@ const AgentWorkspace: React.FC = () => {
                       查看原始配置
                     </AppButton>
                   </div>
-                  <code className="block mt-1 break-all" style={{ color: 'var(--app-text)' }}>
-                    {skillsOverview?.configPath || '未检测到 Skills 目录'}
-                  </code>
                   <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                     汇总当前 Agent 的 Skills 启用状态、来源位置、绑定通道与账号，便于快速判断真实运行能力。
                   </div>
@@ -1763,126 +1720,6 @@ const AgentWorkspace: React.FC = () => {
                             ))}
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,160px)_1fr] gap-4">
-                          <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
-                            子智能体范围
-                          </div>
-                          <div className="flex flex-wrap gap-2.5">
-                            {skillsOverview?.allowAgents?.length ? skillsOverview.allowAgents.map((agentName) => (
-                              <div
-                                key={agentName}
-                                className="inline-flex items-center rounded-xl px-3 py-2 text-xs font-medium"
-                                style={{
-                                  backgroundColor: 'rgba(99, 102, 241, 0.10)',
-                                  border: '1px solid rgba(99, 102, 241, 0.16)',
-                                  color: '#4F46E5',
-                                }}
-                              >
-                                {agentName}
-                              </div>
-                            )) : (
-                              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                                当前未配置显式的子智能体允许范围。
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <div>
-                            <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>绑定通道</div>
-                            <div className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                              点击 chip 仅查看对应通道。
-                            </div>
-                          </div>
-                          {skillsChannelFilter && (
-                            <button
-                              onClick={() => setSkillsChannelFilter(null)}
-                              className="text-xs px-3 py-1.5 rounded-full border transition-all duration-200 cursor-pointer"
-                              style={{
-                                backgroundColor: 'var(--app-bg-subtle)',
-                                borderColor: 'var(--app-border)',
-                                color: 'var(--app-text)',
-                              }}
-                            >
-                              清除筛选
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                          {filteredBindingChannels.length ? filteredBindingChannels.map((channel) => (
-                            <button
-                              key={channel}
-                              onClick={() => setSkillsChannelFilter((current) => current === channel ? null : channel)}
-                              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all duration-200 cursor-pointer"
-                              style={{
-                                backgroundColor: skillsChannelFilter === channel ? 'rgba(14, 165, 233, 0.18)' : 'var(--app-bg-subtle)',
-                                border: skillsChannelFilter === channel ? '1px solid rgba(14, 165, 233, 0.30)' : '1px solid var(--app-border)',
-                                color: skillsChannelFilter === channel ? '#0369A1' : 'var(--app-text)',
-                                boxShadow: skillsChannelFilter === channel ? '0 10px 24px rgba(14, 165, 233, 0.10)' : '0 4px 12px rgba(15, 23, 42, 0.04)',
-                                transform: skillsChannelFilter === channel ? 'translateY(-1px)' : 'none',
-                              }}
-                            >
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: skillsChannelFilter === channel ? '#0EA5E9' : 'rgba(14, 165, 233, 0.55)' }} />
-                              {channel}
-                            </button>
-                          )) : (
-                            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                              {skillsOverview?.bindingChannels?.length ? '当前筛选下没有匹配通道。' : '当前没有绑定通道。'}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <div>
-                            <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>绑定账号</div>
-                            <div className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                              点击 chip 仅查看对应账号。
-                            </div>
-                          </div>
-                          {skillsAccountFilter && (
-                            <button
-                              onClick={() => setSkillsAccountFilter(null)}
-                              className="text-xs px-3 py-1.5 rounded-full border transition-all duration-200 cursor-pointer"
-                              style={{
-                                backgroundColor: 'var(--app-bg-subtle)',
-                                borderColor: 'var(--app-border)',
-                                color: 'var(--app-text)',
-                              }}
-                            >
-                              清除筛选
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                          {filteredBindingAccounts.length ? filteredBindingAccounts.map((account) => (
-                            <button
-                              key={account}
-                              onClick={() => setSkillsAccountFilter((current) => current === account ? null : account)}
-                              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-sm font-medium transition-all duration-200 cursor-pointer"
-                              style={{
-                                backgroundColor: skillsAccountFilter === account ? 'rgba(16, 185, 129, 0.18)' : 'var(--app-bg-subtle)',
-                                border: skillsAccountFilter === account ? '1px solid rgba(16, 185, 129, 0.30)' : '1px solid var(--app-border)',
-                                color: skillsAccountFilter === account ? '#047857' : 'var(--app-text)',
-                                boxShadow: skillsAccountFilter === account ? '0 10px 24px rgba(16, 185, 129, 0.10)' : '0 4px 12px rgba(15, 23, 42, 0.04)',
-                                transform: skillsAccountFilter === account ? 'translateY(-1px)' : 'none',
-                              }}
-                            >
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: skillsAccountFilter === account ? '#10B981' : 'rgba(16, 185, 129, 0.55)' }} />
-                              {account}
-                            </button>
-                          )) : (
-                            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                              {skillsOverview?.bindingAccounts?.length ? '当前筛选下没有匹配账号。' : '当前没有绑定账号。'}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -1898,44 +1735,84 @@ const AgentWorkspace: React.FC = () => {
                       编辑全局配置
                     </AppButton>
                   </div>
-                  <code className="block mt-1 break-all" style={{ color: 'var(--app-text)' }}>
-                    {globalAgentConfig?.configPath || '未检测到 Global Agent 配置文件'}
-                  </code>
                   <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                     当前以 `openclaw.json` 中 `agents.list[]` 的当前 Agent 条目为准。`models.json`、`auth-profiles.json` 等本地文件视为派生结果，通常由 Gateway 重启后再生成。
                   </div>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                        <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
-                          当前模型
+                    <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
+                            模型配置
+                          </div>
+                          <div className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                            当前模型与备选模型使用同一套配置入口，统一在一个弹窗中编辑。
+                          </div>
                         </div>
-                        <div className="mt-2 text-base font-semibold break-all" style={{ color: 'var(--app-text)' }}>
-                          {globalAgentConfig?.modelDisplay || '未配置'}
-                        </div>
-                        <div className="mt-2 text-xs break-all" style={{ color: 'var(--app-text-muted)' }}>
-                          主模型：{globalAgentConfig?.modelPrimary || '未显式配置'}
-                        </div>
+                        <AppButton onClick={openGlobalModelEditor} size="sm" variant="secondary">
+                          编辑模型
+                        </AppButton>
                       </div>
-                      <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                        <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
-                          备选模型
+
+                      <div className="space-y-4">
+                        <div className="rounded-xl border px-4 py-3.5" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
+                          <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
+                            当前模型
+                          </div>
+                          <div className="mt-2 text-base font-semibold break-all" style={{ color: 'var(--app-text)' }}>
+                            {globalPrimaryModelLabel}
+                          </div>
+                          <div className="mt-1.5 text-xs break-all" style={{ color: 'var(--app-text-muted)' }}>
+                            默认主模型：{globalAgentConfig?.modelPrimary || '未显式配置'}
+                          </div>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {globalAgentConfig?.modelFallbacks?.length ? globalAgentConfig.modelFallbacks.map((fallback) => (
-                            <span
-                              key={fallback}
-                              className="inline-flex items-center rounded-xl px-3 py-2 text-xs font-medium"
-                              style={{
-                                backgroundColor: 'rgba(99, 102, 241, 0.10)',
-                                border: '1px solid rgba(99, 102, 241, 0.16)',
-                                color: '#4F46E5',
-                              }}
-                            >
-                              {fallback}
-                            </span>
-                          )) : (
-                            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+
+                        <div className="rounded-xl border px-4 py-3.5" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
+                              备选模型
+                            </div>
+                            <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                              {globalAgentConfig?.modelFallbacks?.length ? `${globalAgentConfig.modelFallbacks.length} 项` : '未配置'}
+                            </div>
+                          </div>
+
+                          {globalAgentConfig?.modelFallbacks?.length ? (
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              {globalAgentConfig.modelFallbacks.map((fallback) => (
+                                <div
+                                  key={fallback}
+                                  className="rounded-xl border px-3.5 py-3"
+                                  style={{
+                                    backgroundColor: 'var(--app-bg)',
+                                    borderColor: 'rgba(148, 163, 184, 0.18)',
+                                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-sm font-semibold truncate" style={{ color: 'var(--app-text)' }}>
+                                        {globalModelOptionMap[fallback] || fallback}
+                                      </div>
+                                      <div className="mt-1 text-xs break-all" style={{ color: 'var(--app-text-muted)' }}>
+                                        {fallback}
+                                      </div>
+                                    </div>
+                                    <span
+                                      className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
+                                      style={{
+                                        color: 'var(--app-text-muted)',
+                                        backgroundColor: 'var(--app-bg-subtle)',
+                                      }}
+                                    >
+                                      备选
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-3 rounded-xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)', backgroundColor: 'var(--app-bg)' }}>
                               当前未配置备选模型。
                             </div>
                           )}
@@ -2541,17 +2418,14 @@ const AgentWorkspace: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 p-6 overflow-auto">
-              <textarea
-                value={globalAgentConfigDraft}
-                onChange={(event) => setGlobalAgentConfigDraft(event.target.value)}
-                spellCheck={false}
-                className="w-full min-h-[56vh] rounded-2xl p-5 font-mono text-sm outline-none resize-none"
-                style={{
-                  backgroundColor: 'var(--app-bg)',
-                  color: 'var(--app-text)',
-                  border: '1px solid var(--app-border)',
-                }}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <JsonFormEditor
+                emptyText="当前全局 Agent 配置没有可展示的顶层分组。"
+                onChange={setGlobalAgentConfigDraft}
+                rawPreviewTitle="全局 Agent 原始配置"
+                showRawPreview
+                tabs={globalAgentConfigTabs}
+                value={globalAgentConfigDraft || {}}
               />
             </div>
 
@@ -2603,23 +2477,21 @@ const AgentWorkspace: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 p-6 overflow-auto">
-              <textarea
-                value={globalBindingDraft}
-                onChange={(event) => setGlobalBindingDraft(event.target.value)}
-                spellCheck={false}
-                className="w-full min-h-[56vh] rounded-2xl p-5 font-mono text-sm outline-none resize-none"
-                style={{
-                  backgroundColor: 'var(--app-bg)',
-                  color: 'var(--app-text)',
-                  border: '1px solid var(--app-border)',
-                }}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <JsonFormEditor
+                emptyText="当前没有可展示的 binding 配置分组。"
+                onChange={setGlobalBindingDraft}
+                rawPreviewTitle="Channel / Binding 原始配置"
+                schema={globalBindingSchema}
+                showRawPreview
+                tabs={globalBindingTabs}
+                value={globalBindingDraft || {}}
               />
             </div>
 
             <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
               <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                请保持 JSON 结构为 <code>{'{"binding": ..., "accountConfig": ...}'}</code>，保存后会直接更新全局 `openclaw.json`。
+                这里使用结构化表单编辑 binding 规则和账号配置，保存后会直接更新全局 `openclaw.json`。
               </div>
               <div className="flex items-center gap-3">
                 <AppButton onClick={closeGlobalBindingEditor} variant="secondary">
@@ -2904,14 +2776,136 @@ const AgentWorkspace: React.FC = () => {
         </div>
       )}
 
+      {globalModelEditorOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.58)' }}>
+          <div className="w-full max-w-3xl max-h-[82vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
+            <div className="px-6 py-4 border-b flex items-start justify-between gap-4 shrink-0" style={{ borderColor: 'var(--app-border)' }}>
+              <div className="min-w-0">
+                <h3 className="text-xl font-semibold">编辑模型配置</h3>
+                <div className="mt-1.5 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+                  你可以为当前 Agent 切换主模型，并设置备选模型列表。模型选项来自 `openclaw.json` 中的模型注册表。
+                </div>
+              </div>
+              <button
+                onClick={closeGlobalModelEditor}
+                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
+                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium mb-2" style={{ color: 'var(--app-text)' }}>
+                  当前模型
+                </div>
+                <AppSelect
+                  options={globalModelSelectOptions}
+                  placeholder="请选择主模型"
+                  searchPlaceholder="搜索主模型"
+                  size="sm"
+                  value={globalModelEditor.primary}
+                  onChange={(nextValue) => {
+                    const nextPrimary = Array.isArray(nextValue) ? '' : nextValue;
+                    setGlobalModelEditor((current) => ({
+                      ...current,
+                      primary: nextPrimary,
+                      fallbacks: current.fallbacks.filter((item) => item !== nextPrimary),
+                    }));
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+                    备选模型
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    可多选；保存时会自动创建 `fallbacks` 数组
+                  </div>
+                </div>
+                <AppSelect
+                  emptyText="没有匹配的备选模型。"
+                  multiple
+                  options={globalModelSelectOptions.filter((option) => option.value !== globalModelEditor.primary)}
+                  placeholder="请选择备选模型"
+                  searchPlaceholder="搜索备选模型"
+                  size="sm"
+                  value={globalModelEditor.fallbacks}
+                  onChange={(nextValue) => {
+                    setGlobalModelEditor((current) => ({
+                      ...current,
+                      fallbacks: Array.isArray(nextValue) ? nextValue : [],
+                    }));
+                  }}
+                />
+                {globalModelEditor.fallbacks.length ? (
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {globalModelEditor.fallbacks.map((fallback) => (
+                      <div
+                        key={fallback}
+                        className="rounded-xl border px-3.5 py-3"
+                        style={{
+                          backgroundColor: 'var(--app-bg)',
+                          borderColor: 'rgba(148, 163, 184, 0.18)',
+                          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--app-text)' }}>
+                              {globalModelOptionMap[fallback] || fallback}
+                            </div>
+                            <div className="mt-1 text-xs break-all" style={{ color: 'var(--app-text-muted)' }}>
+                              {fallback}
+                            </div>
+                          </div>
+                          <span
+                            className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
+                            style={{
+                              color: 'var(--app-text-muted)',
+                              backgroundColor: 'var(--app-bg-subtle)',
+                            }}
+                          >
+                            已选
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    当前未选择备选模型，保存后会写入空的 `fallbacks: []`。
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t flex items-center justify-between gap-4 shrink-0" style={{ borderColor: 'var(--app-border)' }}>
+              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                保存后会直接更新当前 Agent 在 `openclaw.json` 中的 `agents.list[]` 条目。
+              </div>
+              <div className="flex items-center gap-3">
+                <AppButton onClick={closeGlobalModelEditor} variant="secondary">
+                  取消
+                </AppButton>
+                <AppButton onClick={handleSaveGlobalModelConfig} disabled={globalModelSaving} icon={<Save className="w-4 h-4" />}>
+                  {globalModelSaving ? '保存中...' : '保存模型配置'}
+                </AppButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {managedFileOpen && managedFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.62)' }}>
-          <div className="w-full max-w-6xl h-[90vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
+          <div className="w-full max-w-6xl h-[88vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
             <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
               <div className="min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-2xl font-semibold break-all">{managedFile.name}</h2>
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: '#10B981' }}>
+                  <h2 className="text-2xl font-semibold">{managedFile.name}</h2>
+                  <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
                     {isManagedSessionLog ? '会话日志' : isManagedJson ? '动态表单' : '文本内容'}
                   </span>
                   {isManagedDirty && (
@@ -2972,9 +2966,9 @@ const AgentWorkspace: React.FC = () => {
                     </button>
                   ))}
                 </div>
-              ) : isManagedJson && managedSections.length > 0 && (
+              ) : isManagedJson && (
                 <div className="text-xs shrink-0" style={{ color: 'var(--app-text-muted)' }}>
-                  分组数：{managedSections.length}
+                  分组数：{Object.keys(managedJsonDraft).length}
                 </div>
               )}
             </div>
@@ -3098,89 +3092,14 @@ const AgentWorkspace: React.FC = () => {
                   )}
                 </div>
               ) : isManagedJson && managedJsonDraft !== null ? (
-                <div className="h-full min-h-0 grid grid-cols-[260px_minmax(0,1fr)] overflow-hidden items-stretch">
-                  <div className="h-full min-h-0 border-r p-4 overflow-auto" style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}>
-                    <div className="text-xs uppercase tracking-wide mb-3" style={{ color: 'var(--app-text-muted)' }}>
-                      顶层分组
-                    </div>
-                    <input
-                      value={managedSearch}
-                      onChange={(event) => setManagedSearch(event.target.value)}
-                      placeholder="搜索字段 / 值"
-                      className="w-full rounded-xl px-4 py-3 mb-3 outline-none"
-                      style={{
-                        backgroundColor: 'var(--app-bg)',
-                        border: '1px solid var(--app-border)',
-                        color: 'var(--app-text)',
-                      }}
-                    />
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 mb-3">
-                        <button
-                          onClick={handleExpandAll}
-                          className="text-xs px-3 py-2 rounded-lg border transition-all duration-200"
-                          style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-                        >
-                          全部展开
-                        </button>
-                        <button
-                          onClick={handleCollapseAll}
-                          className="text-xs px-3 py-2 rounded-lg border transition-all duration-200"
-                          style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-                        >
-                          全部折叠
-                        </button>
-                      </div>
-                      {managedSections
-                        .filter((section) => hasSearchMatch(section, managedJsonDraft?.[section], managedSearch))
-                        .map((section) => (
-                        <button
-                          key={section}
-                          onClick={() => setManagedActiveSection(section)}
-                          className="w-full rounded-xl px-4 py-3 text-left transition-all duration-200"
-                          style={managedActiveSection === section
-                            ? {
-                                background: 'var(--app-selected-card-bg)',
-                                border: '1px solid var(--app-selected-card-border)',
-                                boxShadow: 'var(--app-selected-card-shadow)',
-                                color: 'var(--app-text)',
-                              }
-                            : {
-                                backgroundColor: 'var(--app-bg)',
-                                border: '1px solid var(--app-border)',
-                                color: 'var(--app-text)',
-                              }}
-                        >
-                          <div className="font-medium break-all">{highlightText(section, managedSearch)}</div>
-                          <div className="text-xs mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                            {Array.isArray(managedJsonDraft?.[section])
-                              ? `${managedJsonDraft?.[section]?.length || 0} 项`
-                              : managedJsonDraft?.[section] && typeof managedJsonDraft?.[section] === 'object'
-                                ? `${Object.keys(managedJsonDraft?.[section] || {}).length} 个字段`
-                                : '基础字段'}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="h-full min-h-0 overflow-hidden flex flex-col">
-                    <div className="flex-1 min-h-0 overflow-auto p-6">
-                      {managedActiveSection ? (
-                        <div className="space-y-3 pb-6">
-                          <div className="rounded-xl border p-3" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
-                            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>当前分组</div>
-                            <div className="mt-1 text-lg font-semibold break-all">{managedActiveSection}</div>
-                          </div>
-                          {renderJsonEditor(getValueAtPath(managedJsonDraft, [managedActiveSection]), [managedActiveSection])}
-                        </div>
-                      ) : (
-                        <div className="rounded-2xl border p-6 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
-                          当前 JSON 没有可展示的顶层分组。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <JsonFormEditor
+                  emptyText="当前 JSON 没有可展示的顶层分组。"
+                  onChange={setManagedJsonDraft}
+                  rawPreviewTitle={`${managedFile?.name || '配置文件'} 原始配置`}
+                  showRawPreview
+                  tabs={getTopLevelSections(managedJsonDraft).map((section) => ({ key: section, label: section }))}
+                  value={managedJsonDraft}
+                />
               ) : (
                 <div className="h-full min-h-0 p-6 overflow-auto">
                   <textarea

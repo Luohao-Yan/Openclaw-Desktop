@@ -1,0 +1,64 @@
+name: Release
+
+# 推送 v* 格式的 tag 时触发，例如 v0.5.8
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        include:
+          # macOS arm64 (Apple Silicon)
+          - os: macos-latest
+            arch: arm64
+            script: pack:mac:dmg:arm64
+            artifact_dir: release-artifacts/mac-arm64
+          # macOS x64 (Intel)
+          - os: macos-13
+            arch: x64
+            script: pack:mac:dmg:x64
+            artifact_dir: release-artifacts/mac-x64
+          # Windows x64
+          - os: windows-latest
+            arch: x64
+            script: pack:win:nsis
+            artifact_dir: release-artifacts/win
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 打包应用
+        run: npm run ${{ matrix.script }}
+        env:
+          # 跳过代码签名（开源免签名发布）
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+
+      - name: 上传到 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # 自动收集 artifact_dir 下所有 .dmg / .exe / .zip 文件
+          files: |
+            ${{ matrix.artifact_dir }}/*.dmg
+            ${{ matrix.artifact_dir }}/*.exe
+            ${{ matrix.artifact_dir }}/*.zip
+          # draft: true 表示先创建草稿，确认后手动发布；改为 false 则直接发布
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

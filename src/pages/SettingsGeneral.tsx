@@ -1,406 +1,591 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Settings, 
-  Power, 
-  Minimize2, 
-  Sun, 
-  Moon, 
-  Monitor, 
-  Globe, 
-  Bell, 
-  Menu,
-  AlertCircle,
-  Check
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  RefreshCw,
 } from 'lucide-react';
-import { useI18n } from '../i18n/I18nContext';
-
-interface GeneralSettings {
-  autoStart: boolean;
-  startMinimized: boolean;
-  appearance: 'system' | 'light' | 'dark';
-  glassEffect: boolean;
-  language: string;
-  showTrayIcon: boolean;
-  trayIconAction: 'openWindow' | 'showMenu';
-}
+import AppButton from '../components/AppButton';
+import RuntimeUpdateNotice from '../components/RuntimeUpdateNotice';
+import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
+import GatewayHealthAlert from './settings/general/GatewayHealthAlert';
+import GatewaySection from './settings/general/GatewaySection';
+import GeneralOverviewCards from './settings/general/GeneralOverviewCards';
+import IntegrationStatusCard from './settings/general/IntegrationStatusCard';
+import PermissionsSection from './settings/general/PermissionsSection';
+import PreferencesSection from './settings/general/PreferencesSection';
+import { runGatewayRepair } from '../services/gatewayRepair';
+import TailscaleSection from './settings/general/TailscaleSection';
+import {
+  defaultGatewayStatus,
+  defaultSettings,
+  defaultTailscaleStatus,
+  exposureOptions,
+} from './settings/general/constants';
+import type { OpenClawCommandDiagnostic } from '../types/electron';
+import type {
+  ExposureMode,
+  GeneralSettings,
+  GatewayStatusModel,
+  TailscaleStatusModel,
+} from './settings/general/types';
 
 const SettingsGeneral: React.FC = () => {
-  const { setLanguage } = useI18n();
-  const [settings, setSettings] = useState<GeneralSettings>({
-    autoStart: false,
-    startMinimized: false,
-    appearance: 'system',
-    glassEffect: true,
-    language: 'system',
-    showTrayIcon: true,
-    trayIconAction: 'openWindow'
-  });
+  const {
+    repairCapabilityAvailable,
+    runtimeInfo,
+  } = useDesktopRuntime();
+  const [settings, setSettings] = useState<GeneralSettings>(defaultSettings);
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatusModel>(defaultGatewayStatus);
+  const [tailscaleStatus, setTailscaleStatus] = useState<TailscaleStatusModel>(defaultTailscaleStatus);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isGatewayActionPending, setIsGatewayActionPending] = useState(false);
+  const [isTailscaleActionPending, setIsTailscaleActionPending] = useState(false);
   const [message, setMessage] = useState('');
-  const [availableLanguages] = useState([
-    { code: 'system', name: 'Follow System', nativeName: '跟随系统' },
-    { code: 'en', name: 'English', nativeName: 'English' },
-    { code: 'zh', name: 'Chinese', nativeName: '简体中文' },
-    { code: 'ja', name: 'Japanese', nativeName: '日本語' }
-  ]);
+  const [gatewayRepairDetails, setGatewayRepairDetails] = useState<string[]>([]);
+  const [commandDiagnostic, setCommandDiagnostic] = useState<OpenClawCommandDiagnostic | null>(null);
+  const [pathDraft, setPathDraft] = useState({
+    openclawPath: '',
+    openclawRootDir: '',
+  });
 
-  // 加载设置
+  const memoizedExposureOptions = useMemo(() => exposureOptions, []);
+
   useEffect(() => {
-    loadSettings();
+    void loadAll();
   }, []);
 
-  const loadSettings = async () => {
+  const showMessage = (nextMessage: string) => {
+    setMessage(nextMessage);
+    window.setTimeout(() => {
+      setMessage((currentMessage) => currentMessage === nextMessage ? '' : currentMessage);
+    }, 4000);
+  };
+
+  const handleTestOpenClawCommand = async () => {
     try {
-      const result = await window.electronAPI.settingsGet();
-      if (result.success && result.settings) {
-        const savedSettings = result.settings as Partial<GeneralSettings>;
-        setSettings(prev => ({
-          ...prev,
-          ...savedSettings
-        }));
+      setIsGatewayActionPending(true);
+      const result = await window.electronAPI.testOpenClawCommand();
+      if (result.diagnostic) {
+        setCommandDiagnostic(result.diagnostic);
       }
+
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'OpenClaw CLI 测试失败');
+      }
+
+      showMessage(result.message || 'OpenClaw CLI 可用。');
     } catch (error) {
-      console.error('Failed to load settings:', error);
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsGatewayActionPending(false);
     }
   };
 
-  const saveSettings = async (updates: Partial<GeneralSettings>) => {
+  const handlePathDraftChange = (key: 'openclawPath' | 'openclawRootDir', value: string) => {
+    setPathDraft((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const handleSavePathSettings = async () => {
+    try {
+      setIsGatewayActionPending(true);
+      const updates: Partial<GeneralSettings> = {
+        openclawPath: pathDraft.openclawPath.trim(),
+        openclawRootDir: pathDraft.openclawRootDir.trim(),
+      };
+      const saved = await persistSettings(updates);
+      if (!saved) {
+        return;
+      }
+
+      await Promise.all([fetchCommandDiagnostic(), fetchGatewayStatus(), loadSettings()]);
+      showMessage('OpenClaw 路径配置已保存。');
+    } finally {
+      setIsGatewayActionPending(false);
+    }
+  };
+
+  const handleResetPathDraft = () => {
+    setPathDraft({
+      openclawPath: settings.openclawPath || '',
+      openclawRootDir: settings.openclawRootDir || '',
+    });
+  };
+
+  const handleUseDetectedCommandPath = () => {
+    setPathDraft((prev) => ({
+      ...prev,
+      openclawPath: commandDiagnostic?.detectedPath || commandDiagnostic?.pathEnvCommand || '',
+    }));
+  };
+
+  const isPathDraftDirty = pathDraft.openclawPath !== (settings.openclawPath || '')
+    || pathDraft.openclawRootDir !== (settings.openclawRootDir || '');
+
+  const handleAutoRepairOpenClawCommand = async () => {
+    try {
+      setIsGatewayActionPending(true);
+      setGatewayRepairDetails([]);
+      const result = await window.electronAPI.autoRepairOpenClawCommand();
+      if (result.diagnostic) {
+        setCommandDiagnostic(result.diagnostic);
+      }
+      setGatewayRepairDetails(Array.isArray(result.steps) ? result.steps : []);
+      await Promise.all([fetchGatewayStatus(), fetchCommandDiagnostic(), loadSettings()]);
+
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'OpenClaw 命令自动修复失败');
+      }
+
+      showMessage(result.message || 'OpenClaw 命令路径已修复。');
+    } catch (error) {
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsGatewayActionPending(false);
+    }
+  };
+
+  const loadSettings = async () => {
+    const result = await window.electronAPI.settingsGet();
+    if (!result.success || !result.settings) {
+      throw new Error(result.error || 'Failed to load settings');
+    }
+
+    const savedSettings = result.settings as Partial<GeneralSettings>;
+    setSettings((prev) => ({
+      ...prev,
+      ...savedSettings,
+    }));
+    setPathDraft({
+      openclawPath: typeof savedSettings.openclawPath === 'string' ? savedSettings.openclawPath : '',
+      openclawRootDir: typeof savedSettings.openclawRootDir === 'string' ? savedSettings.openclawRootDir : '',
+    });
+
+    return savedSettings;
+  };
+
+  const fetchGatewayStatus = async () => {
+    const nextStatus = await window.electronAPI.gatewayStatus();
+    setGatewayStatus(nextStatus);
+    return nextStatus;
+  };
+
+  const fetchTailscaleStatus = async () => {
+    const nextStatus = await window.electronAPI.tailscaleStatus();
+    setTailscaleStatus(nextStatus);
+    return nextStatus;
+  };
+
+  const fetchCommandDiagnostic = async () => {
+    const result = await window.electronAPI.diagnoseOpenClawCommand();
+    if (!result.success || !result.diagnostic) {
+      throw new Error(result.error || result.message || 'Failed to diagnose OpenClaw command');
+    }
+
+    setCommandDiagnostic(result.diagnostic);
+    return result.diagnostic;
+  };
+
+  const loadAll = async () => {
+    try {
+      setIsRefreshing(true);
+      const [savedSettings, nextGatewayStatus, nextTailscaleStatus] = await Promise.all([
+        loadSettings(),
+        fetchGatewayStatus(),
+        fetchTailscaleStatus(),
+      ]);
+      await fetchCommandDiagnostic();
+
+      if (savedSettings.exposureMode && savedSettings.exposureMode !== nextTailscaleStatus.exposureMode) {
+        setTailscaleStatus((prev) => ({
+          ...prev,
+          exposureMode: savedSettings.exposureMode || prev.exposureMode,
+        }));
+      }
+
+      if (typeof savedSettings.openclawActive === 'boolean') {
+        setSettings((prev) => ({
+          ...prev,
+          openclawActive: savedSettings.openclawActive ?? (nextGatewayStatus.status === 'running'),
+        }));
+      } else {
+        setSettings((prev) => ({
+          ...prev,
+          openclawActive: nextGatewayStatus.status === 'running',
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to refresh general settings:', error);
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleGatewayRepairCompatibility = async () => {
+    try {
+      setIsGatewayActionPending(true);
+      setGatewayRepairDetails([]);
+
+      const result = await runGatewayRepair({
+        issueHint: gatewayStatus.error,
+        repairCapabilityAvailable,
+        runtimeInfo,
+      });
+
+      setGatewayRepairDetails(result.steps);
+      await Promise.all([fetchGatewayStatus(), fetchCommandDiagnostic()]);
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to repair gateway compatibility');
+      }
+
+      showMessage(result.message || 'Gateway compatibility repaired.');
+    } catch (error) {
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsGatewayActionPending(false);
+    }
+  };
+
+  const persistSettings = async (updates: Partial<GeneralSettings>) => {
     try {
       setIsSaving(true);
-      const newSettings = { ...settings, ...updates };
-      
-      // 调用settingsSet API
-      const result = await window.electronAPI.settingsSet(newSettings);
-      
-      if (result.success) {
-        setSettings(newSettings);
-        setMessage('Settings saved successfully!');
-        
-        // 应用语言设置
-        if (updates.language && updates.language !== 'system') {
-          setLanguage(updates.language as 'en' | 'zh');
-        }
-        
-        setTimeout(() => setMessage(''), 3000);
-      } else {
-        setMessage(`Error saving settings: ${result.error}`);
+      const nextSettings = { ...settings, ...updates };
+      const result = await window.electronAPI.settingsSet(nextSettings);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save settings');
       }
-    } catch (error: any) {
-      setMessage(`Error: ${error.message}`);
+
+      setSettings(nextSettings);
+      return true;
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleSettingChange = (key: keyof GeneralSettings, value: any) => {
-    const updates = { [key]: value };
-    setSettings(prev => ({ ...prev, ...updates }));
-    saveSettings(updates);
+  const handleSettingChange = async <K extends keyof GeneralSettings>(
+    key: K,
+    value: GeneralSettings[K],
+  ) => {
+    const previousSettings = settings;
+    const updates: Partial<GeneralSettings> = { [key]: value };
+    setSettings((prev) => ({ ...prev, ...updates }));
+
+    const saved = await persistSettings(updates);
+    if (!saved) {
+      setSettings(previousSettings);
+    }
   };
 
-  const handleResetSettings = () => {
-    const defaultSettings: GeneralSettings = {
-      autoStart: false,
-      startMinimized: false,
-      appearance: 'system',
-      glassEffect: true,
-      language: 'system',
-      showTrayIcon: true,
-      trayIconAction: 'openWindow'
-    };
+  const handleResetSettings = async () => {
+    const previousSettings = settings;
     setSettings(defaultSettings);
-    saveSettings(defaultSettings);
+    const saved = await persistSettings(defaultSettings);
+    if (!saved) {
+      setSettings(previousSettings);
+      return;
+    }
+
+    showMessage('Settings reset to defaults.');
   };
 
-  const appearanceOptions = [
-    { value: 'system', label: 'Follow System', icon: Monitor },
-    { value: 'light', label: 'Light', icon: Sun },
-    { value: 'dark', label: 'Dark', icon: Moon }
-  ];
+  const handleGatewayToggle = async (enabled: boolean) => {
+    const previousValue = settings.openclawActive;
+    setSettings((prev) => ({ ...prev, openclawActive: enabled }));
 
-  const trayActionOptions = [
-    { value: 'openWindow', label: 'Open Main Window' },
-    { value: 'showMenu', label: 'Show Quick Menu' }
-  ];
+    const saved = await persistSettings({ openclawActive: enabled });
+    if (!saved) {
+      setSettings((prev) => ({ ...prev, openclawActive: previousValue }));
+      return;
+    }
+
+    try {
+      setIsGatewayActionPending(true);
+      const result = enabled
+        ? await window.electronAPI.gatewayStart()
+        : await window.electronAPI.gatewayStop();
+
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'Gateway action failed');
+      }
+
+      await fetchGatewayStatus();
+      showMessage(enabled ? 'Gateway started.' : 'Gateway stopped.');
+    } catch (error) {
+      setSettings((prev) => ({ ...prev, openclawActive: previousValue }));
+      await persistSettings({ openclawActive: previousValue });
+      await fetchGatewayStatus();
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsGatewayActionPending(false);
+    }
+  };
+
+  const handleGatewayRestart = async () => {
+    try {
+      setIsGatewayActionPending(true);
+      const result = await window.electronAPI.gatewayRestart();
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'Failed to restart gateway');
+      }
+
+      await fetchGatewayStatus();
+      showMessage(result.message || 'Gateway restarted.');
+    } catch (error) {
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsGatewayActionPending(false);
+    }
+  };
+
+  const handleOpenLogs = async () => {
+    try {
+      const result = await window.electronAPI.openGatewayLog();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to open gateway log');
+      }
+
+      showMessage(`Opened logs: ${result.path}`);
+    } catch (error) {
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const handleStartTailscale = async () => {
+    try {
+      setIsTailscaleActionPending(true);
+      const result = await window.electronAPI.tailscaleStart();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start Tailscale');
+      }
+
+      await fetchTailscaleStatus();
+      showMessage('Tailscale launch requested.');
+    } catch (error) {
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsTailscaleActionPending(false);
+    }
+  };
+
+  const handleExposureModeChange = async (mode: ExposureMode) => {
+    const previousMode = settings.exposureMode;
+    setSettings((prev) => ({ ...prev, exposureMode: mode }));
+
+    const saved = await persistSettings({ exposureMode: mode });
+    if (!saved) {
+      setSettings((prev) => ({ ...prev, exposureMode: previousMode }));
+      return;
+    }
+
+    try {
+      setIsTailscaleActionPending(true);
+      const result = await window.electronAPI.tailscaleApplyExposure(mode, gatewayStatus.port || 18789);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to apply Tailscale exposure');
+      }
+
+      const nextTailscaleStatus = await fetchTailscaleStatus();
+      setTailscaleStatus((prev) => ({
+        ...prev,
+        exposureMode: nextTailscaleStatus.exposureMode || mode,
+      }));
+      showMessage(`Exposure mode updated to ${mode}.`);
+    } catch (error) {
+      setSettings((prev) => ({ ...prev, exposureMode: previousMode }));
+      await persistSettings({ exposureMode: previousMode });
+      showMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsTailscaleActionPending(false);
+    }
+  };
+
+  const gatewayDotColor = gatewayStatus.status === 'running'
+    ? '#34D399'
+    : gatewayStatus.status === 'error'
+      ? '#F87171'
+      : '#FB923C';
+
+  const tailscaleDotColor = !tailscaleStatus.installed
+    ? '#F87171'
+    : tailscaleStatus.running
+      ? '#34D399'
+      : '#FB923C';
+
+  const gatewayHeadline = gatewayStatus.status === 'running'
+    ? `Gateway is running on ${gatewayStatus.host || '127.0.0.1'}:${gatewayStatus.port || 18789}.`
+    : gatewayStatus.status === 'stopped'
+      ? `Gateway is not currently reachable at ${gatewayStatus.host || '127.0.0.1'}:${gatewayStatus.port || 18789}.`
+      : gatewayStatus.error || 'Gateway status could not be determined.';
+
+  const healthFailure = gatewayStatus.status !== 'running';
+  const tailscaleSummary = tailscaleStatus.dnsName
+    ? `已连接到 ${tailscaleStatus.dnsName}`
+    : tailscaleStatus.installed
+      ? '可以用来开启安全远程访问'
+      : '未检测到 Tailscale 客户端';
+  const exposureDescription = settings.exposureMode === 'tailnet'
+    ? '仅在 Tailnet 内安全访问控制台。'
+    : settings.exposureMode === 'public'
+      ? '通过 Funnel 对公网开放访问入口。'
+      : '关闭远程暴露，仅保留本地访问。';
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* 头部 */}
-      <div className="flex justify-between items-center mb-6">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>General Settings</h1>
-          <p style={{ color: 'var(--app-text-muted)' }}>Application preferences and startup behavior</p>
+          <div className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--app-text-muted)' }}>
+            Everyday essentials
+          </div>
+          <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
+            General Settings
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
+            调整 OpenClaw 的日常使用体验，包括本地运行、远程访问、桌面行为和权限偏好。
+          </p>
         </div>
-        
-        <div className="flex gap-2">
-          <button
+
+        <div className="flex items-center gap-2">
+          <AppButton
+            variant="secondary"
+            onClick={loadAll}
+            disabled={isRefreshing || isSaving || isGatewayActionPending || isTailscaleActionPending}
+            icon={<RefreshCw size={14} />}
+          >
+            Refresh
+          </AppButton>
+          <AppButton
+            variant="secondary"
             onClick={handleResetSettings}
-            className="px-4 py-2 rounded-lg"
-            style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
+            disabled={isSaving || isGatewayActionPending || isTailscaleActionPending}
           >
             Reset to Defaults
-          </button>
+          </AppButton>
+          <AppButton
+            variant="success"
+            onClick={handleGatewayRepairCompatibility}
+            disabled={isRefreshing || isSaving || isGatewayActionPending || isTailscaleActionPending || !repairCapabilityAvailable}
+          >
+            {repairCapabilityAvailable ? '修复兼容性' : '重启后可用'}
+          </AppButton>
         </div>
       </div>
 
       {message && (
-        <div className={`mb-6 p-3 rounded-lg ${message.includes('Error') ? 'bg-red-900/30 border border-red-700 text-red-300' : 'bg-green-900/30 border border-green-700 text-green-300'}`}>
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${message.includes('Error') ? 'border-red-700 text-red-300' : 'border-emerald-700 text-emerald-300'}`}
+          style={{
+            backgroundColor: message.includes('Error')
+              ? 'rgba(239, 68, 68, 0.12)'
+              : 'rgba(16, 185, 129, 0.12)',
+          }}
+        >
           {message}
         </div>
       )}
 
-      {/* 主内容区 */}
-      <div className="flex-1 overflow-y-auto pr-1">
-        {/* 启动设置分组 */}
-        <div className="rounded-lg p-6 border mb-6" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
-          <div className="flex items-center gap-3 mb-4">
-            <Power size={24} />
-            <h2 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Startup Settings</h2>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(0, 180, 255, 0.1)' }}>
-                  <Power size={20} className="text-tech-cyan" />
-                </div>
-                <div>
-                  <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Auto-start on System Login</h3>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Launch OpenClaw automatically when you log into your computer</p>
-                </div>
-              </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={settings.autoStart}
-                  onChange={(e) => handleSettingChange('autoStart', e.target.checked)}
-                  className="sr-only"
-                />
-                <div className={`switch-thumb ${settings.autoStart ? 'translate-x-5' : ''}`} />
-              </label>
-            </div>
+      {!repairCapabilityAvailable && runtimeInfo && (
+        <RuntimeUpdateNotice
+          message={`当前是 ${runtimeInfo.appVersionLabel}，修复能力还未完成加载。请先重启桌面应用完成更新。`}
+          runtimeInfo={runtimeInfo}
+        />
+      )}
 
-            <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(0, 224, 142, 0.1)' }}>
-                  <Minimize2 size={20} className="text-tech-green" />
-                </div>
-                <div>
-                  <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Start Minimized to Tray</h3>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Launch application without showing the main window, only tray icon</p>
-                </div>
-              </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={settings.startMinimized}
-                  onChange={(e) => handleSettingChange('startMinimized', e.target.checked)}
-                  className="sr-only"
-                  disabled={!settings.showTrayIcon}
-                />
-                <div className={`switch-thumb ${settings.startMinimized ? 'translate-x-5' : ''} ${!settings.showTrayIcon ? 'opacity-50' : ''}`} />
-              </label>
-            </div>
-
-            {!settings.showTrayIcon && settings.startMinimized && (
-              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                <div className="flex items-start gap-2">
-                  <AlertCircle size={16} className="text-yellow-500 mt-0.5" />
-                  <p className="text-sm text-yellow-400">
-                    Start minimized requires tray icon to be enabled. Please enable tray icon first.
-                  </p>
-                </div>
-              </div>
-            )}
+      {gatewayRepairDetails.length > 0 && (
+        <div
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{
+            backgroundColor: 'rgba(59, 130, 246, 0.08)',
+            borderColor: 'rgba(59, 130, 246, 0.18)',
+            color: 'var(--app-text)',
+          }}
+        >
+          <div className="font-medium">兼容性修复步骤</div>
+          <div className="mt-2 space-y-1" style={{ color: 'var(--app-text-muted)' }}>
+            {gatewayRepairDetails.map((item, index) => (
+              <div key={`${index}-${item}`}>{index + 1}. {item}</div>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* 外观设置分组 */}
-        <div className="rounded-lg p-6 border mb-6" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
-          <div className="flex items-center gap-3 mb-4">
-            <Monitor size={24} />
-            <h2 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Appearance</h2>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)' }}>
-                  <Settings size={20} className="text-purple-500" />
-                </div>
-                <div>
-                  <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Appearance Mode</h3>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Choose between light, dark, or follow system theme</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-1 p-1 rounded-lg" style={{ backgroundColor: 'var(--app-segment-bg)' }}>
-                {appearanceOptions.map(option => {
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.value}
-                      onClick={() => handleSettingChange('appearance', option.value)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md transition-all duration-200"
-                      style={settings.appearance === option.value
-                        ? {
-                            backgroundColor: 'var(--app-segment-active-bg)',
-                            color: option.value === 'light' ? '#10B981' : 
-                                   option.value === 'dark' ? '#00B4FF' : 
-                                   '#00D0B6',
-                          }
-                        : {
-                            color: 'var(--app-text-muted)',
-                          }}
-                    >
-                      <Icon size={16} />
-                      <span className="text-sm">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+      <div className="space-y-6">
+        <GeneralOverviewCards
+          gatewayDotColor={gatewayDotColor}
+          gatewayHeadline={gatewayHeadline}
+          gatewayStatus={gatewayStatus}
+          settings={settings}
+        />
 
-            <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-                  <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-400 to-cyan-400"></div>
-                </div>
-                <div>
-                  <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Glass Effect (Acrylic)</h3>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Enable translucent glass-like effects for windows and panels</p>
-                </div>
-              </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={settings.glassEffect}
-                  onChange={(e) => handleSettingChange('glassEffect', e.target.checked)}
-                  className="sr-only"
-                />
-                <div className={`switch-thumb ${settings.glassEffect ? 'translate-x-5' : ''}`} />
-              </label>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <GatewaySection
+            commandDiagnostic={commandDiagnostic}
+            gatewayDotColor={gatewayDotColor}
+            gatewayHeadline={gatewayHeadline}
+            gatewayStatus={gatewayStatus}
+            isGatewayActionPending={isGatewayActionPending}
+            loadAll={loadAll}
+            onChangePathDraft={handlePathDraftChange}
+            onAutoRepairOpenClawCommand={handleAutoRepairOpenClawCommand}
+            onGatewayRestart={handleGatewayRestart}
+            onGatewayToggle={handleGatewayToggle}
+            onOpenLogs={handleOpenLogs}
+            onResetPathDraft={handleResetPathDraft}
+            onSettingChange={handleSettingChange}
+            onSavePathSettings={handleSavePathSettings}
+            onTestOpenClawCommand={handleTestOpenClawCommand}
+            onUseDetectedCommandPath={handleUseDetectedCommandPath}
+            pathDraft={pathDraft}
+            pathDraftDirty={isPathDraftDirty}
+            settings={settings}
+          />
+
+          <TailscaleSection
+            exposureDescription={exposureDescription}
+            exposureOptions={memoizedExposureOptions}
+            fetchTailscaleStatus={fetchTailscaleStatus}
+            isRefreshing={isRefreshing}
+            isSaving={isSaving}
+            isTailscaleActionPending={isTailscaleActionPending}
+            onExposureModeChange={handleExposureModeChange}
+            onSettingChange={handleSettingChange}
+            onStartTailscale={handleStartTailscale}
+            settings={settings}
+            tailscaleDotColor={tailscaleDotColor}
+            tailscaleStatus={tailscaleStatus}
+            tailscaleSummary={tailscaleSummary}
+          />
         </div>
 
-        {/* 语言与状态栏设置分组 */}
-        <div className="rounded-lg p-6 border mb-6" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
-          <div className="flex items-center gap-3 mb-4">
-            <Globe size={24} />
-            <h2 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Language & Tray</h2>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }}>
-                  <Globe size={20} className="text-green-500" />
-                </div>
-                <div>
-                  <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Language</h3>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Choose your preferred language for the application interface</p>
-                </div>
-              </div>
-              
-              <select
-                value={settings.language}
-                onChange={(e) => handleSettingChange('language', e.target.value)}
-                className="w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-tech-cyan"
-                style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-              >
-                {availableLanguages.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name} ({lang.nativeName})
-                  </option>
-                ))}
-              </select>
-            </div>
+        {healthFailure && (
+          <GatewayHealthAlert
+            gatewayDotColor={gatewayDotColor}
+            gatewayStatus={gatewayStatus}
+            isGatewayActionPending={isGatewayActionPending}
+            onOpenLogs={handleOpenLogs}
+            onRetry={loadAll}
+          />
+        )}
 
-            <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
-                  <Bell size={20} className="text-yellow-500" />
-                </div>
-                <div>
-                  <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Show Tray Icon</h3>
-                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Display icon in system tray (menu bar on macOS)</p>
-                </div>
-              </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={settings.showTrayIcon}
-                  onChange={(e) => handleSettingChange('showTrayIcon', e.target.checked)}
-                  className="sr-only"
-                />
-                <div className={`switch-thumb ${settings.showTrayIcon ? 'translate-x-5' : ''}`} />
-              </label>
-            </div>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <PreferencesSection
+            onSettingChange={handleSettingChange}
+            settings={settings}
+          />
 
-            {settings.showTrayIcon && (
-              <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)' }}>
-                    <Menu size={20} className="text-purple-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium" style={{ color: 'var(--app-text)' }}>Tray Icon Click Action</h3>
-                    <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>What happens when you click the tray icon</p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2">
-                  {trayActionOptions.map(option => (
-                    <button
-                      key={option.value}
-                      onClick={() => handleSettingChange('trayIconAction', option.value)}
-                      className={`flex-1 px-4 py-3 rounded-lg border transition-all duration-200 ${
-                        settings.trayIconAction === option.value
-                          ? 'border-tech-cyan bg-tech-cyan/10'
-                          : 'border-transparent hover:border-tech-cyan/30'
-                      }`}
-                      style={{ 
-                        backgroundColor: settings.trayIconAction === option.value 
-                          ? 'var(--app-active-bg)' 
-                          : 'var(--app-bg-elevated)',
-                        color: 'var(--app-text)'
-                      }}
-                    >
-                      <div className="text-left">
-                        <div className="font-medium">{option.label}</div>
-                        {settings.trayIconAction === option.value && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-tech-cyan">
-                            <Check size={12} />
-                            <span>Selected</span>
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <PermissionsSection
+            onSettingChange={handleSettingChange}
+            settings={settings}
+          />
         </div>
 
-        {/* 性能提示 */}
-        <div className="rounded-lg p-4 border" style={{ backgroundColor: 'rgba(59, 130, 246, 0.05)', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
-              <AlertCircle size={16} className="text-blue-500" />
-            </div>
-            <div>
-              <h4 className="font-medium text-sm" style={{ color: 'var(--app-text)' }}>Performance Tips</h4>
-              <ul className="text-xs space-y-1 mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                <li>• Glass effect may increase GPU usage on older hardware</li>
-                <li>• Auto-start adds a login item that may slightly increase boot time</li>
-                <li>• Starting minimized can help if you use OpenClaw as a background service</li>
-                <li>• Changes may require restarting the application to take full effect</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+        <IntegrationStatusCard onOpenLogs={handleOpenLogs} />
       </div>
     </div>
   );

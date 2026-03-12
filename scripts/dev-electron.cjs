@@ -6,6 +6,7 @@ const http = require('http');
 const projectRoot = path.resolve(__dirname, '..');
 const electronEntry = path.join(projectRoot, 'dist-electron', 'electron', 'main.js');
 const electronWatchDir = path.join(projectRoot, 'dist-electron', 'electron');
+const electronSourceDir = path.join(projectRoot, 'electron');
 const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174';
 const electronBinary = process.platform === 'win32'
   ? path.join(projectRoot, 'node_modules', '.bin', 'electron.cmd')
@@ -147,6 +148,28 @@ const watchElectronOutput = () => {
   watchers.push(watcher);
 };
 
+const watchElectronSource = () => {
+  if (!fs.existsSync(electronSourceDir)) {
+    log(`source watch directory not found yet: ${electronSourceDir}`);
+    return;
+  }
+
+  const watcher = fs.watch(electronSourceDir, { recursive: true }, (_eventType, filename) => {
+    if (!filename) {
+      return;
+    }
+
+    if (!filename.endsWith('.cjs') && !filename.endsWith('.js')) {
+      return;
+    }
+
+    log(`detected Electron source change: ${filename}`);
+    scheduleRestart();
+  });
+
+  watchers.push(watcher);
+};
+
 const shutdown = async () => {
   if (shuttingDown) {
     return;
@@ -180,6 +203,7 @@ process.on('exit', () => {
   await waitForFile(electronEntry);
 
   watchElectronOutput();
+  watchElectronSource();
   await startElectron();
 })().catch((error) => {
   log(error.message);

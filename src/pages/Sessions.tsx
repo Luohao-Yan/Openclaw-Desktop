@@ -12,9 +12,10 @@ import {
   X,
   Eye,
   RefreshCw,
-  Copy
+  Copy,
+  AlertCircle
 } from 'lucide-react';
-import { useI18n } from '../i18n/I18nContext';
+import GlassCard from '../components/GlassCard';
 
 interface Session {
   id: string;
@@ -69,6 +70,7 @@ const Sessions: React.FC = () => {
   // const { t } = useI18n(); // 暂时注释掉，等待国际化支持
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,14 +88,16 @@ const Sessions: React.FC = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
+      setError(null);
       const sessionsList = await window.electronAPI.sessionsList();
       setSessions(sessionsList);
       
       // 加载统计数据
       const sessionsStats = await window.electronAPI.sessionsStats();
       setStats(sessionsStats);
-    } catch (error) {
-      console.error('Failed to load sessions:', error);
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
+      setError('加载会话失败，请检查 OpenClaw 服务是否正常运行。');
     } finally {
       setLoading(false);
     }
@@ -206,6 +210,9 @@ const Sessions: React.FC = () => {
     };
   }, []);
 
+  // 获取所有唯一的 agent 名称，用于过滤下拉框
+  const uniqueAgents = Array.from(new Set(sessions.map(s => s.agent).filter(Boolean)));
+
   // 过滤会话
   const filteredSessions = sessions.filter(session => {
     const matchesSearch = session.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -218,8 +225,12 @@ const Sessions: React.FC = () => {
     return matchesSearch && matchesStatus && matchesAgent;
   });
 
-  // 获取唯一代理列表
-  const uniqueAgents = Array.from(new Set(sessions.map(s => s.agent)));
+  // 格式化 token 数量，自动换算单位
+  const formatTokens = (count: number): { value: string; unit: string } => {
+    if (count >= 1_000_000) return { value: (count / 1_000_000).toFixed(1), unit: 'M' };
+    if (count >= 1_000) return { value: (count / 1_000).toFixed(1), unit: 'K' };
+    return { value: count.toString(), unit: 'tokens' };
+  };
 
   // 状态颜色映射
   const statusColors = {
@@ -235,44 +246,94 @@ const Sessions: React.FC = () => {
     system: 'bg-purple-500/20 text-purple-400'
   };
 
-  if (loading && sessions.length === 0) {
+  if (loading && sessions.length === 0 && !error) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-tech-cyan mb-4"></div>
-          <p style={{ color: 'var(--app-text-muted)' }}>Loading sessions...</p>
+          <p style={{ color: 'var(--app-text-muted)' }}>加载会话中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full p-6 overflow-hidden">
-      {/* 头部 */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>Sessions</h1>
-          <p style={{ color: 'var(--app-text-muted)' }}>Monitor and manage OpenClaw conversation sessions</p>
+    <div className="flex flex-col min-h-full p-6">
+      {/* 顶部渐变标题卡片 */}
+      <GlassCard
+        variant="gradient"
+        className="relative rounded-[28px] px-6 py-5 mb-6"
+        style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 48%, rgba(255, 255, 255, 0.02) 100%)',
+          backdropFilter: 'blur(18px)',
+          border: 'none',
+        }}
+      >
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(99, 102, 241, 0.18)' }} />
+        <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(139, 92, 246, 0.14)' }} />
+
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
+              style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--app-text)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+            >
+              <MessageSquare size={14} />
+              对话会话
+            </div>
+            <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
+              会话
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
+              监控和管理 OpenClaw 的对话会话，查看消息记录与 token 用量。
+            </p>
+          </div>
+
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={loadSessions}
+              className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
+              style={{ 
+                backgroundColor: 'var(--app-bg-elevated)', 
+                color: 'var(--app-text)', 
+                border: '1px solid var(--app-border)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--app-hover)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--app-bg-elevated)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+              }}
+            >
+              <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? '加载中' : '刷新'}
+            </button>
+            <button
+              onClick={() => setIsCreatingSession(true)}
+              className="px-4 py-2 rounded-xl transition-all duration-200 cursor-pointer flex items-center gap-2 hover:scale-105 active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, #00B4FF 0%, #22C55E 100%)',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(0, 180, 255, 0.3)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 180, 255, 0.4)';
+                e.currentTarget.style.transform = 'scale(1.05) translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 180, 255, 0.3)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <Plus size={18} />
+              新建会话
+            </button>
+          </div>
         </div>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={loadSessions}
-            className="p-2 rounded-lg hover:scale-105 transition-all duration-200 cursor-pointer"
-            style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
-            title="Refresh"
-          >
-            <RefreshCw size={18} />
-          </button>
-          <button
-            onClick={() => setIsCreatingSession(true)}
-            className="px-4 py-2 bg-tech-cyan hover:bg-tech-green rounded-lg transition-colors flex items-center gap-2"
-          >
-            <Plus size={18} />
-            New Session
-          </button>
-        </div>
-      </div>
+      </GlassCard>
 
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -299,10 +360,17 @@ const Sessions: React.FC = () => {
         <div className="rounded-lg p-4 border" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Idle</p>
-              <p className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>{stats.idle}</p>
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Token 消耗</p>
+              <div className="flex items-baseline gap-1.5">
+                <p className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>
+                  {formatTokens(sessions.reduce((sum, s) => sum + (s.tokensUsed || 0), 0)).value}
+                </p>
+                <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {formatTokens(sessions.reduce((sum, s) => sum + (s.tokensUsed || 0), 0)).unit}
+                </span>
+              </div>
             </div>
-            <Clock size={24} className="text-yellow-500" />
+            <Terminal size={24} className="text-orange-500" />
           </div>
         </div>
         
@@ -316,6 +384,14 @@ const Sessions: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="mb-4 p-4 rounded-xl border flex items-center gap-3" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)', color: '#EF4444' }}>
+          <AlertCircle size={18} className="shrink-0" />
+          <span className="text-sm">{error}</span>
+        </div>
+      )}
 
       {/* 搜索和过滤 */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">

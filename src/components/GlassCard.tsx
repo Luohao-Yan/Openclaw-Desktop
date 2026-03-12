@@ -1,11 +1,12 @@
 import React from 'react';
 
-interface GlassCardProps {
+interface GlassCardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   className?: string;
   variant?: 'default' | 'elevated' | 'status' | 'gradient';
   statusColor?: 'green' | 'red' | 'yellow' | 'blue' | 'purple';
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 const GlassCard: React.FC<GlassCardProps> = ({
@@ -14,6 +15,8 @@ const GlassCard: React.FC<GlassCardProps> = ({
   variant = 'default',
   statusColor,
   onClick,
+  style,
+  ...props
 }) => {
   const baseClasses = 'relative overflow-hidden transition-all duration-300';
 
@@ -66,14 +69,17 @@ const GlassCard: React.FC<GlassCardProps> = ({
         ? {
             backgroundColor: 'var(--app-bg-subtle)',
             border: '1px solid var(--app-border)',
+            ...style,
           }
         : variant === 'elevated'
           ? {
               background: 'linear-gradient(135deg, var(--app-bg-subtle) 0%, transparent 100%)',
               border: '1px solid var(--app-border)',
+              ...style,
             }
-          : undefined}
+          : style}
       onClick={onClick}
+      {...props}
     >
       {/* 装饰性光晕 */}
       {(variant === 'status' || variant === 'gradient') && statusColor && (

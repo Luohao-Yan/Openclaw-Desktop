@@ -5,7 +5,7 @@ import {
   Database, Network, Shield, 
   BarChart, Clock, Users,
   AlertCircle, CheckCircle, XCircle,
-  Plus, Minus, Edit, Eye,
+  Minus, Eye,
   Download, Upload, Copy,
   MessageSquare, FileText, Terminal
 } from 'lucide-react';
@@ -43,10 +43,8 @@ interface AgentEnhancerProps {
 }
 
 const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
-  agentId,
   agentName,
   onEnhancementToggle,
-  onSettingsUpdate,
   onPerformanceTest
 }) => {
   const { t } = useI18n();
@@ -150,30 +148,6 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
       onEnhancementToggle?.(enhancementId, newEnabled);
     } catch (error) {
       console.error('Failed to toggle enhancement:', error);
-    } finally {
-      setActionLoading({ ...actionLoading, [enhancementId]: false });
-    }
-  };
-
-  const updateSettings = async (enhancementId: string, newSettings: Record<string, any>) => {
-    setActionLoading({ ...actionLoading, [enhancementId]: true });
-    try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setEnhancements(prev => prev.map(e => 
-        e.id === enhancementId 
-          ? { 
-              ...e, 
-              settings: { ...e.settings, ...newSettings },
-              lastApplied: new Date().toISOString()
-            }
-          : e
-      ));
-      
-      onSettingsUpdate?.(enhancementId, newSettings);
-    } catch (error) {
-      console.error('Failed to update settings:', error);
     } finally {
       setActionLoading({ ...actionLoading, [enhancementId]: false });
     }
@@ -413,7 +387,7 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
                           ? { backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#EF4444' }
                           : { backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }
                       }
-                      title={enhancement.enabled ? t('agent.enhancement.disable') : t('agent.enhancement.enable')}
+                      title={enhancement.enabled ? 'Disable enhancement' : 'Enable enhancement'}
                     >
                       {actionLoading[enhancement.id] ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />

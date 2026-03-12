@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   BookOpen, Code, Package, Search, 
   RefreshCw, Download, Upload, Trash2,
-  AlertCircle, CheckCircle, XCircle,
-  Star, ExternalLink, Settings,
+  AlertCircle, CheckCircle,
+  Star, ExternalLink,
   Filter, SortAsc, SortDesc,
-  Play, StopCircle, Edit
+  Play, StopCircle
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import { useI18n } from '../i18n/I18nContext';
@@ -31,7 +30,6 @@ interface SkillInfo {
 
 const Skills: React.FC = () => {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -284,10 +282,10 @@ const Skills: React.FC = () => {
       {/* Stats */}
       <div className="flex items-center justify-between text-xs mb-4" style={{ color: 'var(--app-text-muted)' }}>
         {skill.downloads !== undefined && (
-          <span>{t('skills.downloads', { count: skill.downloads })}</span>
+          <span>{`Downloads: ${skill.downloads}`}</span>
         )}
         {skill.updatedAt && (
-          <span>{t('skills.updated', { date: new Date(skill.updatedAt).toLocaleDateString() })}</span>
+          <span>{`Updated: ${new Date(skill.updatedAt).toLocaleDateString()}`}</span>
         )}
       </div>
 
@@ -420,41 +418,82 @@ const Skills: React.FC = () => {
   return (
     <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-purple-500/10 rounded-xl">
-              <BookOpen className="w-8 h-8 text-purple-500" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold" style={{ color: 'var(--app-text)' }}>{t('skills.title')}</h1>
-              <p className="mt-1" style={{ color: 'var(--app-text-muted)' }}>
+        {/* 顶部渐变标题卡片 */}
+        <GlassCard
+          variant="gradient"
+          className="relative rounded-[28px] px-6 py-5 mb-8"
+          style={{
+            background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(139, 92, 246, 0.08) 48%, rgba(255, 255, 255, 0.02) 100%)',
+            backdropFilter: 'blur(18px)',
+            border: 'none',
+          }}
+        >
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(168, 85, 247, 0.18)' }} />
+          <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(139, 92, 246, 0.14)' }} />
+
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <div
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
+                style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--app-text)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+              >
+                <BookOpen size={14} />
+                技能市场
+              </div>
+              <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
+                {t('skills.title')}
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
                 {t('skills.subtitle')}
               </p>
             </div>
+
+            <div className="flex items-center space-x-3 shrink-0">
+              <button
+                onClick={loadSkills}
+                disabled={loading}
+                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-105 active:scale-95"
+                style={{ 
+                  backgroundColor: 'var(--app-bg-elevated)', 
+                  border: '1px solid var(--app-border)', 
+                  color: 'var(--app-text)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--app-hover)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--app-bg-elevated)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                }}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? t('common.loading') : t('common.refresh')}
+              </button>
+              <button
+                onClick={() => alert('上传技能功能即将推出')}
+                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
+                style={{
+                  background: 'linear-gradient(135deg, #00B4FF 0%, #22C55E 100%)',
+                  color: 'white',
+                  boxShadow: '0 4px 12px rgba(0, 180, 255, 0.3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 180, 255, 0.4)';
+                  e.currentTarget.style.transform = 'scale(1.05) translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 180, 255, 0.3)';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {t('skills.upload')}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={loadSkills}
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text)',
-              }}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? t('common.loading') : t('common.refresh')}
-            </button>
-            <button
-              onClick={() => alert('Upload skill feature coming soon')}
-              className="inline-flex items-center px-4 py-2 bg-tech-cyan hover:bg-tech-green text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              {t('skills.upload')}
-            </button>
-          </div>
-        </div>
+        </GlassCard>
 
         {/* Search and Filter Bar */}
         <GlassCard className="p-6 mb-6">

@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "1.0.0",
+  "version": "0.5.8-preview-1",
   "description": "OpenClaw Desktop Electron Application",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -17,6 +17,8 @@
     "pack:mac:dmg:arm64": "rm -rf release-artifacts/mac-arm64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --arm64 --config.directories.output=release-artifacts/mac-arm64",
     "pack:mac:dmg:x64": "rm -rf release-artifacts/mac-x64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --x64 --config.directories.output=release-artifacts/mac-x64",
     "pack:mac:dmg:universal": "rm -rf release-artifacts/mac-universal && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --universal --config.directories.output=release-artifacts/mac-universal",
+    "pack:win:nsis": "rm -rf release-artifacts/win && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --win nsis --config.directories.output=release-artifacts/win",
+    "pack:win:zip": "rm -rf release-artifacts/win-zip && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --win zip --config.directories.output=release-artifacts/win-zip",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "watch": "tsc --watch"
@@ -40,6 +42,7 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
+    "@iconify/react": "^5.2.1",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/js-yaml": "^4.0.9",
     "@types/react": "^19.2.14",
@@ -63,15 +66,18 @@
     "appId": "com.openclaw.desktop",
     "productName": "OpenClaw Desktop",
     "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "icon": "resources/icon.png",
     "directories": {
       "output": "dist"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "resources/**/*"
     ],
     "mac": {
+      "icon": "resources/icns/icon_1024.icns",
       "category": "public.app-category.developer-tools",
       "target": [
         "dmg",
@@ -79,6 +85,7 @@
       ]
     },
     "win": {
+      "icon": "resources/win/icon_win.ico",
       "target": [
         "nsis",
         "zip"

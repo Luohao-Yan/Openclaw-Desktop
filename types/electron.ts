@@ -5,13 +5,238 @@ export type GatewayStatus = {
   error?: string;
   pid?: number;
   version?: string;
+  uptime?: string;
+  host?: string;
+  port?: number;
+};
+
+export type TailscaleExposureMode = 'off' | 'tailnet' | 'public';
+
+export interface DesktopRuntimeInfo {
+  appVersion: string;
+  appVersionLabel: string;
+  channel: 'preview';
+  openclawCompatTail: number;
+  runtimeVersion: string;
+  preloadVersion: string;
+  mainVersion: string;
+  capabilitiesVersion: number;
+}
+
+export interface DesktopRuntimeCapabilities {
+  gateway?: {
+    status?: boolean;
+    start?: boolean;
+    stop?: boolean;
+    restart?: boolean;
+    repairCompatibility?: boolean;
+  };
+  settings?: {
+    diagnoseRoot?: boolean;
+  };
+  system?: {
+    runtimeInfo?: boolean;
+    capabilities?: boolean;
+    stats?: boolean;
+  };
+}
+
+export interface SetupEnvironmentCheckResult {
+  platform: string;
+  platformLabel: string;
+  nodeInstalled: boolean;
+  nodeVersion?: string;
+  nodeVersionSatisfies: boolean;
+  npmInstalled: boolean;
+  npmVersion?: string;
+  openclawInstalled: boolean;
+  openclawVersion?: string;
+  openclawCommand?: string;
+  openclawConfigExists: boolean;
+  openclawRootDir: string;
+  recommendedInstallCommand: string;
+  recommendedInstallLabel: string;
+  notes: string[];
+}
+
+export interface SetupInstallResult {
+  success: boolean;
+  message: string;
+  command: string;
+  output?: string;
+  error?: string;
+}
+
+export type InstallStage = 'download' | 'install' | 'init' | 'verify';
+
+export interface InstallProgressEvent {
+  stage: InstallStage;
+  status: 'running' | 'done' | 'error';
+  message?: string;
+}
+
+export interface InstallOutputEvent {
+  data: string;
+  isError: boolean;
+}
+
+export type TailscaleStatus = {
+  installed: boolean;
+  running: boolean;
+  version?: string;
+  dnsName?: string;
+  tailnet?: string;
+  exposureMode: TailscaleExposureMode;
+  statusText: string;
+  error?: string;
 };
 
 export interface GatewayActions {
   gatewayStatus(): Promise<GatewayStatus>;
-  gatewayStart(): Promise<{ success: boolean; error?: string }>;
-  gatewayStop(): Promise<{ success: boolean; error?: string }>;
-  gatewayRestart(): Promise<{ success: boolean; error?: string }>;
+  gatewayStart(): Promise<{ success: boolean; message?: string; error?: string }>;
+  gatewayStop(): Promise<{ success: boolean; message?: string; error?: string }>;
+  gatewayRestart(): Promise<{ success: boolean; message?: string; error?: string }>;
+  gatewayRepairCompatibility(): Promise<{
+    success?: boolean;
+    message?: string;
+    steps?: string[];
+    status?: {
+      error?: string;
+    };
+  }>;
+}
+
+export interface RuntimeActions {
+  runtimeInfo(): Promise<DesktopRuntimeInfo | null>;
+  getCapabilities(): Promise<DesktopRuntimeCapabilities | null>;
+  setupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult>;
+  setupInstallOpenClaw(): Promise<SetupInstallResult>;
+  onInstallProgress?(callback: (event: InstallProgressEvent) => void): () => void;
+  onInstallOutput?(callback: (event: InstallOutputEvent) => void): () => void;
+  testModelConnection?(params: { provider: string; model: string; apiKey?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+}
+
+export interface TailscaleActions {
+  tailscaleStatus(): Promise<TailscaleStatus>;
+  tailscaleStart(): Promise<{ success: boolean; error?: string }>;
+  tailscaleApplyExposure(
+    mode: TailscaleExposureMode,
+    port: number,
+  ): Promise<{ success: boolean; error?: string }>;
+}
+
+export interface OpenClawCommandDiagnostic {
+  configuredPath: string;
+  resolvedCommand: string;
+  rootDir: string;
+  pathEnvHit: boolean;
+  pathEnvCommand?: string;
+  detectedPath?: string;
+  detectedSource?: 'configured' | 'common-path' | 'path-env' | 'directory' | 'not-found';
+  commandExists: boolean;
+  versionSuccess: boolean;
+  versionOutput?: string;
+  error?: string;
+}
+
+export interface DiagnoseCommandResult<T = unknown> {
+  success: boolean;
+  error?: string;
+  diagnostic?: T;
+  message?: string;
+}
+
+export interface OpenClawCommandRepairResult {
+  success: boolean;
+  error?: string;
+  message?: string;
+  steps?: string[];
+  diagnostic?: OpenClawCommandDiagnostic;
+}
+
+export interface OpenClawManifestFieldOption {
+  label: string;
+  value: string;
+}
+
+export interface OpenClawManifestField {
+  id: string;
+  label: string;
+  type: 'readonly' | 'text' | 'number' | 'select' | 'password';
+  source?: string;
+  path?: string;
+  defaultValue?: string | number;
+  options?: OpenClawManifestFieldOption[];
+}
+
+export interface OpenClawManifestCommand {
+  id: string;
+  label: string;
+  command: string;
+  subcommands: string[];
+}
+
+export interface OpenClawManifestSection {
+  id: string;
+  title: string;
+  description: string;
+  fields: OpenClawManifestField[];
+  commands: OpenClawManifestCommand[];
+}
+
+export interface OpenClawVersionedManifest {
+  manifestVersion: string;
+  openclawVersionRange: string;
+  capabilities: Record<string, boolean>;
+  sections: OpenClawManifestSection[];
+}
+
+export interface OpenClawCommandPreview {
+  id: string;
+  label: string;
+  command: string;
+}
+
+export interface CoreConfigOverview {
+  manifest: OpenClawVersionedManifest;
+  openclawVersion: string;
+  manifestVersion: string;
+  configPath: string;
+  commandPath: string;
+  draft: Record<string, unknown>;
+  commandPreviews: OpenClawCommandPreview[];
+  rawConfig: Record<string, unknown>;
+}
+
+export interface CoreConfigOverviewResult {
+  success: boolean;
+  error?: string;
+  overview?: CoreConfigOverview;
+}
+
+export interface CoreConfigSaveResult {
+  success: boolean;
+  error?: string;
+  saved?: {
+    configPath: string;
+    desktopUpdates: Record<string, unknown>;
+  };
+}
+
+export interface RemoteOpenClawConnectionPayload {
+  host: string;
+  port?: number;
+  protocol: 'http' | 'https';
+  token?: string;
+}
+
+export interface RemoteOpenClawTestResult {
+  success: boolean;
+  error?: string;
+  version?: string;
+  host?: string;
+  port?: number;
+  authenticated?: boolean;
 }
 
 export interface TaskItem {
@@ -33,6 +258,7 @@ export interface TasksActions {
 
 export interface Settings {
   openclawPath?: string;
+  openclawRootDir?: string;
   theme?: 'dark' | 'light' | 'system';
   sidebarCollapsed?: boolean;
   sidebarWidth?: number;
@@ -43,12 +269,34 @@ export interface Settings {
   glassEffect?: boolean;
   showTrayIcon?: boolean;
   trayIconAction?: 'openWindow' | 'showMenu';
+  openclawActive?: boolean;
+  runMode?: 'local' | 'remote';
+  launchAtLogin?: boolean;
+  showDockIcon?: boolean;
+  playMenuBarAnimations?: boolean;
+  allowCanvas?: boolean;
+  allowCamera?: boolean;
+  enablePeekabooBridge?: boolean;
+  enableDebugTools?: boolean;
+  exposureMode?: 'off' | 'tailnet' | 'public';
+  requireCredentials?: boolean;
 }
 
 export interface SettingsActions {
-  settingsGet(): Promise<{ success: boolean; settings?: Settings; error?: string }>;
+  settingsGet<T = Settings>(): Promise<{ success: boolean; settings?: T; error?: string }>;
   settingsSet(updates: Partial<Settings>): Promise<{ success: boolean; error?: string }>;
   detectOpenClawPath(): Promise<{ success: boolean; path?: string; error?: string }>;
+  diagnoseOpenClawRoot(): Promise<{ success: boolean; diagnostic?: any; error?: string }>;
+  diagnoseOpenClawCommand(): Promise<DiagnoseCommandResult<OpenClawCommandDiagnostic>>;
+  testOpenClawCommand(): Promise<DiagnoseCommandResult<OpenClawCommandDiagnostic>>;
+  autoRepairOpenClawCommand(): Promise<OpenClawCommandRepairResult>;
+  remoteOpenClawTestConnection?(payload: RemoteOpenClawConnectionPayload): Promise<RemoteOpenClawTestResult>;
+  remoteOpenClawSaveConnection?(payload: RemoteOpenClawConnectionPayload): Promise<{ success: boolean; error?: string; message?: string }>;
+}
+
+export interface LogsActions {
+  logsGet(lines: number): Promise<{ success: boolean; logs?: any[]; error?: string }>;
+  openGatewayLog(): Promise<{ success: boolean; path?: string; error?: string }>;
 }
 
 export type AgentWorkspaceFileName =
@@ -195,10 +443,10 @@ export interface AgentsActions {
 export interface ConfigActions {
   configGet(): Promise<{ success: boolean; config?: any; error?: string }>;
   configSet(config: any): Promise<{ success: boolean; error?: string }>;
-}
-
-export interface LogsActions {
-  logsGet(lines: number): Promise<{ success: boolean; logs?: string; error?: string }>;
+  coreConfigGetOverview(): Promise<CoreConfigOverviewResult>;
+  coreConfigSaveOverview(
+    payload: { values: Record<string, unknown> },
+  ): Promise<CoreConfigSaveResult>;
 }
 
 export interface SystemStats {
@@ -366,10 +614,16 @@ export interface FileActions {
 export interface MainActions {
   openLink(url: string): Promise<void>;
   openDevTools(): Promise<void>;
+  openPath?(targetPath: string): Promise<void>;
+  windowMinimize(): Promise<void>;
+  windowMaximize(): Promise<void>;
+  windowClose(): Promise<void>;
 }
 
 export interface ElectronAPI extends 
+  RuntimeActions,
   GatewayActions, 
+  TailscaleActions,
   TasksActions, 
   TasksExtendedActions, 
   SettingsActions, 

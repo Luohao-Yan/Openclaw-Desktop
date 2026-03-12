@@ -1,5 +1,5 @@
 import pkg from 'electron';
-const { ipcMain } = pkg;
+const { ipcMain, shell } = pkg;
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 
@@ -143,8 +143,33 @@ export async function logsSearch(searchTerm: string): Promise<{ success: boolean
   });
 }
 
+export async function openGatewayLog(): Promise<{ success: boolean; path?: string; error?: string }> {
+  try {
+    const error = await shell.openPath(LOG_PATH);
+    if (error) {
+      return {
+        success: false,
+        error,
+        path: LOG_PATH,
+      };
+    }
+
+    return {
+      success: true,
+      path: LOG_PATH,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      path: LOG_PATH,
+    };
+  }
+}
+
 // IPC 设置函数
 export function setupLogsIPC() {
   ipcMain.handle('logs:get', (_, lines) => logsGet(lines));
   ipcMain.handle('logs:search', (_, searchTerm) => logsSearch(searchTerm));
+  ipcMain.handle('logs:openGatewayLog', openGatewayLog);
 }

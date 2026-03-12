@@ -265,57 +265,70 @@ const Agents: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* 标签页切换 */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 bg-blue-500/10 rounded-xl">
-                {activeTab === 'list' ? (
-                  <Users className="w-8 h-8 text-blue-500" />
-                ) : (
-                  <Zap className="w-8 h-8 text-purple-500" />
-                )}
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold" style={{ color: 'var(--app-text)' }}>
-                  {activeTab === 'list' ? 'Agents' : 'Agent Enhancement'}
+          {/* 顶部渐变标题卡片 */}
+          <GlassCard
+            variant="gradient"
+            className="relative rounded-[28px] px-6 py-5 mb-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(99, 102, 241, 0.08) 48%, rgba(255, 255, 255, 0.02) 100%)',
+              backdropFilter: 'blur(18px)',
+              border: 'none',
+            }}
+          >
+            <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(59, 130, 246, 0.18)' }} />
+            <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(99, 102, 241, 0.14)' }} />
+
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <div
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--app-text)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+                >
+                  {activeTab === 'list' ? <Users size={14} /> : <Zap size={14} />}
+                  {activeTab === 'list' ? 'Multi-Agent System' : 'Agent Enhancement'}
+                </div>
+                <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
+                  {activeTab === 'list' ? '智能体' : '智能体增强'}
                 </h1>
-                <p className="mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                  {activeTab === 'list' 
-                    ? 'Manage and view all your OpenClaw agents'
-                    : selectedAgent 
-                      ? `Enhancing ${selectedAgent.name}`
-                      : 'Enhance agent capabilities and performance'}
+                <p className="mt-2 max-w-xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
+                  {activeTab === 'list'
+                    ? '管理和查看所有 OpenClaw 智能体，配置工作区与模型。'
+                    : selectedAgent
+                      ? `正在增强 ${selectedAgent.name} 的能力与性能。`
+                      : '增强智能体能力与运行性能。'}
                 </p>
               </div>
-            </div>
-            <div className="ml-auto flex items-center justify-end gap-3 shrink-0">
-              {activeTab === 'enhance' && selectedAgent && (
+
+              <div className="ml-auto flex items-center justify-end gap-3 shrink-0">
+                {activeTab === 'enhance' && selectedAgent && (
+                  <AppButton
+                    onClick={() => setActiveTab('list')}
+                    icon={<ArrowRight className="w-4 h-4 rotate-180" />}
+                    variant="secondary"
+                  >
+                    Back to Agents
+                  </AppButton>
+                )}
+                {activeTab === 'list' && (
+                  <AppButton
+                    onClick={handleOpenCreateModal}
+                    icon={<Plus className="w-4 h-4" />}
+                    variant="primary"
+                  >
+                    新增智能体
+                  </AppButton>
+                )}
                 <AppButton
-                  onClick={() => setActiveTab('list')}
-                  icon={<ArrowRight className="w-4 h-4 rotate-180" />}
+                  onClick={loadAgents}
+                  disabled={loading}
+                  icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
                   variant="secondary"
                 >
-                  Back to Agents
+                  {loading ? 'Loading...' : 'Refresh'}
                 </AppButton>
-              )}
-              {activeTab === 'list' && (
-                <AppButton
-                  onClick={handleOpenCreateModal}
-                  icon={<Plus className="w-4 h-4" />}
-                  variant="primary"
-                >
-                  新增智能体
-                </AppButton>
-              )}
-              <AppButton
-                onClick={loadAgents}
-                disabled={loading}
-                icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
-                variant="secondary"
-              >
-                {loading ? 'Loading...' : 'Refresh'}
-              </AppButton>
+              </div>
             </div>
-          </div>
+          </GlassCard>
 
           {/* 标签页按钮 */}
           <SegmentedTabs
@@ -480,7 +493,7 @@ const Agents: React.FC = () => {
                         onChange={(event) => setCreateForm((current) => ({ ...current, workspace: event.target.value }))}
                         className="w-full rounded-xl px-4 py-3 outline-none"
                         style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                        placeholder="例如：/Users/yanluohao/.openclaw/workspace-data-analyst"
+                        placeholder="例如：~/.openclaw/workspace-data-analyst"
                       />
                     </div>
 

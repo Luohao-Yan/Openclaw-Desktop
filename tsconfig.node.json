@@ -5,9 +5,10 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
     "strict": false,
     "noEmit": false,
     "outDir": "./dist-electron"
   },
-  "include": ["electron/**/*"]
+  "include": ["electron/**/*", "electron/config/**/*.json"]
 }

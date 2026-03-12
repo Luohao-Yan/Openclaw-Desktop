@@ -1,13 +1,14 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
-import { spawn } from 'child_process';
-import { resolveOpenClawCommand } from './settings.js';
+import { resolveOpenClawCommand, runCommand as runShellCommand } from './settings.js';
+
+// ── 类型定义 ──────────────────────────────────────────────────────────────────
 
 export interface Session {
-  id: string;
-  name: string;
+  id: string;        // session key，如 "agent:main:telegram:dm:123"
+  name: string;      // 显示名称
   status: 'active' | 'idle' | 'inactive';
-  agent: string;
+  agent: string;     // agentId
   model: string;
   channel: string;
   channelId: string;
@@ -16,374 +17,195 @@ export interface Session {
   tokensUsed: number;
   messagesCount: number;
   participants: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
-export interface SessionDetail extends Session {
-  messages?: {
-    id: string;
-    content: string;
-    role: 'user' | 'assistant' | 'system';
-    timestamp: string;
-    tokens: number;
-  }[];
-  settings?: {
-    temperature: number;
-    maxTokens: number;
-    contextWindow: number;
-    stream: boolean;
-  };
-  resources?: {
-    files: string[];
-    tools: string[];
-    skills: string[];
-  };
+export interface SessionStats {
+  total: number;
+  active: number;
+  idle: number;
+  agents: Record<string, number>;
 }
 
-async function runCommand(cmd: string, args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(cmd, args);
-      let output = '';
-      let errorOutput = '';
-      let settled = false;
+// ── 工具函数 ──────────────────────────────────────────────────────────────────
 
-      const finish = (result: { success: boolean; output: string; error?: string }) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        resolve(result);
-      };
-
-      child.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      child.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          finish({ success: true, output });
-          return;
-        }
-        finish({
-          success: false,
-          output: output || errorOutput,
-          error: errorOutput || `Command failed with exit code ${code}`
-        });
-      });
-
-      child.on('error', (error) => {
-        finish({
-          success: false,
-          output: '',
-          error: error.message
-        });
-      });
-
-      // 超时保护
-      setTimeout(() => {
-        if (!settled) {
-          child.kill('SIGTERM');
-          finish({
-            success: false,
-            output: '',
-            error: 'Command timeout'
-          });
-        }
-      }, 30000);
-    } catch (error: any) {
-      resolve({
-        success: false,
-        output: '',
-        error: error.message
-      });
-    }
-  });
+/** 运行 openclaw 子命令，复用 settings 中带完整 shell PATH 的 runCommand */
+async function runCommand(args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
+  const cmd = resolveOpenClawCommand();
+  return runShellCommand(cmd, args);
 }
 
+/** 去除 ANSI 转义码 */
+function stripAnsi(s: string): string {
+  return s.replace(/\u001b\[[0-9;]*m/g, '').replace(/\x1B\[[0-9;]*m/g, '');
+}
+
+/** 尝试解析 JSON，失败返回 null */
+function tryParseJson<T>(raw: string): T | null {
+  const text = stripAnsi(raw).trim();
+  if (!text) return null;
+  try { return JSON.parse(text) as T; } catch { return null; }
+}
+
+// ── 核心逻辑 ──────────────────────────────────────────────────────────────────
+
+/**
+ * 获取所有 session 列表
+ * 使用: openclaw sessions --all-agents --json
+ * 返回格式: { sessions: [{ agentId, key, model, ... }], count, ... }
+ */
 async function getSessionsList(): Promise<Session[]> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const result = await runCommand(openclawCmd, ['sessions', '--json', '--all-agents']);
-    
-    if (!result.success) {
-      console.error('Failed to get sessions list:', result.error);
-      return [];
-    }
+  const result = await runCommand(['sessions', '--all-agents', '--json']);
+  const parsed = tryParseJson<any>(result.output);
 
-    try {
-      const payload = JSON.parse(result.output);
-      const rawSessions = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.items)
-          ? payload.items
-          : Array.isArray(payload?.sessions)
-            ? payload.sessions
-            : [];
-
-      return rawSessions.map((item: any) => ({
-        id: item.sessionId || item.id || item.key,
-        name: item.name || item.sessionId || item.key || 'Unnamed Session',
-        status: item.status || 'inactive',
-        agent: item.agentId || item.agent || 'unknown',
-        model: item.model || 'unknown',
-        channel: item.channel || item.kind || 'unknown',
-        channelId: item.channelId || item.key || item.sessionId || 'unknown',
-        createdAt: item.createdAt || (item.updatedAt ? new Date(item.updatedAt).toISOString() : new Date().toISOString()),
-        lastActivity: item.lastActivity || (item.updatedAt ? new Date(item.updatedAt).toISOString() : new Date().toISOString()),
-        tokensUsed: typeof item.totalTokens === 'number' ? item.totalTokens : 0,
-        messagesCount: typeof item.messagesCount === 'number' ? item.messagesCount : 0,
-        participants: Array.isArray(item.participants) ? item.participants : [],
-        metadata: item,
-      }));
-    } catch (parseError) {
-      console.error('Failed to parse sessions list:', parseError);
-      return [];
-    }
-  } catch (error) {
-    console.error('Error getting sessions list:', error);
+  if (!parsed) {
+    console.error('sessions list 解析��败:', result.error || result.output);
     return [];
   }
+
+  // 根据文档，返回格式为 { sessions: [...] }
+  const rawList: any[] = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.sessions)
+      ? parsed.sessions
+      : [];
+
+  return rawList
+    .filter((item) => typeof item === 'object' && item !== null)
+    .map((item): Session => ({
+      id: String(item.key || item.sessionId || item.id || ''),
+      name: String(item.name || item.key || item.sessionId || '未命名会话'),
+      // openclaw sessions 不直接返回 status，根据 updatedAt 推断
+      status: inferStatus(item),
+      agent: String(item.agentId || item.agent || 'unknown'),
+      model: String(item.model || 'unknown'),
+      channel: String(item.channel || item.kind || 'unknown'),
+      channelId: String(item.channelId || item.key || ''),
+      createdAt: String(item.createdAt || item.updatedAt || new Date().toISOString()),
+      lastActivity: String(item.updatedAt || item.lastActivity || new Date().toISOString()),
+      tokensUsed: typeof item.totalTokens === 'number' ? item.totalTokens : 0,
+      messagesCount: typeof item.messagesCount === 'number' ? item.messagesCount : 0,
+      participants: Array.isArray(item.participants) ? item.participants : [],
+      metadata: item,
+    }));
 }
 
-async function getSessionDetail(sessionId: string): Promise<SessionDetail | null> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const result = await runCommand(openclawCmd, ['sessions', 'get', sessionId, '--json']);
-    
-    if (!result.success) {
-      console.error('Failed to get session detail:', result.error);
-      return null;
-    }
-
-    try {
-      const sessionDetail = JSON.parse(result.output);
-      return sessionDetail;
-    } catch (parseError) {
-      console.error('Failed to parse session detail:', parseError);
-      return null;
-    }
-  } catch (error) {
-    console.error('Error getting session detail:', error);
-    return null;
+/** 根据 updatedAt 推断 session 活跃状态 */
+function inferStatus(item: any): 'active' | 'idle' | 'inactive' {
+  if (item.status) {
+    const s = String(item.status).toLowerCase();
+    if (s === 'active') return 'active';
+    if (s === 'idle') return 'idle';
+    return 'inactive';
   }
-}
-
-async function sendMessageToSession(sessionId: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const result = await runCommand(openclawCmd, ['sessions', 'send', sessionId, '--message', message, '--json']);
-    
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error
-      };
-    }
-
-    try {
-      const response = JSON.parse(result.output);
-      return {
-        success: true,
-        response: response.text || response.output
-      };
-    } catch (parseError) {
-      return {
-        success: false,
-        error: 'Failed to parse response'
-      };
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function createSession(agent: string, model?: string): Promise<{ success: boolean; sessionId?: string; error?: string }> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const args = ['sessions', 'create', '--agent', agent];
-    
-    if (model) {
-      args.push('--model', model);
-    }
-    
-    args.push('--json');
-    
-    const result = await runCommand(openclawCmd, args);
-    
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error
-      };
-    }
-
-    try {
-      const response = JSON.parse(result.output);
-      return {
-        success: true,
-        sessionId: response.sessionId || response.id
-      };
-    } catch (parseError) {
-      return {
-        success: false,
-        error: 'Failed to parse response'
-      };
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function closeSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const result = await runCommand(openclawCmd, ['sessions', 'close', sessionId, '--json']);
-    
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error
-      };
-    }
-
-    return {
-      success: true
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function exportSession(sessionId: string, format: 'json' | 'markdown' = 'json'): Promise<{ success: boolean; data?: string; error?: string }> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const result = await runCommand(openclawCmd, ['sessions', 'export', sessionId, '--format', format, '--json']);
-    
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error
-      };
-    }
-
-    try {
-      const response = JSON.parse(result.output);
-      return {
-        success: true,
-        data: response.data || response.output
-      };
-    } catch (parseError) {
-      return {
-        success: false,
-        error: 'Failed to parse response'
-      };
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function importSession(data: string, format: 'json' | 'markdown' = 'json'): Promise<{ success: boolean; sessionId?: string; error?: string }> {
-  try {
-    const openclawCmd = await resolveOpenClawCommand();
-    const result = await runCommand(openclawCmd, ['sessions', 'import', '--data', data, '--format', format, '--json']);
-    
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error
-      };
-    }
-
-    try {
-      const response = JSON.parse(result.output);
-      return {
-        success: true,
-        sessionId: response.sessionId || response.id
-      };
-    } catch (parseError) {
-      return {
-        success: false,
-        error: 'Failed to parse response'
-      };
-    }
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
+  // 根据最后活跃时间推断：2分钟内=active，30分钟内=idle，否则=inactive
+  const lastActive = item.updatedAt || item.lastActivity;
+  if (!lastActive) return 'inactive';
+  const diffMs = Date.now() - new Date(lastActive).getTime();
+  if (diffMs < 2 * 60 * 1000) return 'active';
+  if (diffMs < 30 * 60 * 1000) return 'idle';
+  return 'inactive';
 }
 
 export function setupSessionsIPC() {
-  // 获取会话列表
+  // 获取 session 列表
   ipcMain.handle('sessions:list', async (): Promise<Session[]> => {
-    return await getSessionsList();
+    return getSessionsList();
   });
 
-  // 获取会话详情
-  ipcMain.handle('sessions:get', async (event, sessionId: string): Promise<SessionDetail | null> => {
-    return await getSessionDetail(sessionId);
-  });
-
-  // 创建新会话
-  ipcMain.handle('sessions:create', async (event, agent: string, model?: string): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
-    return await createSession(agent, model);
-  });
-
-  // 向会话发送消息
-  ipcMain.handle('sessions:send', async (event, sessionId: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> => {
-    return await sendMessageToSession(sessionId, message);
-  });
-
-  // 关闭会话
-  ipcMain.handle('sessions:close', async (event, sessionId: string): Promise<{ success: boolean; error?: string }> => {
-    return await closeSession(sessionId);
-  });
-
-  // 导出会话
-  ipcMain.handle('sessions:export', async (event, sessionId: string, format: 'json' | 'markdown'): Promise<{ success: boolean; data?: string; error?: string }> => {
-    return await exportSession(sessionId, format);
-  });
-
-  // 导入会话
-  ipcMain.handle('sessions:import', async (event, data: string, format: 'json' | 'markdown'): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
-    return await importSession(data, format);
-  });
-
-  // 获取活跃会话统计
-  ipcMain.handle('sessions:stats', async (): Promise<{ total: number; active: number; idle: number; agents: Record<string, number> }> => {
+  // 获取单个 session 详情（openclaw 暂无独立 get 命令，从列表中查找）
+  ipcMain.handle('sessions:get', async (_event, sessionId: string): Promise<Session | null> => {
     const sessions = await getSessionsList();
-    const stats = {
-      total: sessions.length,
-      active: sessions.filter(s => s.status === 'active').length,
-      idle: sessions.filter(s => s.status === 'idle').length,
-      agents: {} as Record<string, number>
-    };
-
-    sessions.forEach(session => {
-      stats.agents[session.agent] = (stats.agents[session.agent] || 0) + 1;
-    });
-
-    return stats;
+    return sessions.find((s) => s.id === sessionId) ?? null;
   });
 
-  console.log('Sessions IPC handlers registered');
+  // 创建新 session
+  ipcMain.handle('sessions:create', async (_event, agent: string, model?: string): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
+    const args = ['sessions', 'create', '--agent', agent];
+    if (model) args.push('--model', model);
+    args.push('--json');
+
+    const result = await runCommand(args);
+    const parsed = tryParseJson<any>(result.output);
+
+    if (!result.success) {
+      return { success: false, error: result.error || '创建会话失败' };
+    }
+
+    return {
+      success: true,
+      sessionId: parsed?.sessionId || parsed?.key || parsed?.id,
+    };
+  });
+
+  // 向 session 发送消息
+  ipcMain.handle('sessions:send', async (_event, sessionId: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> => {
+    const result = await runCommand(['sessions', 'send', sessionId, '--message', message, '--json']);
+    const parsed = tryParseJson<any>(result.output);
+
+    if (!result.success) {
+      return { success: false, error: result.error || '发送消息失败' };
+    }
+
+    return {
+      success: true,
+      response: parsed?.text || parsed?.output || parsed?.response,
+    };
+  });
+
+  // 关闭 session
+  ipcMain.handle('sessions:close', async (_event, sessionId: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await runCommand(['sessions', 'close', sessionId]);
+    if (!result.success) {
+      return { success: false, error: result.error || '关闭会话失败' };
+    }
+    return { success: true };
+  });
+
+  // 导出 session
+  ipcMain.handle('sessions:export', async (_event, sessionId: string, format: 'json' | 'markdown'): Promise<{ success: boolean; data?: string; error?: string }> => {
+    const result = await runCommand(['sessions', 'export', sessionId, '--format', format]);
+    if (!result.success) {
+      return { success: false, error: result.error || '导出会话失败' };
+    }
+    return { success: true, data: result.output };
+  });
+
+  // 导入 session
+  ipcMain.handle('sessions:import', async (_event, data: string, format: string): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
+    const result = await runCommand(['sessions', 'import', '--data', data, '--format', format, '--json']);
+    const parsed = tryParseJson<any>(result.output);
+    if (!result.success) {
+      return { success: false, error: result.error || '导入会话失败' };
+    }
+    return { success: true, sessionId: parsed?.sessionId || parsed?.id };
+  });
+
+  // 获取 session 统计
+  ipcMain.handle('sessions:stats', async (): Promise<SessionStats> => {
+    const sessions = await getSessionsList();
+    const agents: Record<string, number> = {};
+    for (const s of sessions) {
+      agents[s.agent] = (agents[s.agent] || 0) + 1;
+    }
+    return {
+      total: sessions.length,
+      active: sessions.filter((s) => s.status === 'active').length,
+      idle: sessions.filter((s) => s.status === 'idle').length,
+      agents,
+    };
+  });
+
+  // 清理 session（维护）
+  ipcMain.handle('sessions:cleanup', async (_event, dryRun = true): Promise<{ success: boolean; output?: string; error?: string }> => {
+    const args = ['sessions', 'cleanup', '--all-agents', '--json'];
+    if (dryRun) args.push('--dry-run');
+    else args.push('--enforce');
+
+    const result = await runCommand(args);
+    if (!result.success) {
+      return { success: false, error: result.error || '清理会话失败' };
+    }
+    return { success: true, output: result.output };
+  });
 }

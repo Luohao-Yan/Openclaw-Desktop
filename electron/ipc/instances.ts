@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
-import { readFile } from 'fs/promises';
+import { readFile, readdir, rm } from 'fs/promises';
 
 const ANSI_ESCAPE_PATTERN = /\u001B\[[0-?]*[ -/]*[@-~]/g;
 const CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
@@ -165,7 +165,6 @@ async function getAgentInstances(): Promise<InstanceInfo[]> {
   
   try {
     // 检查 ~/.openclaw/workspace-* 目录中的 Agent
-    const { readdir } = require('fs/promises');
     const entries = await readdir(rootDir);
     
     for (const entry of entries) {
@@ -330,7 +329,6 @@ export function setupInstancesIPC() {
         const workspacePath = join(getOpenClawRootDir(), workspaceName);
         
         if (existsSync(workspacePath)) {
-          const { rm } = require('fs/promises');
           await rm(workspacePath, { recursive: true, force: true });
           return { success: true };
         } else {
