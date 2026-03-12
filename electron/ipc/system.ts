@@ -418,9 +418,10 @@ function getDesktopUserName(): string {
 }
 
 // 通过 login shell 获取用户完整 PATH（解决 Electron 启动时不加载 .zshrc/.bashrc 的问题）
+// 注意：只缓存非空结果，避免 shell 超时时缓存空值导致后续永远走 fallback
 let _resolvedShellPath: string | null = null;
 async function getShellPath(): Promise<string> {
-  if (_resolvedShellPath) return _resolvedShellPath;
+  if (_resolvedShellPath && _resolvedShellPath.length > 0) return _resolvedShellPath;
 
   const extraPaths = [
     '/opt/homebrew/bin',

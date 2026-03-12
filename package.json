@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.8-preview-2",
+  "version": "0.3.8-preview-1",
   "description": "OpenClaw Desktop Electron Application",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "build:vite": "vite build",
     "build:main": "tsc -p tsconfig.node.json",
     "build:electron": "electron-builder",
-    "version:bump-preview": "node -e \"const pkg = require('./package.json'); const match = pkg.version.match(/0\\.(\\d+)-preview-(\\d+)/); if (match) { const [_, x, y] = match; pkg.version = '0.' + x + '-preview-' + (parseInt(y) + 1); require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2)); console.log('版本已更新为:', pkg.version); } else { console.error('版本号格式不符合规则，请检查package.json中的version字段'); }\"",
+    "version:bump-preview": "node -e \"const pkg = require('./package.json'); const match = pkg.version.match(/0\\.(\\d+)\\.(\\d+)-preview-(\\d+)/); if (match) { const [_, major, minor, y] = match; pkg.version = '0.' + major + '.' + minor + '-preview-' + (parseInt(y) + 1); require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2)); console.log('版本已更新为:', pkg.version); } else { console.error('版本号格式不符合规则，请检查package.json中的version字段'); }\"",
     "pack:mac:zip": "rm -rf release-artifacts/mac-zip && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac zip --config.directories.output=release-artifacts/mac-zip",
     "pack:mac:dmg": "rm -rf release-artifacts/mac-dmg && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --config.directories.output=release-artifacts/mac-dmg",
     "pack:mac:dmg:arm64": "rm -rf release-artifacts/mac-arm64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --arm64 --config.directories.output=release-artifacts/mac-arm64",

@@ -1,6 +1,5 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
-import { spawn } from 'child_process';
 import { readFile, stat, writeFile } from 'fs/promises';
 import net from 'net';
 import path from 'path';
@@ -75,51 +74,6 @@ type OpenClawBindingShape = {
     teamId?: string;
   };
 };
-
-// 使用 spawn 运行命令的安全辅助函数
-async function runCommand(cmd: string, args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const process = spawn(cmd, args);
-      
-      let output = '';
-      let errorOutput = '';
-      
-      process.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      process.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      process.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true, output });
-        } else {
-          resolve({ success: false, output: '', error: errorOutput || `Command exited with code ${code}` });
-        }
-      });
-      
-      process.on('error', (error) => {
-        resolve({ success: false, output: '', error: error.message });
-      });
-      
-      // 设置超时
-      setTimeout(() => {
-        try {
-          process.kill();
-        } catch (e) {
-          // ignore
-        }
-        resolve({ success: false, output: '', error: 'Command timeout' });
-      }, 10000);
-      
-    } catch (error: any) {
-      resolve({ success: false, output: '', error: error.message });
-    }
-  });
-}
 
 async function readJsonFile<T>(filePath: string): Promise<T | null> {
   try {
