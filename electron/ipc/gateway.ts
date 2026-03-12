@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { readFile, stat, writeFile } from 'fs/promises';
 import net from 'net';
 import path from 'path';
-import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
+import { getOpenClawRootDir, resolveOpenClawCommand, runCommand } from './settings.js';
 
 export interface GatewayStatus {
   status: 'running' | 'stopped' | 'error';
