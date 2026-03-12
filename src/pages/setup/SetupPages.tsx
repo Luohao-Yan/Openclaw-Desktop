@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, Laptop, Link2, RefreshCw, Server, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, ExternalLink, Laptop, Link2, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import SetupLayout from '../../components/setup/SetupLayout';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
@@ -241,26 +241,180 @@ export const SetupLocalIntroPage: React.FC = () => {
 
 export const SetupLocalEnvironmentPage: React.FC = () => {
   const navigate = useNavigate();
-  const { environmentCheck } = useSetupFlow();
+  const { environmentCheck, refreshEnvironmentCheck, isBusy } = useSetupFlow();
 
   const platformLabel = environmentCheck.platformLabel || '检测中…';
+  const bundled = environmentCheck.bundledRuntimeAvailable;
+  const nodeOk = bundled || environmentCheck.nodeInstalled;
+  const nodeVersionOk = bundled || environmentCheck.nodeVersionSatisfies;
+  const npmOk = bundled || environmentCheck.npmInstalled;
+
+  // Node 未安装或版本不满足时阻断继续
+  const canContinue = bundled || (nodeOk && nodeVersionOk && npmOk);
+
+  // 检测项列表
+  const checks = [
+    {
+      label: 'Node.js',
+      ok: nodeOk,
+      detail: bundled
+        ? '内置运行时，无需安装'
+        : environmentCheck.nodeInstalled
+          ? `已安装 ${environmentCheck.nodeVersion || ''}`
+          : '未检测到，请先安装 Node.js ≥ 22',
+      warn: nodeOk && !nodeVersionOk,
+      warnDetail: `当前版本 ${environmentCheck.nodeVersion || '未知'}，需要 ≥ 22`,
+    },
+    {
+      label: 'npm',
+      ok: npmOk,
+      detail: bundled
+        ? '内置运行时，无需安装'
+        : environmentCheck.npmInstalled
+          ? `已安装 ${environmentCheck.npmVersion || ''}`
+          : '未检测到，请确认 Node.js 安装完整',
+    },
+    {
+      label: 'OpenClaw CLI',
+      ok: environmentCheck.openclawInstalled,
+      detail: environmentCheck.openclawInstalled
+        ? `已安装 ${environmentCheck.openclawVersion || ''}`
+        : '未安装，后续步骤会引导安装',
+      optional: true,
+    },
+  ];
 
   return (
     <SetupLayout
-      title="确认运行平台"
-      description="桌面端已识别当前设备平台，确认后继续安装流程。"
+      title="环境自检"
+      description="桌面端正在检测当前设备的运行环境，确认满足要求后继续安装流程。"
       stepLabel="步骤 2 / 6"
     >
+      {/* 平台信息 */}
       <div
-        className="rounded-2xl border p-5"
+        className="rounded-2xl border p-4"
         style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
       >
-        <div className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>当前平台</div>
-        <div className="mt-2 text-2xl font-semibold">{platformLabel}</div>
+        <div className="flex items-center gap-2">
+          <Laptop size={16} style={{ color: 'var(--app-text-muted)' }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>当前平台</span>
+        </div>
+        <div className="mt-1 text-xl font-semibold">{platformLabel}</div>
       </div>
 
+      {/* 环境检测项 */}
+      <div className="mt-4 space-y-3">
+        {checks.map((item) => {
+          const isWarn = item.warn;
+          const isFail = !item.ok && !item.optional;
+          return (
+            <div
+              key={item.label}
+              className="flex items-start justify-between rounded-2xl border p-4"
+              style={{
+                backgroundColor: 'var(--app-bg)',
+                borderColor: isFail
+                  ? 'rgba(239,68,68,0.35)'
+                  : isWarn
+                    ? 'rgba(234,179,8,0.35)'
+                    : 'var(--app-border)',
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {isFail ? (
+                  <XCircle size={16} style={{ color: '#f87171', flexShrink: 0 }} />
+                ) : isWarn ? (
+                  <AlertTriangle size={16} style={{ color: '#facc15', flexShrink: 0 }} />
+                ) : (
+                  <CheckCircle2 size={16} style={{ color: item.ok ? 'var(--app-active-text)' : 'var(--app-text-muted)', flexShrink: 0 }} />
+                )}
+                <div>
+                  <div className="text-sm font-medium">{item.label}</div>
+                  <div className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {isWarn ? item.warnDetail : item.detail}
+                  </div>
+                </div>
+              </div>
+              {item.optional && !item.ok && (
+                <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>可选</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Node 未安装时的安装引导 */}
+      {!bundled && !nodeOk && (
+        <div
+          className="mt-4 rounded-2xl border p-4 text-sm"
+          style={{
+            backgroundColor: 'rgba(239,68,68,0.06)',
+            borderColor: 'rgba(239,68,68,0.28)',
+            color: 'var(--app-text)',
+          }}
+        >
+          <div className="font-semibold" style={{ color: '#f87171' }}>需要先安装 Node.js</div>
+          <div className="mt-1 leading-6" style={{ color: 'var(--app-text-muted)' }}>
+            OpenClaw CLI 依赖 Node.js ≥ 22。请前往官网下载安装后，点击"重新检测"继续。
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href="https://nodejs.org/zh-cn/download"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+              style={{ borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+            >
+              <ExternalLink size={12} />
+              Node.js 官网下载
+            </a>
+            <a
+              href="https://nodejs.org/zh-cn/download/package-manager"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+              style={{ borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+            >
+              <ExternalLink size={12} />
+              通过包管理器安装（nvm / brew）
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Node 版本过低时的提示 */}
+      {!bundled && nodeOk && !nodeVersionOk && (
+        <div
+          className="mt-4 rounded-2xl border p-4 text-sm"
+          style={{
+            backgroundColor: 'rgba(234,179,8,0.06)',
+            borderColor: 'rgba(234,179,8,0.28)',
+          }}
+        >
+          <div className="font-semibold" style={{ color: '#facc15' }}>Node.js 版本过低</div>
+          <div className="mt-1 leading-6" style={{ color: 'var(--app-text-muted)' }}>
+            当前版本为 {environmentCheck.nodeVersion || '未知'}，OpenClaw 需要 Node.js ≥ 22。
+            建议使用 nvm 升级：<code className="rounded px-1 text-xs" style={{ backgroundColor: 'var(--app-bg)' }}>nvm install 22 && nvm use 22</code>
+          </div>
+        </div>
+      )}
+
       <SetupActionBar>
-        <AppButton variant="primary" onClick={() => navigate('/setup/local/check')}>
+        {/* 重新检测按钮 */}
+        <AppButton
+          variant="secondary"
+          onClick={() => void refreshEnvironmentCheck()}
+          disabled={isBusy}
+          icon={<RefreshCw size={14} />}
+        >
+          重新检测
+        </AppButton>
+        <AppButton
+          variant="primary"
+          disabled={!canContinue || isBusy}
+          onClick={() => navigate('/setup/local/check')}
+          icon={<ChevronRight size={15} />}
+        >
           继续
         </AppButton>
       </SetupActionBar>
