@@ -51,6 +51,16 @@ openclaw-desktop/
 - Gateway 控制: `openclaw gateway start/stop/status`
 - 配置管理: 读写 `~/.openclaw/config.yaml`
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Luohao-Yan/Openclaw-Desktop&type=Date)](https://www.star-history.com/?repos=Luohao-Yan%2FOpenclaw-Desktop&type=date&legend=top-left)
+
+## Contributors
+
+本项目衍生自 [openclaw/openclaw](https://github.com/openclaw/openclaw)，感谢原项目的贡献者们。
+
+[![Contributors](https://contrib.rocks/image?repo=Luohao-Yan/Openclaw-Desktop)](https://github.com/Luohao-Yan/Openclaw-Desktop/graphs/contributors)
+
 ## License
 
 本项目使用 `GNU Affero General Public License v3.0` (`AGPL-3.0`)。
