@@ -1,0 +1,130 @@
+import { app, BrowserWindow, ipcMain } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import { setupGatewayIPC } from './ipc/gateway.js';
+import { setupConfigIPC } from './ipc/config.js';
+import { setupTasksIPC } from './ipc/tasks.js';
+import { setupLogsIPC } from './ipc/logs.js';
+import { setupSettingsIPC } from './ipc/settings.js';
+import { setupAgentsIPC } from './ipc/agents.js';
+import { setupSystemIPC } from './ipc/system.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let mainWindow: BrowserWindow | null = null;
+
+function createWindow() {
+  try {
+    console.log('Creating BrowserWindow...');
+    
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 800,
+      minHeight: 600,
+      titleBarStyle: 'hiddenInset',
+      show: true,
+      autoHideMenuBar: false,
+      title: 'OpenClaw Desktop',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      },
+    });
+
+    console.log('BrowserWindow created, loading URL...');
+
+    // 加载应用 - 总是加载生产构建以便测试
+    // __dirname 是 dist-electron/electron，需要回到项目根目录
+    const projectRoot = path.join(__dirname, '../..');
+    const prodPath = path.join(projectRoot, 'dist/index.html');
+    console.log('Loading production file:', prodPath);
+    console.log('File exists:', fs.existsSync(prodPath));
+    
+    // 使用 file:// 协议加载文件，确保相对路径正确解析
+    mainWindow.loadURL(`file://${prodPath}`);
+    
+    // 监听页面加载事件
+    mainWindow.webContents.on('did-finish-load', () => {
+      console.log('Page finished loading');
+    });
+    
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      console.log('Page failed to load:', errorCode, errorDescription);
+    });
+    
+    // 打开DevTools以便调试
+    console.log('Opening DevTools...');
+    mainWindow.webContents.openDevTools();
+
+    // 确保窗口显示
+    console.log('Showing and focusing window...');
+    mainWindow.show();
+    mainWindow.focus();
+
+    mainWindow.on('closed', () => {
+      console.log('Main window closed');
+      mainWindow = null;
+    });
+
+    mainWindow.on('ready-to-show', () => {
+      console.log('Window ready to show');
+    });
+
+    // 调试信息
+    console.log('OpenClaw Desktop window created successfully');
+    return mainWindow;
+  } catch (error) {
+    console.error('Error creating window:', error);
+    return null;
+  }
+}
+
+// 窗口控制IPC设置
+function setupWindowIPC() {
+  ipcMain.handle('window:minimize', () => {
+    if (mainWindow) mainWindow.minimize();
+  });
+  
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow.maximize();
+      }
+    }
+  });
+  
+  ipcMain.handle('window:close', () => {
+    if (mainWindow) mainWindow.close();
+  });
+}
+
+// IPC 设置
+app.whenReady().then(() => {
+  createWindow();
+  setupGatewayIPC();
+  setupConfigIPC();
+  setupTasksIPC();
+  setupLogsIPC();
+  setupSettingsIPC();
+  setupAgentsIPC();
+  setupSystemIPC();
+  setupWindowIPC();
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (mainWindow === null) {
+    createWindow();
+  }
+});

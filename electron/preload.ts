@@ -1,0 +1,1 @@
+export const preloadRuntimeEntry = 'electron/preload.cjs';

@@ -1,0 +1,92 @@
+{
+  "name": "openclaw-desktop",
+  "version": "1.0.0",
+  "description": "OpenClaw Desktop Electron Application",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron:watch\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "node scripts/dev-electron.cjs",
+    "dev:electron:watch": "tsc -p tsconfig.node.json --watch",
+    "build": "npm run build:vite && npm run build:main && npm run build:electron",
+    "build:vite": "vite build",
+    "build:main": "tsc -p tsconfig.node.json",
+    "build:electron": "electron-builder",
+    "pack:mac:zip": "rm -rf release-artifacts/mac-zip && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac zip --config.directories.output=release-artifacts/mac-zip",
+    "pack:mac:dmg": "rm -rf release-artifacts/mac-dmg && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --config.directories.output=release-artifacts/mac-dmg",
+    "pack:mac:dmg:arm64": "rm -rf release-artifacts/mac-arm64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --arm64 --config.directories.output=release-artifacts/mac-arm64",
+    "pack:mac:dmg:x64": "rm -rf release-artifacts/mac-x64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --x64 --config.directories.output=release-artifacts/mac-x64",
+    "pack:mac:dmg:universal": "rm -rf release-artifacts/mac-universal && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --universal --config.directories.output=release-artifacts/mac-universal",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "openclaw",
+    "electron",
+    "desktop",
+    "dashboard",
+    "monitoring"
+  ],
+  "author": "OpenClaw Team",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4",
+    "concurrently": "^9.2.1",
+    "electron": "38.0.0",
+    "electron-builder": "^26.8.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-router-dom": "^5.3.3",
+    "autoprefixer": "^10.4.27",
+    "electron-store": "^11.0.2",
+    "js-yaml": "^4.1.1",
+    "lucide-react": "^0.577.0",
+    "postcss": "^8.5.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^4.7.1",
+    "react-router-dom": "^7.13.1",
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.2.1",
+    "wait-on": "^9.0.4"
+  },
+  "build": {
+    "appId": "com.openclaw.desktop",
+    "productName": "OpenClaw Desktop",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

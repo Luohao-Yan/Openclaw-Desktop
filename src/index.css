@@ -1,0 +1,801 @@
+@import "tailwindcss";
+
+/* ==================== 基础样式 ==================== */
+:root {
+  /* 字体 */
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --app-bg: #0A0A0F;
+  --app-bg-elevated: #12121A;
+  --app-bg-subtle: rgba(255, 255, 255, 0.04);
+  --app-border: rgba(255, 255, 255, 0.08);
+  --app-text: #FFFFFF;
+  --app-text-muted: #A1A1AA;
+  --app-hover: rgba(255, 255, 255, 0.08);
+  --app-active-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.18) 0%, rgba(0, 224, 142, 0.10) 100%);
+  --app-active-border: rgba(0, 180, 255, 0.22);
+  --app-active-text: #F8FAFC;
+  --app-segment-bg: rgba(255, 255, 255, 0.05);
+  --app-segment-active-bg: rgba(0, 180, 255, 0.16);
+  --app-button-primary-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.18) 0%, rgba(0, 224, 142, 0.10) 100%);
+  --app-button-primary-border: rgba(0, 180, 255, 0.22);
+  --app-button-primary-text: var(--app-active-text);
+  --app-button-primary-shadow: 0 8px 24px rgba(0, 180, 255, 0.12);
+  --app-button-primary-hover-filter: brightness(1.04) saturate(1.04);
+  --app-button-primary-hover-shadow: 0 12px 28px rgba(0, 180, 255, 0.18);
+  --app-button-primary-active-filter: brightness(1);
+  --app-button-primary-active-shadow: 0 6px 16px rgba(0, 180, 255, 0.10);
+  --app-button-secondary-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255,255,255,0.03) 100%);
+  --app-button-secondary-border: rgba(255, 255, 255, 0.10);
+  --app-button-secondary-text: var(--app-text);
+  --app-button-secondary-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  --app-button-secondary-hover-filter: brightness(1.03);
+  --app-button-secondary-hover-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+  --app-button-secondary-hover-border: rgba(255, 255, 255, 0.18);
+  --app-button-secondary-active-filter: brightness(0.995);
+  --app-button-secondary-active-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+  --app-button-secondary-active-border: rgba(255, 255, 255, 0.14);
+  --app-button-danger-bg: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(248, 113, 113, 0.08) 100%);
+  --app-button-danger-border: rgba(239, 68, 68, 0.22);
+  --app-button-danger-text: #EF4444;
+  --app-button-danger-shadow: 0 8px 24px rgba(239, 68, 68, 0.10);
+  --app-button-danger-hover-filter: brightness(1.03) saturate(1.04);
+  --app-button-danger-hover-shadow: 0 12px 28px rgba(239, 68, 68, 0.14);
+  --app-button-danger-active-filter: brightness(1);
+  --app-button-danger-active-shadow: 0 6px 16px rgba(239, 68, 68, 0.10);
+  --app-button-success-bg: linear-gradient(135deg, rgba(0, 224, 142, 0.14) 0%, rgba(16, 185, 129, 0.08) 100%);
+  --app-button-success-border: rgba(0, 224, 142, 0.20);
+  --app-button-success-text: #D1FAE5;
+  --app-button-success-shadow: 0 8px 24px rgba(0, 224, 142, 0.10);
+  --app-button-success-hover-filter: brightness(1.03) saturate(1.03);
+  --app-button-success-hover-shadow: 0 12px 28px rgba(0, 224, 142, 0.14);
+  --app-button-success-active-filter: brightness(1);
+  --app-button-success-active-shadow: 0 6px 16px rgba(0, 224, 142, 0.08);
+  --app-icon-button-default-bg: linear-gradient(135deg, var(--app-bg-elevated) 0%, rgba(255,255,255,0.04) 100%);
+  --app-icon-button-default-border: var(--app-border);
+  --app-icon-button-default-text: var(--app-text-muted);
+  --app-icon-button-blue-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.12) 0%, rgba(0, 180, 255, 0.06) 100%);
+  --app-icon-button-blue-border: rgba(0, 180, 255, 0.18);
+  --app-icon-button-blue-text: #00B4FF;
+  --app-icon-button-purple-bg: linear-gradient(135deg, rgba(168, 85, 247, 0.10) 0%, rgba(192, 132, 252, 0.06) 100%);
+  --app-icon-button-purple-border: rgba(168, 85, 247, 0.18);
+  --app-icon-button-purple-text: #A855F7;
+  --app-segment-container-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255,255,255,0.03) 100%);
+  --app-segment-container-border: rgba(255, 255, 255, 0.10);
+  --app-segment-tab-active-bg: var(--app-button-primary-bg);
+  --app-segment-tab-active-border: var(--app-button-primary-border);
+  --app-segment-tab-active-text: var(--app-button-primary-text);
+  --app-segment-tab-active-shadow: var(--app-button-primary-shadow);
+  --app-segment-tab-inactive-text: var(--app-text-muted);
+  --app-selected-card-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.10) 0%, rgba(0, 224, 142, 0.05) 100%);
+  --app-selected-card-border: rgba(0, 180, 255, 0.18);
+  --app-selected-card-shadow: 0 10px 24px rgba(0, 180, 255, 0.08);
+  --app-selected-card-text: var(--app-text);
+  --app-selected-badge-bg: rgba(0, 180, 255, 0.12);
+  --app-selected-badge-text: var(--app-text);
+  --app-card-hover-bg: rgba(255, 255, 255, 0.06);
+  --app-card-hover-border: rgba(255, 255, 255, 0.14);
+  --app-card-hover-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+  --app-card-hover-transform: translateY(-2px);
+  --app-selected-card-hover-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.14) 0%, rgba(0, 224, 142, 0.08) 100%);
+  --app-selected-card-hover-border: rgba(0, 180, 255, 0.24);
+  --app-selected-card-hover-shadow: 0 16px 34px rgba(0, 180, 255, 0.14);
+  --app-selected-card-hover-transform: translateY(-2px);
+  --app-user-msg-bg: rgba(0, 180, 255, 0.1);
+  --app-assistant-msg-bg: rgba(0, 224, 142, 0.1);
+  --app-table-bg: var(--app-bg);
+  --app-table-border: var(--app-border);
+  --app-table-header-bg: color-mix(in srgb, var(--app-bg-subtle) 88%, transparent);
+  --app-table-header-text: var(--app-text-muted);
+  --app-table-header-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 6px 14px rgba(0, 0, 0, 0.10);
+  --app-table-row-border: rgba(148, 163, 184, 0.12);
+  --app-table-row-hover-bg: rgba(148, 163, 184, 0.06);
+  --app-table-cell-text: var(--app-text);
+  --app-table-cell-muted-text: var(--app-text-muted);
+  
+  /* 间距 */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+  
+  /* 过渡 */
+  --transition-fast: 150ms;
+  --transition-normal: 200ms;
+  --transition-page: 300ms;
+  
+  /* 缓动 */
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* 深色模式默认背景 */
+  background-color: var(--app-bg);
+  color: var(--app-text);
+}
+
+/* 浅色模式 */
+[data-theme="light"] {
+  --app-bg: #F8FAFC;
+  --app-bg-elevated: #FFFFFF;
+  --app-bg-subtle: rgba(15, 23, 42, 0.03);
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-text: #0F172A;
+  --app-text-muted: #475569;
+  --app-hover: rgba(15, 23, 42, 0.06);
+  --app-active-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.12) 0%, rgba(0, 224, 142, 0.10) 100%);
+  --app-active-border: rgba(0, 180, 255, 0.18);
+  --app-active-text: #0F172A;
+  --app-segment-bg: rgba(15, 23, 42, 0.04);
+  --app-segment-active-bg: rgba(0, 180, 255, 0.12);
+  --app-button-primary-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.12) 0%, rgba(0, 224, 142, 0.10) 100%);
+  --app-button-primary-border: rgba(0, 180, 255, 0.18);
+  --app-button-primary-text: #0F172A;
+  --app-button-primary-shadow: 0 8px 24px rgba(0, 180, 255, 0.10);
+  --app-button-primary-hover-filter: brightness(1.04) saturate(1.03);
+  --app-button-primary-hover-shadow: 0 12px 28px rgba(0, 180, 255, 0.14);
+  --app-button-primary-active-filter: brightness(1);
+  --app-button-primary-active-shadow: 0 6px 16px rgba(0, 180, 255, 0.08);
+  --app-button-secondary-bg: linear-gradient(135deg, rgba(148, 163, 184, 0.10) 0%, rgba(255,255,255,0.70) 100%);
+  --app-button-secondary-border: rgba(148, 163, 184, 0.26);
+  --app-button-secondary-text: var(--app-text);
+  --app-button-secondary-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  --app-button-secondary-hover-filter: brightness(1.02);
+  --app-button-secondary-hover-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+  --app-button-secondary-hover-border: rgba(100, 116, 139, 0.34);
+  --app-button-secondary-active-filter: brightness(0.995);
+  --app-button-secondary-active-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+  --app-button-secondary-active-border: rgba(100, 116, 139, 0.30);
+  --app-button-danger-bg: linear-gradient(135deg, rgba(239, 68, 68, 0.10) 0%, rgba(248, 113, 113, 0.08) 100%);
+  --app-button-danger-border: rgba(239, 68, 68, 0.18);
+  --app-button-danger-text: #DC2626;
+  --app-button-danger-shadow: 0 8px 24px rgba(239, 68, 68, 0.08);
+  --app-button-danger-hover-filter: brightness(1.03) saturate(1.03);
+  --app-button-danger-hover-shadow: 0 12px 28px rgba(239, 68, 68, 0.12);
+  --app-button-danger-active-filter: brightness(1);
+  --app-button-danger-active-shadow: 0 6px 16px rgba(239, 68, 68, 0.08);
+  --app-button-success-bg: linear-gradient(135deg, rgba(0, 224, 142, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%);
+  --app-button-success-border: rgba(16, 185, 129, 0.18);
+  --app-button-success-text: #065F46;
+  --app-button-success-shadow: 0 8px 24px rgba(16, 185, 129, 0.08);
+  --app-button-success-hover-filter: brightness(1.03) saturate(1.02);
+  --app-button-success-hover-shadow: 0 12px 28px rgba(16, 185, 129, 0.12);
+  --app-button-success-active-filter: brightness(1);
+  --app-button-success-active-shadow: 0 6px 16px rgba(16, 185, 129, 0.06);
+  --app-icon-button-default-bg: linear-gradient(135deg, rgba(148, 163, 184, 0.08) 0%, rgba(255,255,255,0.72) 100%);
+  --app-icon-button-default-border: rgba(148, 163, 184, 0.22);
+  --app-icon-button-default-text: var(--app-text-muted);
+  --app-icon-button-blue-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.10) 0%, rgba(0, 180, 255, 0.05) 100%);
+  --app-icon-button-blue-border: rgba(0, 180, 255, 0.16);
+  --app-icon-button-blue-text: #0284C7;
+  --app-icon-button-purple-bg: linear-gradient(135deg, rgba(168, 85, 247, 0.10) 0%, rgba(192, 132, 252, 0.05) 100%);
+  --app-icon-button-purple-border: rgba(168, 85, 247, 0.16);
+  --app-icon-button-purple-text: #9333EA;
+  --app-segment-container-bg: linear-gradient(135deg, rgba(148, 163, 184, 0.10) 0%, rgba(255,255,255,0.50) 100%);
+  --app-segment-container-border: rgba(148, 163, 184, 0.18);
+  --app-segment-tab-active-bg: var(--app-button-primary-bg);
+  --app-segment-tab-active-border: var(--app-button-primary-border);
+  --app-segment-tab-active-text: var(--app-button-primary-text);
+  --app-segment-tab-active-shadow: var(--app-button-primary-shadow);
+  --app-segment-tab-inactive-text: var(--app-text-muted);
+  --app-selected-card-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.08) 0%, rgba(0, 224, 142, 0.04) 100%);
+  --app-selected-card-border: rgba(0, 180, 255, 0.16);
+  --app-selected-card-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  --app-selected-card-text: var(--app-text);
+  --app-selected-badge-bg: rgba(0, 180, 255, 0.10);
+  --app-selected-badge-text: var(--app-text);
+  --app-card-hover-bg: rgba(148, 163, 184, 0.08);
+  --app-card-hover-border: rgba(100, 116, 139, 0.16);
+  --app-card-hover-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  --app-card-hover-transform: translateY(-2px);
+  --app-selected-card-hover-bg: linear-gradient(135deg, rgba(0, 180, 255, 0.12) 0%, rgba(0, 224, 142, 0.06) 100%);
+  --app-selected-card-hover-border: rgba(0, 180, 255, 0.22);
+  --app-selected-card-hover-shadow: 0 16px 34px rgba(15, 23, 42, 0.10);
+  --app-selected-card-hover-transform: translateY(-2px);
+  --app-user-msg-bg: rgba(0, 180, 255, 0.08);
+  --app-assistant-msg-bg: rgba(0, 224, 142, 0.08);
+  --app-table-bg: var(--app-bg);
+  --app-table-border: var(--app-border);
+  --app-table-header-bg: rgba(15, 23, 42, 0.04);
+  --app-table-header-text: var(--app-text-muted);
+  --app-table-header-shadow: inset 0 -1px 0 rgba(148, 163, 184, 0.16), 0 6px 14px rgba(15, 23, 42, 0.06);
+  --app-table-row-border: rgba(148, 163, 184, 0.18);
+  --app-table-row-hover-bg: rgba(148, 163, 184, 0.08);
+  --app-table-cell-text: var(--app-text);
+  --app-table-cell-muted-text: var(--app-text-muted);
+  background-color: var(--app-bg);
+  color: var(--app-text);
+}
+
+/* 滚动条样式 - 深色模式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1A1A24;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3F3F5A;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #525270;
+}
+
+/* 浅色模式滚动条 */
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+.interactive-card {
+  transition: all var(--transition-normal) var(--ease-smooth);
+}
+
+.interactive-card:hover {
+  background: var(--app-card-hover-bg);
+  border-color: var(--app-card-hover-border);
+  box-shadow: var(--app-card-hover-shadow);
+  transform: var(--app-card-hover-transform);
+}
+
+.interactive-card--selected {
+  background: var(--app-selected-card-bg);
+  border-color: var(--app-selected-card-border);
+  box-shadow: var(--app-selected-card-shadow);
+}
+
+.interactive-card--selected:hover {
+  background: var(--app-selected-card-hover-bg);
+  border-color: var(--app-selected-card-hover-border);
+  box-shadow: var(--app-selected-card-hover-shadow);
+  transform: var(--app-selected-card-hover-transform);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* ==================== 拖拽区域 ==================== */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag-region {
+  -webkit-app-region: no-drag;
+}
+
+button, input, select, textarea {
+  -webkit-app-region: no-drag;
+}
+
+/* ==================== 玻璃拟态效果 ==================== */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* ==================== 动画类 ==================== */
+.animate-fade-in {
+  animation: fadeIn var(--transition-page) var(--ease-smooth);
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp var(--transition-page) var(--ease-smooth);
+}
+
+.animate-scale-in {
+  animation: scaleIn 200ms var(--ease-out-back);
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* 关键帧 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(10px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes scaleIn {
+  from { 
+    opacity: 0; 
+    transform: scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); 
+  }
+  50% { 
+    box-shadow: 0 0 40px rgba(16, 185, 129, 0.5); 
+  }
+}
+
+/* ==================== 骨架屏加载 ==================== */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+[data-theme="light"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.05) 25%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.05) 75%
+  );
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ==================== 按钮样式 ==================== */
+.btn-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  border-radius: var(--radius-lg);
+  color: white;
+  background: linear-gradient(135deg, #00B4FF 0%, #00E08E 100%);
+  transition: all var(--transition-normal) var(--ease-smooth);
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.btn-primary:hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 25px -5px rgba(0, 180, 255, 0.35);
+}
+
+.btn-primary:hover::before {
+  opacity: 1;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  border-radius: var(--radius-lg);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all var(--transition-normal) var(--ease-smooth);
+}
+
+[data-theme="light"] .btn-secondary {
+  color: rgba(15, 23, 42, 0.9);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* ==================== 输入框样式 ==================== */
+.input-modern {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: white;
+  font-size: 0.875rem;
+  transition: all var(--transition-normal) var(--ease-smooth);
+}
+
+[data-theme="light"] .input-modern {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #0F172A;
+}
+
+.input-modern::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme="light"] .input-modern::placeholder {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.input-modern:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 180, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(0, 180, 255, 0.1);
+}
+
+[data-theme="light"] .input-modern:focus {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ==================== 卡片样式 ==================== */
+.card-modern {
+  position: relative;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  transition: all var(--transition-normal) var(--ease-smooth);
+}
+
+[data-theme="light"] .card-modern {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.card-modern:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="light"] .card-modern:hover {
+  background: white;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ==================== 状态指示器 ==================== */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-running {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-stopped {
+  background: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.status-checking {
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+/* ==================== 时间线 ==================== */
+.timeline {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(0, 180, 255, 0.5) 0%, rgba(0, 180, 255, 0.1) 100%);
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 1.5rem;
+}
+
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -1.5rem;
+  top: 0.375rem;
+  width: 10px;
+  height: 10px;
+  background: #00E08E;
+  border-radius: 50%;
+  border: 2px solid #0A0A0F;
+}
+
+[data-theme="light"] .timeline-item::before {
+  border-color: white;
+}
+
+/* ==================== 悬浮按钮 (FAB) ==================== */
+.fab {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #00B4FF 0%, #00E08E 100%);
+  border-radius: 50%;
+  box-shadow: 0 10px 25px -5px rgba(0, 180, 255, 0.4);
+  color: white;
+  cursor: pointer;
+  transition: all var(--transition-normal) var(--ease-out-back);
+  z-index: 50;
+  border: none;
+}
+
+.fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 15px 35px -5px rgba(0, 180, 255, 0.5);
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* ==================== 分段控制器 ==================== */
+.segmented-control {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem; /* 减小间距 */
+  padding: 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  position: relative;
+  min-width: 0; /* 确保可以收缩 */
+  overflow: hidden; /* 隐藏溢出的内容 */
+  width: 100%; /* 确保占满父容器 */
+  box-sizing: border-box; /* 确保padding包含在宽度内 */
+}
+
+[data-theme="light"] .segmented-control {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.segmented-control-slider {
+  position: absolute;
+  top: 0.25rem;
+  height: calc(100% - 0.5rem);
+  background: linear-gradient(135deg, #00B4FF 0%, #00E08E 100%);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0, 180, 255, 0.3);
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.segmented-control-item {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem; /* 进一步减小图标与文字的间距 */
+  padding: 0.25rem 0.375rem; /* 进一步减小内边距 */
+  font-size: 0.7rem; /* 进一步减小字体大小 */
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color var(--transition-normal);
+  white-space: nowrap; /* 防止文字换行 */
+  overflow: hidden; /* 隐藏溢出的文字 */
+  text-overflow: ellipsis; /* 文字超出时显示省略号 */
+  min-width: 0; /* 允许收缩到最小宽度 */
+  flex: 1; /* 确保按钮均匀分配空间 */
+}
+
+[data-theme="light"] .segmented-control-item {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.segmented-control-item[data-active="true"] {
+  color: white;
+}
+
+[data-theme="light"] .segmented-control-item[data-active="true"] {
+  color: white;
+}
+
+/* ==================== 模态框 ==================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 200ms ease-out;
+}
+
+.modal-content {
+  position: relative;
+  width: 100%;
+  max-width: 28rem;
+  background: #12121A;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 250ms var(--ease-out-back);
+  overflow: hidden;
+}
+
+[data-theme="light"] .modal-content {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.modal-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3rem;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 3px 3px;
+}
+
+[data-theme="light"] .modal-content::before {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ==================== 开关 (iOS 风格) ==================== */
+.switch {
+  position: relative;
+  width: 3rem;
+  height: 1.75rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background var(--transition-normal);
+}
+
+[data-theme="light"] .switch {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.switch[data-checked="true"] {
+  background: linear-gradient(135deg, #00B4FF 0%, #00E08E 100%);
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform var(--transition-normal) var(--ease-out-back);
+}
+
+.switch[data-checked="true"] .switch-thumb {
+  transform: translateX(1.25rem);
+}
+
+/* ==================== 页面过渡 ==================== */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+
+.page-exit {
+  opacity: 1;
+}
+
+.page-exit-active {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}

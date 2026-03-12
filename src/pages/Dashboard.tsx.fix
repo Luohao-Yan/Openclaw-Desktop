@@ -1,0 +1,279 @@
+import React, { useState, useEffect } from 'react';
+import { Play, StopCircle, RotateCcw, RefreshCw, FolderOpen, Cpu, HardDrive, Network, Clock } from 'lucide-react';
+import GlassCard from '../components/GlassCard';
+
+interface GatewayStatus {
+  status: 'running' | 'stopped' | 'error' | 'checking';
+  error?: string;
+  pid?: number;
+  version?: string;
+}
+
+function Dashboard() {
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus>({ status: 'checking' });
+  const [systemStats, setSystemStats] = useState({
+    cpu: 0,
+    memory: 0,
+    disk: 0,
+    network: 0,
+    uptime: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  const handleGatewayStart = async () => {
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.gatewayStart();
+      if (result.success) {
+        await fetchGatewayStatus();
+      }
+    } catch (error) {
+      console.error('Error starting gateway:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGatewayStop = async () => {
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.gatewayStop();
+      if (result.success) {
+        await fetchGatewayStatus();
+      }
+    } catch (error) {
+      console.error('Error stopping gateway:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGatewayRestart = async () => {
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.gatewayRestart();
+      if (result.success) {
+        await fetchGatewayStatus();
+      }
+    } catch (error) {
+      console.error('Error restarting gateway:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefreshStats = async () => {
+    await fetchGatewayStatus();
+    fetchSystemStats();
+  };
+
+  const fetchGatewayStatus = async () => {
+    try {
+      const status = await window.electronAPI.gatewayStatus();
+      setGatewayStatus(status);
+    } catch (error) {
+      console.error('Error fetching gateway status:', error);
+      setGatewayStatus({ status: 'error', error: 'Failed to fetch status' });
+    }
+  };
+
+  const fetchSystemStats = async () => {
+    // 模拟系统统计数据
+    const mockStats = {
+      cpu: Math.floor(Math.random() * 100),
+      memory: Math.floor(Math.random() * 100),
+      disk: Math.floor(Math.random() * 100),
+      network: Math.floor(Math.random() * 100),
+      uptime: Math.floor(Math.random() * 24 * 60 * 60), // 随机秒数
+    };
+    setSystemStats(mockStats);
+  };
+
+  useEffect(() => {
+    fetchGatewayStatus();
+    fetchSystemStats();
+    const interval = setInterval(fetchSystemStats, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusColor = (status: GatewayStatus['status']) => {
+    switch (status) {
+      case 'running': return 'text-green-500';
+      case 'stopped': return 'text-red-500';
+      case 'error': return 'text-red-500';
+      case 'checking': return 'text-yellow-500';
+      default: return 'text-gray-500';
+    }
+  };
+
+  const getStatusBgColor = (status: GatewayStatus['status']) => {
+    switch (status) {
+      case 'running': return 'bg-green-500/10';
+      case 'stopped': return 'bg-red-500/10';
+      case 'error': return 'bg-red-500/10';
+      case 'checking': return 'bg-yellow-500/10';
+      default: return 'bg-gray-500/10';
+    }
+  };
+
+  const getStatusText = (status: GatewayStatus['status']) => {
+    switch (status) {
+      case 'running': return 'Running';
+      case 'stopped': return 'Stopped';
+      case 'error': return 'Error';
+      case 'checking': return 'Checking...';
+      default: return status;
+    }
+  };
+
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">OpenClaw Desktop</h1>
+          <p className="text-zinc-400 mt-1">Monitor and control your OpenClaw Gateway</p>
+        </div>
+        <button 
+          onClick={handleRefreshStats}
+          className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors flex items-center gap-2"
+        >
+          <RefreshCw size={18} /> Refresh Stats
+        </button>
+      </div>
+
+      {/* Gateway Status Card */}
+      <GlassCard className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-xl ${getStatusBgColor(gatewayStatus.status)}`}>
+              <Play className={`${getStatusColor(gatewayStatus.status)}`} size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white">Gateway Status</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(gatewayStatus.status)}`} />
+                <span className={`font-medium ${getStatusColor(gatewayStatus.status)}`}>
+                  {getStatusText(gatewayStatus.status)}
+                </span>
+                {gatewayStatus.version && (
+                  <span className="text-sm text-zinc-500">v{gatewayStatus.version}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={handleGatewayStart}
+              disabled={loading || gatewayStatus.status === 'running'}
+              className="px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <Play size={18} /> Start
+            </button>
+            <button 
+              onClick={handleGatewayStop}
+              disabled={loading || gatewayStatus.status !== 'running'}
+              className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <StopCircle size={18} /> Stop
+            </button>
+            <button 
+              onClick={handleGatewayRestart}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <RotateCcw size={18} /> Restart
+            </button>
+          </div>
+        </div>
+
+        {gatewayStatus.error && (
+          <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+            <p className="text-red-400 text-sm">{gatewayStatus.error}</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Cpu className="text-blue-400" size={24} />
+              <div>
+                <p className="text-zinc-400 text-sm">CPU Usage</p>
+                <p className="text-2xl font-semibold text-white">{systemStats.cpu}%</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <HardDrive className="text-purple-400" size={24} />
+              <div>
+                <p className="text-zinc-400 text-sm">Memory Usage</p>
+                <p className="text-2xl font-semibold text-white">{systemStats.memory}%</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Network className="text-green-400" size={24} />
+              <div>
+                <p className="text-zinc-400 text-sm">Network Activity</p>
+                <p className="text-2xl font-semibold text-white">{systemStats.network}%</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-black/20 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Clock className="text-yellow-400" size={24} />
+              <div>
+                <p className="text-zinc-400 text-sm">Uptime</p>
+                <p className="text-2xl font-semibold text-white">{formatUptime(systemStats.uptime)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Quick Actions */}
+      <div>
+        <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button className="p-4 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/10 hover:from-indigo-500/30 hover:to-purple-500/20 transition-all duration-300 border border-white/10 flex items-center gap-3">
+            <FolderOpen size={24} />
+            <div className="text-left">
+              <p className="font-medium">Open Logs</p>
+              <p className="text-sm text-zinc-400">View recent activity</p>
+            </div>
+          </button>
+          
+          <button className="p-4 rounded-xl bg-gradient-to-r from-green-500/20 to-teal-500/10 hover:from-green-500/30 hover:to-teal-500/20 transition-all duration-300 border border-white/10 flex items-center gap-3">
+            <RotateCcw size={24} />
+            <div className="text-left">
+              <p className="font-medium">Restart Agents</p>
+              <p className="text-sm text-zinc-400">Reload all running agents</p>
+            </div>
+          </button>
+          
+          <button className="p-4 rounded-xl bg-gradient-to-r from-blue-500/20 to-cyan-500/10 hover:from-blue-500/30 hover:to-cyan-500/20 transition-all duration-300 border border-white/10 flex items-center gap-3">
+            <RefreshCw size={24} />
+            <div className="text-left">
+              <p className="font-medium">Clean Cache</p>
+              <p className="text-sm text-zinc-400">Free up system resources</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default Dashboard;
