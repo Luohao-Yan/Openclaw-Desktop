@@ -18,5 +18,7 @@ Thumbs.db
 *.tsbuildinfo
 .idea
 .vscode
+.kiro/steering
+.github/workflows
 *.swp
 *.swo
