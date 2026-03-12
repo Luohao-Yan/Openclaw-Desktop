@@ -442,4 +442,8 @@ export interface ElectronAPI {
   approvalsGet: (target: ApprovalsTarget) => Promise<ApprovalsGetResult>;
   approvalsAllowlistAdd: (pattern: string, agent: string, target: ApprovalsTarget) => Promise<BasicSuccessResult>;
   approvalsAllowlistRemove: (pattern: string) => Promise<BasicSuccessResult>;
+
+  // 应用配置管理
+  appConfigReset: () => Promise<BasicSuccessResult>;
+  appConfigReinstallOpenclaw: () => Promise<{ success: boolean; output?: string; error?: string }>;
 }

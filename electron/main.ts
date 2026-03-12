@@ -17,6 +17,7 @@ import { setupInstancesIPC } from './ipc/instances.js';
 import { setupSkillsIPC } from './ipc/skills.js';
 import { setupCronIPC } from './ipc/cron.js';
 import { setupApprovalsIPC } from './ipc/approvals.js';
+import { setupAppConfigIPC } from './ipc/appConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,6 +171,7 @@ app.whenReady().then(() => {
   setupSkillsIPC();
   setupCronIPC();
   setupApprovalsIPC();
+  setupAppConfigIPC();
   setupShellIPC();
   setupWindowIPC();
   createWindow();

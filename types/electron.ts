@@ -618,6 +618,9 @@ export interface MainActions {
   windowMinimize(): Promise<void>;
   windowMaximize(): Promise<void>;
   windowClose(): Promise<void>;
+  // 应用配置管理
+  appConfigReset(): Promise<{ success: boolean; error?: string }>;
+  appConfigReinstallOpenclaw(): Promise<{ success: boolean; output?: string; error?: string }>;
 }
 
 export interface ElectronAPI extends 

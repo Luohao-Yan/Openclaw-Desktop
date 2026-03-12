@@ -14,6 +14,7 @@ import SettingsChannels from '../SettingsChannels';
 import SettingsCoreConfig from '../SettingsCoreConfig';
 import SettingsGeneral from '../SettingsGeneral';
 import SettingsVoice from '../SettingsVoice';
+import SettingsAdvanced from '../SettingsAdvanced';
 import type { SettingsSection } from './types';
 
 export const useSettingsSections = (): SettingsSection[] => {
@@ -85,6 +86,7 @@ export const useSettingsSections = (): SettingsSection[] => {
       name: t('settings.advanced'),
       description: t('settings.advancedDescription'),
       icon: Cpu,
+      component: SettingsAdvanced,
       translateKey: 'advanced',
     },
   ];

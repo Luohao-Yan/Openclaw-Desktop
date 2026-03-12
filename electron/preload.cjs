@@ -134,4 +134,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   approvalsGet: (target) => ipcRenderer.invoke('approvals:get', target),
   approvalsAllowlistAdd: (pattern, agent, target) => ipcRenderer.invoke('approvals:allowlist:add', pattern, agent, target),
   approvalsAllowlistRemove: (pattern) => ipcRenderer.invoke('approvals:allowlist:remove', pattern),
+
+  // 应用配置管理
+  appConfigReset: () => ipcRenderer.invoke('app-config:reset'),
+  appConfigReinstallOpenclaw: () => ipcRenderer.invoke('app-config:reinstall-openclaw'),
 });
