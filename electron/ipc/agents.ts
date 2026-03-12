@@ -1,4 +1,5 @@
 import pkg from 'electron';
+import fs from 'fs/promises';
 const { ipcMain } = pkg;
 import { spawn } from 'child_process';
 import {
@@ -710,35 +711,48 @@ function resolveManagedFilePath(info: AgentInfo, targetPath: string) {
   return normalizedTarget;
 }
 
-function readManagedFile(info: AgentInfo, targetPath: string) {
+async function readManagedFile(info: AgentInfo, targetPath: string) {
   const filePath = resolveManagedFilePath(info, targetPath);
-  const fileExists = existsSync(filePath);
-  const fileStat = fileExists ? statSync(filePath) : null;
-  const baseRoot = [info.workspaceRoot, info.agentConfigRoot, resolveSessionsRoot(info)].find((root) => {
-    if (!root) {
-      return false;
-    }
+  try {
+    const fileStat = await fs.stat(filePath);
+    const baseRoot = [info.workspaceRoot, info.agentConfigRoot, resolveSessionsRoot(info)].find((root) => {
+      if (!root) {
+        return false;
+      }
 
-    const normalizedRoot = resolve(root);
-    return filePath === normalizedRoot || filePath.startsWith(normalizedRoot + '/');
-  });
+      const normalizedRoot = resolve(root);
+      return filePath === normalizedRoot || filePath.startsWith(normalizedRoot + '/');
+    });
+    const content = await fs.readFile(filePath, 'utf8');
 
-  return {
-    name: basename(filePath),
-    path: filePath,
-    relativePath: relative(baseRoot || dirname(filePath), filePath) || basename(filePath),
-    kind: 'file' as const,
-    exists: fileExists,
-    size: fileStat?.size || 0,
-    updatedAt: fileStat?.mtime.toISOString(),
-    content: fileExists ? readFileSync(filePath, 'utf8') : '',
-  };
+    return {
+      name: basename(filePath),
+      path: filePath,
+      relativePath: relative(baseRoot || dirname(filePath), filePath) || basename(filePath),
+      kind: 'file' as const,
+      exists: true,
+      size: fileStat.size,
+      updatedAt: fileStat.mtime.toISOString(),
+      content,
+    };
+  } catch (error) {
+    return {
+      name: basename(filePath),
+      path: filePath,
+      relativePath: basename(filePath),
+      kind: 'file' as const,
+      exists: false,
+      size: 0,
+      updatedAt: undefined,
+      content: '',
+    };
+  }
 }
 
-function saveManagedFile(info: AgentInfo, targetPath: string, content: string) {
+async function saveManagedFile(info: AgentInfo, targetPath: string, content: string) {
   const filePath = resolveManagedFilePath(info, targetPath);
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, content, 'utf8');
+  await fs.mkdir(dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, 'utf8');
   return readManagedFile(info, filePath);
 }
 
