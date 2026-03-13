@@ -1,4 +1,5 @@
 import {
+  Bot,
   Cpu,
   Folder,
   Info,
@@ -15,6 +16,7 @@ import SettingsCoreConfig from '../SettingsCoreConfig';
 import SettingsGeneral from '../SettingsGeneral';
 import SettingsVoice from '../SettingsVoice';
 import SettingsAdvanced from '../SettingsAdvanced';
+import SettingsModels from '../SettingsModels';
 import type { SettingsSection } from './types';
 
 export const useSettingsSections = (): SettingsSection[] => {
@@ -36,6 +38,14 @@ export const useSettingsSections = (): SettingsSection[] => {
       icon: MessageSquare,
       component: SettingsChannels,
       translateKey: 'channels',
+    },
+    {
+      id: 'models',
+      name: t('settings.models'),
+      description: t('settings.modelsDescription'),
+      icon: Bot,
+      component: SettingsModels,
+      translateKey: 'models',
     },
     {
       id: 'voice',

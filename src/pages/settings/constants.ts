@@ -46,4 +46,10 @@ export const sectionAccentMap: Record<string, SettingsSectionAccent> = {
     icon: '#FB7185',
     glow: 'rgba(251, 113, 133, 0.22)',
   },
+  // 模型配置分区 - indigo 色系
+  models: {
+    bg: 'rgba(99, 102, 241, 0.12)',
+    icon: '#818CF8',
+    glow: 'rgba(129, 140, 248, 0.22)',
+  },
 };

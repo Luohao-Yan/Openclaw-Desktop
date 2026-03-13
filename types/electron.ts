@@ -16,6 +16,7 @@ export interface DesktopRuntimeInfo {
   appVersion: string;
   appVersionLabel: string;
   channel: 'preview';
+  userName: string;
   openclawCompatTail: number;
   runtimeVersion: string;
   preloadVersion: string;
@@ -223,6 +224,79 @@ export interface CoreConfigSaveResult {
   };
 }
 
+// ── 模型配置相关类型 ──────────────────────────────────────────────────────────
+
+/** 单个提供商的认证状态 */
+export type ProviderAuthStatus = 'authenticated' | 'unauthenticated' | 'unknown';
+
+/** models:status 返回结果 */
+export interface ModelsStatusResult {
+  success: boolean;
+  /** key 为提供商 id（与静态列表 PROVIDER_LIST 中的 id 对应） */
+  providers: Record<string, ProviderAuthStatus>;
+  error?: string;
+}
+
+/** models:scan 返回结果 */
+export interface ModelsScanResult {
+  success: boolean;
+  /** 扫描输出文本 */
+  output?: string;
+  error?: string;
+}
+
+/** models:getConfig 返回结果 */
+export interface ModelsConfigResult {
+  success: boolean;
+  /** 当前主模型（provider/model 格式） */
+  primary?: string;
+  /** 备用模型列表 */
+  fallbacks?: string[];
+  error?: string;
+}
+
+/** models:aliasesList 返回结果 */
+export interface ModelsAliasesListResult {
+  success: boolean;
+  /** key 为别名，value 为 provider/model */
+  aliases: Record<string, string>;
+  error?: string;
+}
+
+/** 单条别名（UI 展示用） */
+export interface ModelAlias {
+  /** 别名名称 */
+  alias: string;
+  /** 目标 provider/model */
+  target: string;
+}
+
+/** 模型配置相关操作接口 */
+export interface ModelsActions {
+  /** 获取所有提供商的认证状态 */
+  modelsStatus(): Promise<ModelsStatusResult>;
+  /** 在系统终端启动 openclaw onboard 交互式向导 */
+  modelsOnboard(): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 执行 openclaw models scan，返回扫描输出文本 */
+  modelsScan(): Promise<ModelsScanResult>;
+  /** 读取 agents.defaults.model.primary 和 fallbacks */
+  modelsGetConfig(): Promise<ModelsConfigResult>;
+  /** 写入 agents.defaults.model.primary */
+  modelsSetPrimary(model: string): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 追加一个备用模型 */
+  modelsFallbackAdd(model: string): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 移除一个备用模型 */
+  modelsFallbackRemove(model: string): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 清空备用模型列表 */
+  modelsFallbackClear(): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 获取所有模型别名列表 */
+  modelsAliasesList(): Promise<ModelsAliasesListResult>;
+  /** 添加模型别名 */
+  modelsAliasAdd(alias: string, model: string): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 移除模型别名 */
+  modelsAliasRemove(alias: string): Promise<{ success: boolean; error?: string; message?: string }>;
+}
+
 export interface RemoteOpenClawConnectionPayload {
   host: string;
   port?: number;
@@ -280,6 +354,14 @@ export interface Settings {
   enableDebugTools?: boolean;
   exposureMode?: 'off' | 'tailnet' | 'public';
   requireCredentials?: boolean;
+  userProfile?: {
+    name?: string;
+    email?: string;
+    avatarUrl?: string;
+    avatarType?: 'default' | 'gravatar' | 'custom';
+    gravatarEmail?: string;
+    theme?: 'light' | 'dark' | 'system';
+  };
 }
 
 export interface SettingsActions {
@@ -638,7 +720,8 @@ export interface ElectronAPI extends
   InstancesActions, 
   SkillsActions,
   FileActions,
-  MainActions {}
+  MainActions,
+  ModelsActions {}
 
 declare global {
   interface Window {

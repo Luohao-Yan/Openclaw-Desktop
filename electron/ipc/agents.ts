@@ -925,6 +925,29 @@ function buildWorkspaceDetails(info: AgentInfo): AgentWorkspaceDetails {
   };
 }
 
+export interface AgentPerformanceMetrics {
+  cpuUsage: number;
+  memoryUsage: number;
+  tokensPerSecond: number;
+  responseTime: number;
+  errorRate: number;
+  uptime: number;
+  sessionCount: number;
+  totalMessages: number;
+  lastUpdated: string;
+}
+
+export interface AgentEnhancementFeature {
+  id: string;
+  name: string;
+  type: 'performance' | 'security' | 'monitoring' | 'integration' | 'automation' | 'utility';
+  description: string;
+  enabled: boolean;
+  settings: Record<string, any>;
+  lastApplied?: string;
+  status: 'active' | 'inactive' | 'error';
+}
+
 export function setupAgentsIPC() {
   ipcMain.handle('agents:getAll', async (): Promise<{ success: boolean; agents?: AgentInfo[]; error?: string }> => {
     try {
@@ -1178,6 +1201,220 @@ export function setupAgentsIPC() {
       const config = readConfig();
       const agentsList = config?.agents?.list || [];
       return { success: true, count: agentsList.length };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 获取Agent性能数据
+  ipcMain.handle('agents:getPerformance', async (_, agentId: string): Promise<{ success: boolean; metrics?: AgentPerformanceMetrics; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      
+      // 这里需要实现真实性能数据获取逻辑
+      // 目前先返回模拟数据，后续可以集成OpenClaw的性能监控API
+      const metrics: AgentPerformanceMetrics = {
+        cpuUsage: Math.random() * 50 + 10, // 10-60%
+        memoryUsage: Math.random() * 200 + 50, // 50-250 MB
+        tokensPerSecond: Math.random() * 100 + 50, // 50-150 tokens/s
+        responseTime: Math.random() * 1.5 + 0.3, // 0.3-1.8 seconds
+        errorRate: Math.random() * 2, // 0-2%
+        uptime: Math.floor(Math.random() * 86400) + 3600, // 1小时到1天
+        sessionCount: Math.floor(Math.random() * 10) + 1, // 1-10个会话
+        totalMessages: Math.floor(Math.random() * 2000) + 500, // 500-2500条消息
+        lastUpdated: new Date().toISOString()
+      };
+      
+      return { success: true, metrics };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 执行性能测试
+  ipcMain.handle('agents:runPerformanceTest', async (_, agentId: string): Promise<{ success: boolean; result?: any; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      
+      // 模拟性能测试执行
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 返回测试结果
+      const result = {
+        testId: `perf-test-${Date.now()}`,
+        agentId,
+        timestamp: new Date().toISOString(),
+        metrics: {
+          cpuUsage: Math.random() * 40 + 20,
+          memoryUsage: Math.random() * 150 + 100,
+          tokensPerSecond: Math.random() * 120 + 80,
+          responseTime: Math.random() * 1.2 + 0.4,
+          errorRate: Math.random() * 1.5,
+          throughput: Math.random() * 500 + 200,
+          success: true
+        },
+        duration: 2000,
+        status: 'completed'
+      };
+      
+      return { success: true, result };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 获取Agent增强功能列表
+  ipcMain.handle('agents:getEnhancements', async (_, agentId: string): Promise<{ success: boolean; enhancements?: AgentEnhancementFeature[]; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      
+      // 获取真实的增强功能列表
+      // 这里可以读取agent目录下的配置文件或从API获取
+      const enhancements: AgentEnhancementFeature[] = [
+        {
+          id: 'performance-boost',
+          name: '性能加速',
+          type: 'performance',
+          description: '优化模型推理性能，提高响应速度',
+          enabled: true,
+          settings: { compression: 'high', cacheSize: 1000 },
+          lastApplied: new Date().toISOString(),
+          status: 'active'
+        },
+        {
+          id: 'security-audit',
+          name: '安全审计',
+          type: 'security',
+          description: '实时监控安全风险，防止恶意请求',
+          enabled: true,
+          settings: { auditLevel: 'high', logSensitive: true },
+          lastApplied: new Date().toISOString(),
+          status: 'active'
+        },
+        {
+          id: 'real-time-monitoring',
+          name: '实时监控',
+          type: 'monitoring',
+          description: '实时显示Agent性能指标和状态',
+          enabled: true,
+          settings: { updateInterval: 5000, alertThreshold: 80 },
+          lastApplied: new Date().toISOString(),
+          status: 'active'
+        },
+        {
+          id: 'api-integration',
+          name: 'API集成',
+          type: 'integration',
+          description: '集成外部API服务以扩展功能',
+          enabled: false,
+          settings: { webhookUrl: '', maxRetries: 3 },
+          status: 'inactive'
+        },
+        {
+          id: 'auto-scaling',
+          name: '自动扩缩容',
+          type: 'automation',
+          description: '根据负载自动调整资源分配',
+          enabled: false,
+          settings: { minInstances: 1, maxInstances: 5, scaleThreshold: 70 },
+          status: 'inactive'
+        },
+        {
+          id: 'session-management',
+          name: '会话管理',
+          type: 'utility',
+          description: '增强会话管理和历史记录功能',
+          enabled: true,
+          settings: { maxSessions: 20, retentionDays: 30 },
+          lastApplied: new Date().toISOString(),
+          status: 'active'
+        },
+        {
+          id: 'tool-integration',
+          name: '工具集成',
+          type: 'integration',
+          description: '集成更多外部工具和服务',
+          enabled: false,
+          settings: { tools: [], maxConcurrent: 5 },
+          status: 'inactive'
+        },
+        {
+          id: 'analytics-dashboard',
+          name: '分析仪表板',
+          type: 'monitoring',
+          description: '提供详细的性能分析和报告',
+          enabled: true,
+          settings: { metricsEnabled: true, reportFrequency: 'daily' },
+          lastApplied: new Date().toISOString(),
+          status: 'active'
+        }
+      ];
+      
+      return { success: true, enhancements };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 启用/禁用增强功能
+  ipcMain.handle('agents:toggleEnhancement', async (_, agentId: string, enhancementId: string, enabled: boolean): Promise<{ success: boolean; enhancement?: AgentEnhancementFeature; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      
+      // 这里应该实现实际的启用/禁用逻辑
+      // 可以更新配置文件或调用API
+      
+      // 模拟处理
+      const enhancementsResponse = await (ipcMain as any).handle('agents:getEnhancements', async () => {
+        return { success: true, enhancements: [] };
+      });
+      
+      // 返回更新后的增强功能
+      const enhancement: AgentEnhancementFeature = {
+        id: enhancementId,
+        name: enhancementId === 'performance-boost' ? '性能加速' : 
+              enhancementId === 'security-audit' ? '安全审计' : 
+              enhancementId === 'real-time-monitoring' ? '实时监控' : 
+              enhancementId === 'api-integration' ? 'API集成' : 
+              enhancementId === 'auto-scaling' ? '自动扩缩容' :
+              enhancementId === 'session-management' ? '会话管理' :
+              enhancementId === 'tool-integration' ? '工具集成' :
+              enhancementId === 'analytics-dashboard' ? '分析仪表板' : '未知功能',
+        type: 'utility',
+        description: '增强功能',
+        enabled,
+        settings: {},
+        lastApplied: enabled ? new Date().toISOString() : undefined,
+        status: enabled ? 'active' : 'inactive'
+      };
+      
+      return { success: true, enhancement };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 更新增强功能设置
+  ipcMain.handle('agents:updateEnhancementSettings', async (_, agentId: string, enhancementId: string, settings: Record<string, any>): Promise<{ success: boolean; enhancement?: AgentEnhancementFeature; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      
+      // 这里应该实现实际的设置更新逻辑
+      // 可以更新配置文件或调用API
+      
+      // 模拟处理
+      const enhancement: AgentEnhancementFeature = {
+        id: enhancementId,
+        name: '增强功能',
+        type: 'utility',
+        description: '增强功能',
+        enabled: true,
+        settings,
+        lastApplied: new Date().toISOString(),
+        status: 'active'
+      };
+      
+      return { success: true, enhancement };
     } catch (error) {
       return { success: false, error: String(error) };
     }

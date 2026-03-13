@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import { Settings, ClipboardList, FileText, Sun, Moon, Monitor, ChevronLeft, ChevronRight, MessageSquare, Server, BookOpen, HeadingIcon } from 'lucide-react';
+import { Settings, ClipboardList, FileText, Sun, Moon, Monitor, ChevronLeft, ChevronRight, MessageSquare, Server, BookOpen } from 'lucide-react';
 import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useI18n } from '../i18n/I18nContext';
+import UserAvatar from './UserAvatar';
 
  const dashboardIcon = {
    body: '<g fill="none" stroke="currentColor" stroke-width="1"><path stroke-width="1.5" d="M2.5 12c0-4.478 0-6.717 1.391-8.109C5.282 2.5 7.521 2.5 12 2.5c4.478 0 6.718 0 8.109 1.391S21.5 7.521 21.5 12c0 4.478 0 6.718-1.391 8.109S16.479 21.5 12 21.5c-4.478 0-6.718 0-8.109-1.391S2.5 16.479 2.5 12Z"/><path stroke-linejoin="round" stroke-width="1.5" d="M2.5 9h19"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 6h.009M11 6h.009"/><path stroke-linecap="round" stroke-width="1.5" d="M17 17a5 5 0 0 0-10 0"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m12.707 15.293l-1.414 1.414"/></g>',
@@ -34,7 +35,6 @@ const Sidebar: React.FC = () => {
   const accountSubtitle = runtimeInfo?.userName?.trim()
     ? t('desktopClient')
     : t('openclawDesktop');
-  const avatarText = accountName.slice(0, 2).toUpperCase();
   
   // 加载侧边栏设置
   useEffect(() => {
@@ -320,12 +320,14 @@ const Sidebar: React.FC = () => {
             }}
           >
             <div className="flex items-start gap-3">
-              <div
-                className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl text-sm font-semibold text-white shadow-lg"
-                style={{ background: 'linear-gradient(135deg, #00B4FF 0%, #22C55E 100%)' }}
-              >
-                {avatarText}
-              </div>
+              <UserAvatar 
+                size="md" 
+                showDropdown={true}
+                onMenuClick={(action) => {
+                  console.log('User menu action:', action);
+                  // 这里可以处理菜单点击事件
+                }}
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

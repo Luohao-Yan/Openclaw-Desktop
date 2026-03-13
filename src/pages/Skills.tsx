@@ -135,7 +135,7 @@ const Skills: React.FC = () => {
   }, []);
 
   // 获取所有分类
-  const categories = ['all', ...new Set(skills.map(skill => skill.category).filter(Boolean))];
+  const categories = ['all', ...new Set(skills.map(skill => skill.category || 'tools').filter(Boolean))];
 
   // 筛选和排序技能
   const filteredSkills = skills
@@ -153,7 +153,7 @@ const Skills: React.FC = () => {
     })
     .filter(skill => {
       if (filterCategory !== 'all') {
-        return skill.category === filterCategory;
+        return (skill.category || 'tools') === filterCategory;
       }
       return true;
     })
@@ -234,8 +234,8 @@ const Skills: React.FC = () => {
                 {getStatusIcon(skill.status)}
                 {t(`skills.status.${skill.status}`)}
               </span>
-              <span className={`text-xs px-2 py-1 rounded ${getCategoryColor(skill.category)}`}>
-                {skill.category}
+              <span className={`text-xs px-2 py-1 rounded ${getCategoryColor(skill.category || 'tools')}`}>
+                {skill.category || 'tools'}
               </span>
               {skill.enabled && skill.status === 'installed' && (
                 <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
@@ -266,7 +266,7 @@ const Skills: React.FC = () => {
           <Package className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
           <div className="flex-1">
             <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>{t('skills.version')}</div>
-            <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{skill.version}</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{skill.version || '1.0.0'}</div>
           </div>
         </div>
         
@@ -274,7 +274,7 @@ const Skills: React.FC = () => {
           <Code className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
           <div className="flex-1">
             <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>{t('skills.author')}</div>
-            <div className="text-sm font-medium truncate" style={{ color: 'var(--app-text)' }}>{skill.author}</div>
+            <div className="text-sm font-medium truncate" style={{ color: 'var(--app-text)' }}>{skill.author || 'Unknown'}</div>
           </div>
         </div>
       </div>
@@ -605,7 +605,7 @@ const Skills: React.FC = () => {
               <div>
                 <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>{t('skills.installed')}</p>
                 <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                  {skills.filter(s => s.status === 'installed').length}
+                  {skills.filter(s => s.status === 'installed' || s.status === 'updatable').length}
                 </p>
               </div>
               <div className="p-3 bg-green-500/10 rounded-lg">
@@ -633,7 +633,7 @@ const Skills: React.FC = () => {
               <div>
                 <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>{t('skills.enabled')}</p>
                 <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                  {skills.filter(s => s.enabled && s.status === 'installed').length}
+                  {skills.filter(s => s.enabled && (s.status === 'installed' || s.status === 'updatable')).length}
                 </p>
               </div>
               <div className="p-3 bg-blue-500/10 rounded-lg">

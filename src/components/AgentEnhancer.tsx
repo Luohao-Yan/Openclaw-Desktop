@@ -15,7 +15,7 @@ import { useI18n } from '../i18n/I18nContext';
 interface AgentEnhancement {
   id: string;
   name: string;
-  type: 'performance' | 'security' | 'monitoring' | 'integration' | 'automation';
+  type: 'performance' | 'security' | 'monitoring' | 'integration' | 'automation' | 'utility';
   description: string;
   enabled: boolean;
   settings: Record<string, any>;
@@ -32,6 +32,7 @@ interface AgentMetrics {
   uptime: number;
   sessionCount: number;
   totalMessages: number;
+  lastUpdated?: string;
 }
 
 interface AgentEnhancerProps {
@@ -43,6 +44,7 @@ interface AgentEnhancerProps {
 }
 
 const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
+  agentId,
   agentName,
   onEnhancementToggle,
   onPerformanceTest
@@ -53,126 +55,142 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [expandedEnhancement, setExpandedEnhancement] = useState<string | null>(null);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
-  // 模拟增强功能数据
-  const defaultEnhancements: AgentEnhancement[] = [
-    {
-      id: 'performance-boost',
-      name: t('agent.enhancement.performanceBoost'),
-      type: 'performance',
-      description: 'Optimize model inference performance and improve response speed',
-      enabled: true,
-      settings: { compression: 'high', cacheSize: 1000 },
-      lastApplied: new Date().toISOString(),
-      status: 'active'
-    },
-    {
-      id: 'security-audit',
-      name: t('agent.enhancement.securityAudit'),
-      type: 'security',
-      description: 'Monitor security risks in real-time and prevent malicious requests',
-      enabled: true,
-      settings: { auditLevel: 'high', logSensitive: true },
-      lastApplied: new Date().toISOString(),
-      status: 'active'
-    },
-    {
-      id: 'real-time-monitoring',
-      name: t('agent.enhancement.realTimeMonitoring'),
-      type: 'monitoring',
-      description: 'Display agent performance metrics and status in real-time',
-      enabled: true,
-      settings: { updateInterval: 5000, alertThreshold: 80 },
-      lastApplied: new Date().toISOString(),
-      status: 'active'
-    },
-    {
-      id: 'api-integration',
-      name: t('agent.enhancement.apiIntegration'),
-      type: 'integration',
-      description: 'Integrate with external API services to extend functionality',
-      enabled: false,
-      settings: { webhookUrl: '', maxRetries: 3 },
-      status: 'inactive'
-    },
-    {
-      id: 'auto-scaling',
-      name: t('agent.enhancement.autoScaling'),
-      type: 'automation',
-      description: 'Automatically adjust resource allocation based on load',
-      enabled: false,
-      settings: { minInstances: 1, maxInstances: 5, scaleThreshold: 70 },
-      status: 'inactive'
+  // 加载性能数据
+  const loadPerformanceMetrics = async () => {
+    try {
+      const result = await window.electronAPI.agentsGetPerformance(agentId);
+      if (result.success && result.metrics) {
+        setMetrics(result.metrics);
+      } else {
+        console.error('Failed to load performance metrics:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading performance metrics:', error);
     }
-  ];
-
-  // 模拟性能指标数据
-  const defaultMetrics: AgentMetrics = {
-    cpuUsage: 42.5,
-    memoryUsage: 245.7,
-    tokensPerSecond: 156.8,
-    responseTime: 0.8,
-    errorRate: 0.2,
-    uptime: 86400, // 24小时
-    sessionCount: 8,
-    totalMessages: 1245
   };
 
-  useEffect(() => {
-    // 模拟加载数据
-    setTimeout(() => {
-      setEnhancements(defaultEnhancements);
-      setMetrics(defaultMetrics);
-      setLoading(false);
-    }, 500);
-  }, []);
+  // 加载增强功能列表
+  const loadEnhancements = async () => {
+    try {
+      const result = await window.electronAPI.agentsGetEnhancements(agentId);
+      if (result.success && result.enhancements) {
+        setEnhancements(result.enhancements);
+      } else {
+        console.error('Failed to load enhancements:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading enhancements:', error);
+    }
+  };
 
+  // 加载所有数据
+  const loadAllData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        loadPerformanceMetrics(),
+        loadEnhancements()
+      ]);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 执行性能测试
+  const runPerformanceTest = async () => {
+    setActionLoading({ ...actionLoading, 'performance-test': true });
+    try {
+      const result = await window.electronAPI.agentsRunPerformanceTest(agentId);
+      if (result.success && result.result) {
+        // 更新性能指标
+        await loadPerformanceMetrics();
+        onPerformanceTest?.();
+      } else {
+        console.error('Performance test failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Performance test error:', error);
+    } finally {
+      setActionLoading({ ...actionLoading, 'performance-test': false });
+    }
+  };
+
+  // 切换增强功能状态
   const toggleEnhancement = async (enhancementId: string, currentEnabled: boolean) => {
     setActionLoading({ ...actionLoading, [enhancementId]: true });
     try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       const newEnabled = !currentEnabled;
-      setEnhancements(prev => prev.map(e => 
-        e.id === enhancementId 
-          ? { 
-              ...e, 
-              enabled: newEnabled,
-              status: newEnabled ? 'active' : 'inactive',
-              lastApplied: newEnabled ? new Date().toISOString() : e.lastApplied
-            }
-          : e
-      ));
+      const result = await window.electronAPI.agentsToggleEnhancement(agentId, enhancementId, newEnabled);
       
-      onEnhancementToggle?.(enhancementId, newEnabled);
+      if (result.success && result.enhancement) {
+        // 更新本地状态
+        setEnhancements(prev => prev.map(e => 
+          e.id === enhancementId 
+            ? { ...e, ...result.enhancement }
+            : e
+        ));
+        onEnhancementToggle?.(enhancementId, newEnabled);
+      } else {
+        console.error('Failed to toggle enhancement:', result.error);
+      }
     } catch (error) {
-      console.error('Failed to toggle enhancement:', error);
+      console.error('Error toggling enhancement:', error);
     } finally {
       setActionLoading({ ...actionLoading, [enhancementId]: false });
     }
   };
 
-  const runPerformanceTest = async () => {
-    setActionLoading({ ...actionLoading, 'performance-test': true });
+  // 更新增强功能设置
+  const updateEnhancementSettings = async (enhancementId: string, settings: Record<string, any>) => {
+    setActionLoading({ ...actionLoading, [`settings-${enhancementId}`]: true });
     try {
-      // 模拟性能测试
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await window.electronAPI.agentsUpdateEnhancementSettings(agentId, enhancementId, settings);
       
-      // 更新性能指标
-      setMetrics(prev => prev ? {
-        ...prev,
-        tokensPerSecond: Math.random() * 100 + 100,
-        responseTime: Math.random() * 0.5 + 0.5,
-        errorRate: Math.random() * 0.5
-      } : prev);
-      
-      onPerformanceTest?.();
+      if (result.success && result.enhancement) {
+        // 更新本地状态
+        setEnhancements(prev => prev.map(e => 
+          e.id === enhancementId 
+            ? { ...e, ...result.enhancement }
+            : e
+        ));
+      } else {
+        console.error('Failed to update enhancement settings:', result.error);
+      }
     } catch (error) {
-      console.error('Performance test failed:', error);
+      console.error('Error updating enhancement settings:', error);
     } finally {
-      setActionLoading({ ...actionLoading, 'performance-test': false });
+      setActionLoading({ ...actionLoading, [`settings-${enhancementId}`]: false });
     }
+  };
+
+  useEffect(() => {
+    // 初始加载数据
+    loadAllData();
+
+    // 设置3秒自动刷新性能指标
+    const interval = setInterval(loadPerformanceMetrics, 3000);
+    setAutoRefreshInterval(interval);
+
+    // 清理函数
+    return () => {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+    };
+  }, [agentId]);
+
+  // 手动刷新所有数据
+  const handleRefresh = () => {
+    loadAllData();
+  };
+
+  // 处理设置保存
+  const handleSaveSettings = (enhancementId: string, currentSettings: Record<string, any>) => {
+    updateEnhancementSettings(enhancementId, currentSettings);
   };
 
   const getTypeIcon = (type: AgentEnhancement['type']) => {
@@ -230,25 +248,48 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold" style={{ color: 'var(--app-text)' }}>{t('agent.enhancement.performanceMetrics')}</h2>
-            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{agentName} {t('agent.enhancement.realTimeMonitoring')}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{agentName} {t('agent.enhancement.realTimeMonitoring')}</p>
+              {metrics?.lastUpdated && (
+                <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+                  {t('agent.enhancement.lastUpdated')}: {new Date(metrics.lastUpdated).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
           </div>
-          <button
-            onClick={runPerformanceTest}
-            disabled={actionLoading['performance-test']}
-            className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: 'var(--app-bg-elevated)',
-              border: '1px solid var(--app-border)',
-              color: 'var(--app-text)',
-            }}
-          >
-            {actionLoading['performance-test'] ? (
-              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <BarChart className="w-4 h-4 mr-2" />
-            )}
-            {t('agent.enhancement.performanceTest')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: 'var(--app-bg-elevated)',
+                border: '1px solid var(--app-border)',
+                color: 'var(--app-text)',
+              }}
+              title={t('agent.enhancement.refreshData')}
+            >
+              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              {t('agent.enhancement.refresh')}
+            </button>
+            <button
+              onClick={runPerformanceTest}
+              disabled={actionLoading['performance-test']}
+              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: 'var(--app-bg-elevated)',
+                border: '1px solid var(--app-border)',
+                color: 'var(--app-text)',
+              }}
+            >
+              {actionLoading['performance-test'] ? (
+                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <BarChart className="w-4 h-4 mr-2" />
+              )}
+              {t('agent.enhancement.performanceTest')}
+            </button>
+          </div>
         </div>
 
         {metrics && (
@@ -407,15 +448,20 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
                       <h4 className="font-medium" style={{ color: 'var(--app-text)' }}>{t('agent.enhancement.settings')}</h4>
                       <button
                         onClick={() => {
+                          handleSaveSettings(enhancement.id, enhancement.settings);
                           alert(t('common.success'));
                         }}
-                        className="text-sm px-3 py-1 rounded-lg"
+                        disabled={actionLoading[`settings-${enhancement.id}`]}
+                        className="text-sm px-3 py-1 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                           backgroundColor: 'var(--app-bg-elevated)',
                           border: '1px solid var(--app-border)',
                           color: 'var(--app-text)',
                         }}
                       >
+                        {actionLoading[`settings-${enhancement.id}`] ? (
+                          <RefreshCw className="w-3 h-3 inline animate-spin mr-1" />
+                        ) : null}
                         {t('agent.enhancement.saveSettings')}
                       </button>
                     </div>

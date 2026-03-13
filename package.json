@@ -35,12 +35,16 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^5.1.4",
     "concurrently": "^9.2.1",
     "electron": "38.0.0",
     "electron-builder": "^26.8.1",
+    "fast-check": "^4.6.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.0"
   },
   "dependencies": {
     "@iconify/react": "^5.2.1",

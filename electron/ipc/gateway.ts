@@ -1,5 +1,6 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
+import { spawn } from 'child_process';
 import { readFile, stat, writeFile } from 'fs/promises';
 import net from 'net';
 import path from 'path';

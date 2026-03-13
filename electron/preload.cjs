@@ -76,6 +76,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentsSaveManagedFile: (agentId, targetPath, content) => ipcRenderer.invoke('agents:saveManagedFile', agentId, targetPath, content),
   agentsListWorkspaceEntries: (agentId, targetPath) => ipcRenderer.invoke('agents:listWorkspaceEntries', agentId, targetPath),
   agentsGetCount: () => ipcRenderer.invoke('agents:getCount'),
+  agentsGetPerformance: (agentId) => ipcRenderer.invoke('agents:getPerformance', agentId),
+  agentsRunPerformanceTest: (agentId) => ipcRenderer.invoke('agents:runPerformanceTest', agentId),
+  agentsGetEnhancements: (agentId) => ipcRenderer.invoke('agents:getEnhancements', agentId),
+  agentsToggleEnhancement: (agentId, enhancementId, enabled) => ipcRenderer.invoke('agents:toggleEnhancement', agentId, enhancementId, enabled),
+  agentsUpdateEnhancementSettings: (agentId, enhancementId, settings) => ipcRenderer.invoke('agents:updateEnhancementSettings', agentId, enhancementId, settings),
 
   // Sessions
   sessionsList: () => ipcRenderer.invoke('sessions:list'),
@@ -138,4 +143,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 应用配置管理
   appConfigReset: () => ipcRenderer.invoke('app-config:reset'),
   appConfigReinstallOpenclaw: () => ipcRenderer.invoke('app-config:reinstall-openclaw'),
+
+  // Models — 模型配置管理
+  modelsStatus: () => ipcRenderer.invoke('models:status'),
+  modelsOnboard: () => ipcRenderer.invoke('models:onboard'),
+  modelsScan: () => ipcRenderer.invoke('models:scan'),
+  modelsGetConfig: () => ipcRenderer.invoke('models:getConfig'),
+  modelsSetPrimary: (model) => ipcRenderer.invoke('models:setPrimary', model),
+  modelsFallbackAdd: (model) => ipcRenderer.invoke('models:fallbackAdd', model),
+  modelsFallbackRemove: (model) => ipcRenderer.invoke('models:fallbackRemove', model),
+  modelsFallbackClear: () => ipcRenderer.invoke('models:fallbackClear'),
+  modelsAliasesList: () => ipcRenderer.invoke('models:aliasesList'),
+  modelsAliasAdd: (alias, model) => ipcRenderer.invoke('models:aliasAdd', alias, model),
+  modelsAliasRemove: (alias) => ipcRenderer.invoke('models:aliasRemove', alias),
 });
