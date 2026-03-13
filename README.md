@@ -1,7 +1,7 @@
 # OpenClaw Desktop
 
 <p align="center">
-  <img src="https://github.com/openclaw/openclaw/raw/main/docs/public/logo.png" alt="OpenClaw Logo" width="120">
+  <img src="https://raw.githubusercontent.com/Luohao-Yan/Openclaw-Desktop/main/resources/icon_256.png" alt="OpenClaw Desktop Logo" width="120">
 </p>
 
 <h3 align="center">OpenClaw 桌面客户端</h3>
