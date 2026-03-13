@@ -33,7 +33,8 @@ const DesktopRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ child
           : Promise.resolve(null),
       ]);
 
-      setRuntimeInfo(nextRuntimeInfo);
+      // 使用类型断言确保 nextRuntimeInfo 被识别为正确的类型
+      setRuntimeInfo(nextRuntimeInfo as DesktopRuntimeInfo | null);
       setCapabilities(nextCapabilities);
     } catch (error) {
       console.error('Failed to refresh desktop runtime:', error);
@@ -46,6 +47,14 @@ const DesktopRuntimeProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   React.useEffect(() => {
     void refreshRuntime();
+    // 添加定时刷新，同时确保清理
+    const intervalId = setInterval(() => {
+      void refreshRuntime();
+    }, 60000); // 每分钟刷新一次
+    // 清理函数
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [refreshRuntime]);
 
   const value = React.useMemo<DesktopRuntimeContextValue>(() => {
