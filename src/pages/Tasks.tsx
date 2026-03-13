@@ -802,26 +802,26 @@ const Tasks: React.FC = () => {
                 {[
                   { label: '任务 ID', value: selectedJob.id },
                   { label: '会话目标', value: selectedJob.session || 'isolated' },
-                  selectedJob.agentId ? { label: 'Agent ID', value: selectedJob.agentId } : null,
+                  (selectedJob as any).agentId ? { label: 'Agent ID', value: String((selectedJob as any).agentId) } : null,
                   { label: '调度方式', value: getScheduleSummary(selectedJob) },
                   { label: '下次运行', value: formatDate(selectedJob.nextRunAt) },
-                  { label: '上次运行', value: formatDate(selectedJob.lastRunAt) },
+                  (selectedJob as any).lastRunAt ? { label: '上次运行', value: formatDate((selectedJob as any).lastRunAt) } : null,
                   selectedJob.status ? { label: '上次状态', value: selectedJob.status } : null,
-                  selectedJob.lastError ? { label: '上次错误', value: selectedJob.lastError } : null,
-                  selectedJob.lastDurationMs != null ? { label: '上次耗时', value: `${selectedJob.lastDurationMs} ms` } : null,
+                  (selectedJob as any).lastError ? { label: '上次错误', value: String((selectedJob as any).lastError) } : null,
+                  (selectedJob as any).lastDurationMs != null ? { label: '上次耗时', value: `${(selectedJob as any).lastDurationMs} ms` } : null,
                   { label: '创建时间', value: formatDate(selectedJob.createdAt) },
                   { label: '更新时间', value: formatDate(selectedJob.updatedAt) },
                 ].filter(Boolean).map((item) => (
                   <div
-                    key={item.label}
+                    key={item?.label || ''}
                     className="rounded-2xl border p-4"
                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
                   >
                     <div className="text-xs uppercase tracking-[0.14em]" style={{ color: 'var(--app-text-muted)' }}>
-                      {item.label}
+                      {item?.label || ''}
                     </div>
                     <div className="mt-2 break-all text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                      {item.value}
+                      {item?.value || ''}
                     </div>
                   </div>
                 ))}
@@ -846,7 +846,7 @@ const Tasks: React.FC = () => {
                     >
                       {JSON.stringify(selectedJob.payload || {}, null, 2)}
                     </pre>
-                    {selectedJob.delivery ? (
+                    {(selectedJob as any).delivery ? (
                       <>
                         <h3 className="mt-5 text-base font-semibold" style={{ color: 'var(--app-text)' }}>
                           Delivery 配置
@@ -859,7 +859,7 @@ const Tasks: React.FC = () => {
                             color: 'var(--app-text-muted)',
                           }}
                         >
-                          {JSON.stringify(selectedJob.delivery, null, 2)}
+                          {JSON.stringify((selectedJob as any).delivery, null, 2)}
                         </pre>
                       </>
                     ) : null}
