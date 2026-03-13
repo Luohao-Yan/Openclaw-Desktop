@@ -260,11 +260,18 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? await window.electronAPI.setupEnvironmentCheck()
         : createFallbackEnvironmentCheck(latestSettingsRef.current, '当前桌面端未暴露 setupEnvironmentCheck IPC');
       const normalizedResult: SetupEnvironmentCheck = (result as Partial<SetupEnvironmentCheck>).source
-        ? result as SetupEnvironmentCheck
+        ? {
+            ...result,
+            source: 'ipc' as const,
+            runtimeMode: (result as Partial<SetupEnvironmentCheck>).runtimeMode || 'missing',
+            bundledRuntimeAvailable: (result as Partial<SetupEnvironmentCheck>).bundledRuntimeAvailable || false,
+          } as SetupEnvironmentCheck
         : {
-          ...result,
-          source: 'ipc' as const,
-        };
+            ...result,
+            source: 'ipc' as const,
+            runtimeMode: 'missing',
+            bundledRuntimeAvailable: false,
+          };
 
       setEnvironmentCheck(normalizedResult);
 
@@ -618,6 +625,9 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             source: prev?.source || 'fallback',
             platform: normalizedSettings.detectedPlatform || prev?.platform || 'unknown',
             platformLabel: normalizedSettings.detectedPlatformLabel || prev?.platformLabel || '未知系统',
+            runtimeMode: prev?.runtimeMode || 'missing',
+            runtimeCommand: prev?.runtimeCommand,
+            bundledRuntimeAvailable: prev?.bundledRuntimeAvailable || false,
             nodeInstalled: prev?.nodeInstalled || false,
             nodeVersion: prev?.nodeVersion,
             nodeVersionSatisfies: prev?.nodeVersionSatisfies || false,
@@ -631,7 +641,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             recommendedInstallLabel: prev?.recommendedInstallLabel || '',
             notes: prev?.notes || [],
             diagnosticError: prev?.diagnosticError,
-          }));
+}));
         }
         setRemoteDraft({
           host: normalizedSettings.remoteHost || '',
@@ -654,6 +664,8 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setEnvironmentCheck({
             ...setupEnvironmentResult,
             source: 'ipc',
+            runtimeMode: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).runtimeMode || 'missing',
+            bundledRuntimeAvailable: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).bundledRuntimeAvailable || false,
           });
         }
       } catch (error) {
