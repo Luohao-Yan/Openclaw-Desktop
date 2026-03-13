@@ -2,7 +2,7 @@ import React from 'react';
 
 type AppButtonVariant = 'primary' | 'secondary' | 'danger' | 'success';
 
-type AppButtonSize = 'sm' | 'md';
+type AppButtonSize = 'xs' | 'sm' | 'md';
 
 interface AppButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
@@ -88,6 +88,7 @@ const variantStyles: Record<AppButtonVariant, React.CSSProperties> = {
 };
 
 const sizeClasses: Record<AppButtonSize, string> = {
+  xs: 'px-2 py-1 text-xs',
   sm: 'px-3 py-2 text-sm',
   md: 'px-4 py-2 text-sm',
 };

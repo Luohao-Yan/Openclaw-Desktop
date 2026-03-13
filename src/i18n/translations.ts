@@ -312,6 +312,13 @@ export const translations = {
     'settings.models.aliasDuplicate': 'Alias already exists. Overwrite?',
     'settings.models.aliasFormatError': 'Target must be in provider/model format',
     'settings.models.aliasRemoveConfirm': 'Remove this alias?',
+    'settings.models.configuredModels': 'Configured Models',
+    'settings.models.configuredModelsDescription': 'Models configured in agents.defaults.models with their aliases',
+    'settings.models.aliasLabel': 'Alias',
+    'settings.models.customProviders': 'Custom Providers',
+    'settings.models.customProvidersDescription': 'Custom provider configurations from models.providers',
+    'settings.models.apiKeyConfigured': 'API Key Set',
+    'settings.models.providerModels': 'Models',
     
     // User Avatar
     'changeAvatar': 'Change Avatar',
@@ -671,6 +678,13 @@ export const translations = {
     'settings.models.aliasDuplicate': '别名已存在，是否覆盖？',
     'settings.models.aliasFormatError': '目标必须为 provider/model 格式',
     'settings.models.aliasRemoveConfirm': '确认移除该别名？',
+    'settings.models.configuredModels': '已配置模型',
+    'settings.models.configuredModelsDescription': '在 agents.defaults.models 中配置的模型及其别名',
+    'settings.models.aliasLabel': '别名',
+    'settings.models.customProviders': '自定义提供商',
+    'settings.models.customProvidersDescription': '来自 models.providers 的自定义提供商配置',
+    'settings.models.apiKeyConfigured': 'API Key 已配置',
+    'settings.models.providerModels': '模型列表',
     
     // User Avatar
     'changeAvatar': '更换头像',

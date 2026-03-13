@@ -252,6 +252,16 @@ export interface ModelsConfigResult {
   primary?: string;
   /** 备用模型列表 */
   fallbacks?: string[];
+  /** 已配置的模型（agents.defaults.models）- 模型别名映射 */
+  configuredModels?: Record<string, { alias?: string; [key: string]: any }>;
+  /** 自定义提供商配置（models.providers） */
+  providers?: Record<string, {
+    baseUrl?: string;
+    apiKey?: string;
+    api?: string;
+    models?: Array<{ id: string; name: string; [key: string]: any }>;
+    [key: string]: any;
+  }>;
   error?: string;
 }
 
@@ -295,6 +305,14 @@ export interface ModelsActions {
   modelsAliasAdd(alias: string, model: string): Promise<{ success: boolean; error?: string; message?: string }>;
   /** 移除模型别名 */
   modelsAliasRemove(alias: string): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 从提供商配置中删除模型 */
+  modelsModelRemove(providerId: string, modelId: string): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 向提供商配置中添加模型 */
+  modelsModelAdd(providerId: string, model: { id: string; name: string; alias?: string; [key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 更新模型配置 */
+  modelsModelUpdate(providerId: string, modelId: string, updates: { [key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
+  /** 保存提供商配置（baseUrl、apiKey 等） */
+  modelsProviderConfigSave(providerId: string, config: { baseUrl?: string; apiKey?: string; [key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
 }
 
 export interface RemoteOpenClawConnectionPayload {

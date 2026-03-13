@@ -156,4 +156,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modelsAliasesList: () => ipcRenderer.invoke('models:aliasesList'),
   modelsAliasAdd: (alias, model) => ipcRenderer.invoke('models:aliasAdd', alias, model),
   modelsAliasRemove: (alias) => ipcRenderer.invoke('models:aliasRemove', alias),
+  modelsModelRemove: (providerId, modelId) => ipcRenderer.invoke('models:modelRemove', providerId, modelId),
+  modelsModelAdd: (providerId, model) => ipcRenderer.invoke('models:modelAdd', providerId, model),
+  modelsModelUpdate: (providerId, modelId, updates) => ipcRenderer.invoke('models:modelUpdate', providerId, modelId, updates),
+  modelsProviderConfigSave: (providerId, config) => ipcRenderer.invoke('models:providerConfigSave', providerId, config),
 });

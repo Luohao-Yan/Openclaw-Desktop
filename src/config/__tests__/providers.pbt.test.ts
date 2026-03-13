@@ -28,13 +28,13 @@ describe('Property 1: 提供商列表字段完整性', () => {
   });
 
   test('PROVIDER_LIST 包含正确数量的提供商', () => {
-    // 23 个 LLM + 2 个转录 = 25 个
-    expect(PROVIDER_LIST).toHaveLength(25);
+    // 32 个 LLM + 2 个转录 = 34 个
+    expect(PROVIDER_LIST).toHaveLength(34);
     
     const llmProviders = PROVIDER_LIST.filter(p => p.category === 'llm');
     const transcriptionProviders = PROVIDER_LIST.filter(p => p.category === 'transcription');
     
-    expect(llmProviders).toHaveLength(23);
+    expect(llmProviders).toHaveLength(32);
     expect(transcriptionProviders).toHaveLength(2);
   });
 

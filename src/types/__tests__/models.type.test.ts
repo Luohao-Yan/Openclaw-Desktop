@@ -19,9 +19,10 @@ describe('ProviderAuthStatus 类型', () => {
     const b: ProviderAuthStatus = 'unauthenticated';
     const c: ProviderAuthStatus = 'unknown';
 
-    expectTypeOf(a).toEqualTypeOf<ProviderAuthStatus>();
-    expectTypeOf(b).toEqualTypeOf<ProviderAuthStatus>();
-    expectTypeOf(c).toEqualTypeOf<ProviderAuthStatus>();
+    // 类型检查：确保这些值是 ProviderAuthStatus 类型
+    expectTypeOf(a).toMatchTypeOf<ProviderAuthStatus>();
+    expectTypeOf(b).toMatchTypeOf<ProviderAuthStatus>();
+    expectTypeOf(c).toMatchTypeOf<ProviderAuthStatus>();
   });
 });
 

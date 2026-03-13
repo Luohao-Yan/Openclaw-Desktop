@@ -276,7 +276,7 @@ export function setupModelsIPC() {
   // ── 配置读写 ──────────────────────────────────────────────────────────────
   
   /**
-   * models:getConfig - 读取主模型和备用模型配置
+   * models:getConfig - 读取主模型、备用模型和已配置的模型列表
    */
   ipcMain.handle('models:getConfig', async () => {
     try {
@@ -290,11 +290,19 @@ export function setupModelsIPC() {
 
       const primary = getNestedProperty(config, 'agents.defaults.model.primary') || '';
       const fallbacks = getNestedProperty(config, 'agents.defaults.model.fallbacks') || [];
+      
+      // 读取 agents.defaults.models（模型别名映射 / allowlist）
+      const modelsConfig = getNestedProperty(config, 'agents.defaults.models') || {};
+      
+      // 读取 models.providers（自定义提供商配置）
+      const providersConfig = getNestedProperty(config, 'models.providers') || {};
 
       return {
         success: true,
         primary,
         fallbacks: Array.isArray(fallbacks) ? fallbacks : [],
+        configuredModels: modelsConfig, // 已配置的模型别名映射
+        providers: providersConfig, // 自定义提供商配置
       };
     } catch (err: any) {
       return {
@@ -529,6 +537,303 @@ export function setupModelsIPC() {
       return {
         success: false,
         error: err.message || 'Failed to remove alias',
+      };
+    }
+  });
+
+  // ── 模型管理 ──────────────────────────────────────────────────────────────
+  
+  /**
+   * models:modelRemove - 从提供商配置中删除模型
+   * @param providerId 提供商 ID（如 volcengine-plan）
+   * @param modelId 模型 ID（如 kimi-k2.5）
+   * 
+   * 操作：
+   * 1. 从 models.providers[providerId].models 数组中移除该模型
+   * 2. 从 agents.defaults.models 中移除对应的别名配置（如果存在）
+   * 3. 如果删除的是主模型，清空 agents.defaults.model.primary
+   */
+  ipcMain.handle('models:modelRemove', async (_event, providerId: string, modelId: string) => {
+    try {
+      const config = readConfig();
+      if (!config) {
+        return {
+          success: false,
+          error: 'Config file not found',
+        };
+      }
+
+      // 1. 从 models.providers[providerId].models 中移除模型
+      const providerConfig = getNestedProperty(config, `models.providers.${providerId}`);
+      if (!providerConfig || !Array.isArray(providerConfig.models)) {
+        return {
+          success: false,
+          error: `Provider ${providerId} not found or has no models`,
+        };
+      }
+
+      const originalLength = providerConfig.models.length;
+      providerConfig.models = providerConfig.models.filter((m: any) => m.id !== modelId);
+      
+      if (providerConfig.models.length === originalLength) {
+        return {
+          success: false,
+          error: `Model ${modelId} not found in provider ${providerId}`,
+        };
+      }
+
+      setNestedProperty(config, `models.providers.${providerId}.models`, providerConfig.models);
+
+      // 2. 从 agents.defaults.models 中移除别名配置
+      const fullModelId = `${providerId}/${modelId}`;
+      const modelsConfig = getNestedProperty(config, 'agents.defaults.models') || {};
+      if (modelsConfig[fullModelId]) {
+        delete modelsConfig[fullModelId];
+        setNestedProperty(config, 'agents.defaults.models', modelsConfig);
+      }
+
+      // 3. 如果删除的是主模型，清空 primary
+      const primaryModel = getNestedProperty(config, 'agents.defaults.model.primary');
+      if (primaryModel === fullModelId) {
+        setNestedProperty(config, 'agents.defaults.model.primary', '');
+      }
+
+      // 4. 从 fallbacks 中移除（如果存在）
+      let fallbacks = getNestedProperty(config, 'agents.defaults.model.fallbacks');
+      if (Array.isArray(fallbacks) && fallbacks.includes(fullModelId)) {
+        fallbacks = fallbacks.filter((m: string) => m !== fullModelId);
+        setNestedProperty(config, 'agents.defaults.model.fallbacks', fallbacks);
+      }
+
+      if (!writeConfig(config)) {
+        return {
+          success: false,
+          error: 'Failed to write config file',
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Failed to remove model',
+      };
+    }
+  });
+
+  /**
+   * models:modelAdd - 向提供商配置中添加模型
+   * @param providerId 提供商 ID（如 volcengine-plan）
+   * @param model 模型对象（至少包含 id 和 name）
+   * 
+   * 操作：
+   * 1. 向 models.providers[providerId].models 数组中添加新模型
+   * 2. 如果提供了 alias，同时在 agents.defaults.models 中添加别名配置
+   */
+  ipcMain.handle('models:modelAdd', async (_event, providerId: string, model: { id: string; name: string; alias?: string; [key: string]: any }) => {
+    try {
+      const config = readConfig();
+      if (!config) {
+        return {
+          success: false,
+          error: 'Config file not found',
+        };
+      }
+
+      // 1. 确保提供商配置存在
+      const providerConfig = getNestedProperty(config, `models.providers.${providerId}`);
+      if (!providerConfig) {
+        return {
+          success: false,
+          error: `Provider ${providerId} not found`,
+        };
+      }
+
+      // 2. 确保 models 数组存在
+      if (!Array.isArray(providerConfig.models)) {
+        providerConfig.models = [];
+      }
+
+      // 3. 检查模型是否已存在
+      if (providerConfig.models.some((m: any) => m.id === model.id)) {
+        return {
+          success: false,
+          error: `Model ${model.id} already exists in provider ${providerId}`,
+        };
+      }
+
+      // 4. 提取 alias 并从 model 对象中移除
+      const { alias, ...modelData } = model;
+
+      // 5. 添加模型到提供商配置
+      providerConfig.models.push(modelData);
+      setNestedProperty(config, `models.providers.${providerId}.models`, providerConfig.models);
+
+      // 6. 如果提供了 alias，添加到 agents.defaults.models
+      if (alias) {
+        const fullModelId = `${providerId}/${model.id}`;
+        const modelsConfig = getNestedProperty(config, 'agents.defaults.models') || {};
+        modelsConfig[fullModelId] = { alias };
+        setNestedProperty(config, 'agents.defaults.models', modelsConfig);
+      }
+
+      if (!writeConfig(config)) {
+        return {
+          success: false,
+          error: 'Failed to write config file',
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Failed to add model',
+      };
+    }
+  });
+
+  /**
+   * models:providerConfigSave - 保存提供商配置（baseUrl、apiKey 等）
+   * @param providerId 提供商 ID（如 anthropic、openai）
+   * @param config 提供商配置对象（baseUrl、apiKey 等）
+   * 
+   * 操作：
+   * 1. 如果提供商不存在，创建新的提供商配置
+   * 2. 更新或添加 baseUrl、apiKey 等配置项
+   * 3. 保留现有的 models 数组
+   */
+  ipcMain.handle('models:providerConfigSave', async (_event, providerId: string, providerConfig: { baseUrl?: string; apiKey?: string; [key: string]: any }) => {
+    try {
+      const config = readConfig();
+      if (!config) {
+        return {
+          success: false,
+          error: 'Config file not found',
+        };
+      }
+
+      // 确保 models.providers 存在
+      if (!config.models) {
+        config.models = {};
+      }
+      if (!config.models.providers) {
+        config.models.providers = {};
+      }
+
+      // 获取现有提供商配置（如果存在）
+      const existingConfig = config.models.providers[providerId] || {};
+
+      // 合并配置，保留现有的 models 数组
+      const updatedConfig = {
+        ...existingConfig,
+        ...providerConfig,
+        models: existingConfig.models || [], // 保留现有模型列表
+      };
+
+      // 移除值为 undefined 的字段
+      Object.keys(updatedConfig).forEach(key => {
+        if (updatedConfig[key] === undefined) {
+          delete updatedConfig[key];
+        }
+      });
+
+      config.models.providers[providerId] = updatedConfig;
+
+      if (!writeConfig(config)) {
+        return {
+          success: false,
+          error: 'Failed to write config file',
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Failed to save provider config',
+      };
+    }
+  });
+
+  /**
+   * models:modelUpdate - 更新模型配置
+   * @param providerId 提供商 ID
+   * @param modelId 模型 ID
+   * @param updates 要更新的字段
+   * 
+   * 操作：
+   * 1. 在 models.providers[providerId].models 中找到对应模型
+   * 2. 更新模型字段
+   * 3. 如果更新了 alias，同步更新 agents.defaults.models
+   */
+  ipcMain.handle('models:modelUpdate', async (_event, providerId: string, modelId: string, updates: { [key: string]: any }) => {
+    try {
+      const config = readConfig();
+      if (!config) {
+        return {
+          success: false,
+          error: 'Config file not found',
+        };
+      }
+
+      // 1. 找到提供商配置
+      const providerConfig = getNestedProperty(config, `models.providers.${providerId}`);
+      if (!providerConfig || !Array.isArray(providerConfig.models)) {
+        return {
+          success: false,
+          error: `Provider ${providerId} not found or has no models`,
+        };
+      }
+
+      // 2. 找到模型
+      const modelIndex = providerConfig.models.findIndex((m: any) => m.id === modelId);
+      if (modelIndex === -1) {
+        return {
+          success: false,
+          error: `Model ${modelId} not found in provider ${providerId}`,
+        };
+      }
+
+      // 3. 提取 alias（如果有）并从 updates 中移除
+      const { alias, ...modelUpdates } = updates;
+
+      // 4. 更新模型字段
+      providerConfig.models[modelIndex] = {
+        ...providerConfig.models[modelIndex],
+        ...modelUpdates,
+      };
+
+      setNestedProperty(config, `models.providers.${providerId}.models`, providerConfig.models);
+
+      // 5. 如果提供了 alias，更新 agents.defaults.models
+      if (alias !== undefined) {
+        const fullModelId = `${providerId}/${modelId}`;
+        const modelsConfig = getNestedProperty(config, 'agents.defaults.models') || {};
+        
+        if (alias === '' || alias === null) {
+          // 删除别名
+          delete modelsConfig[fullModelId];
+        } else {
+          // 更新或添加别名
+          modelsConfig[fullModelId] = { alias };
+        }
+        
+        setNestedProperty(config, 'agents.defaults.models', modelsConfig);
+      }
+
+      if (!writeConfig(config)) {
+        return {
+          success: false,
+          error: 'Failed to write config file',
+        };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Failed to update model',
       };
     }
   });

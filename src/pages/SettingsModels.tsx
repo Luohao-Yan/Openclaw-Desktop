@@ -1,11 +1,20 @@
+/**
+ * 模型配置页面
+ * 采用左右分栏布局：
+ * - 左侧：提供商列表（默认提供商置顶）
+ * - 右侧：选中提供商的配置和模型列表
+ */
+
 import React, { useEffect, useState } from 'react';
-import { Bot, RefreshCw, Plus, Trash2, CheckCircle, XCircle, HelpCircle, Play, Search } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import AppButton from '../components/AppButton';
-import GlassCard from '../components/GlassCard';
 import { useI18n } from '../i18n/I18nContext';
 import { PROVIDER_LIST, mergeProviderStatuses } from '../config/providers';
-import { isValidModelFormat, addFallback, removeFallback } from '../utils/modelFormat';
-import type { ProviderAuthStatus, ModelAlias } from '../types/electron';
+import type { ProviderAuthStatus } from '../types/electron';
+
+// 子组件
+import ProvidersList, { type ProviderItem } from './settings/models/ProvidersList';
+import ProviderDetail, { type ModelItem } from './settings/models/ProviderDetail';
 
 /** 主组件状态结构 */
 interface SettingsModelsState {
@@ -14,24 +23,20 @@ interface SettingsModelsState {
   statusLoading: boolean;
   statusError: string;
 
-  // 主模型
-  primaryModel: string;
-  primaryModelDraft: string;
-  primaryModelSaving: boolean;
-  primaryModelError: string;
+  // 主模型配置
+  primaryModel: string; // 格式: provider/model-id
 
-  // 备用模型
-  fallbacks: string[];
-  fallbacksLoading: boolean;
-
-  // 别名
-  aliases: ModelAlias[];
-  aliasesLoading: boolean;
-
-  // 操作状态
-  onboardRunning: boolean;
-  scanRunning: boolean;
-  scanResult: string;
+  // 已配置的模型别名（agents.defaults.models）
+  configuredModels: Record<string, { alias?: string; [key: string]: any }>;
+  
+  // 自定义提供商配置（models.providers）
+  customProviders: Record<string, {
+    baseUrl?: string;
+    apiKey?: string;
+    api?: string;
+    models?: Array<{ id: string; name: string; [key: string]: any }>;
+    [key: string]: any;
+  }>;
 }
 
 const SettingsModels: React.FC = () => {
@@ -43,26 +48,18 @@ const SettingsModels: React.FC = () => {
     statusLoading: true,
     statusError: '',
     primaryModel: '',
-    primaryModelDraft: '',
-    primaryModelSaving: false,
-    primaryModelError: '',
-    fallbacks: [],
-    fallbacksLoading: false,
-    aliases: [],
-    aliasesLoading: false,
-    onboardRunning: false,
-    scanRunning: false,
-    scanResult: '',
+    configuredModels: {},
+    customProviders: {},
   });
 
   const [message, setMessage] = useState('');
-  const [newFallback, setNewFallback] = useState('');
-  const [newAliasName, setNewAliasName] = useState('');
-  const [newAliasTarget, setNewAliasTarget] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
 
   /** 显示临时消息（4秒后自动消失） */
-  const showMessage = (msg: string) => {
+  const showMessage = (msg: string, type: 'success' | 'error' = 'success') => {
     setMessage(msg);
+    setMessageType(type);
     setTimeout(() => setMessage(''), 4000);
   };
 
@@ -89,40 +86,20 @@ const SettingsModels: React.FC = () => {
     }
   };
 
-  /** 加载模型配置（主模型 + 备用列表） */
+  /** 加载模型配置 */
   const loadModelConfig = async () => {
     try {
       const result = await window.electronAPI.modelsGetConfig();
       if (result.success) {
-        const primary = result.primary || '';
         setState(prev => ({
           ...prev,
-          primaryModel: primary,
-          primaryModelDraft: primary,
-          fallbacks: result.fallbacks || [],
+          primaryModel: result.primary || '',
+          configuredModels: result.configuredModels || {},
+          customProviders: result.providers || {},
         }));
       }
     } catch (err) {
       console.error('加载模型配置失败:', err);
-    }
-  };
-
-  /** 加载别名列表 */
-  const loadAliases = async () => {
-    setState(prev => ({ ...prev, aliasesLoading: true }));
-    try {
-      const result = await window.electronAPI.modelsAliasesList();
-      if (result.success && result.aliases) {
-        const aliasArray: ModelAlias[] = Object.entries(result.aliases).map(([alias, target]) => ({
-          alias,
-          target: String(target),
-        }));
-        setState(prev => ({ ...prev, aliases: aliasArray, aliasesLoading: false }));
-      } else {
-        setState(prev => ({ ...prev, aliases: [], aliasesLoading: false }));
-      }
-    } catch (err) {
-      setState(prev => ({ ...prev, aliases: [], aliasesLoading: false }));
     }
   };
 
@@ -131,628 +108,328 @@ const SettingsModels: React.FC = () => {
     Promise.all([
       loadProviderStatus(),
       loadModelConfig(),
-      loadAliases(),
     ]);
   }, []);
 
-  /** 运行 Onboard 向导 */
-  const handleRunOnboard = async () => {
-    setState(prev => ({ ...prev, onboardRunning: true }));
+  // 解析默认提供商
+  const defaultProvider = state.primaryModel.includes('/') 
+    ? state.primaryModel.split('/')[0] 
+    : '';
+
+  // 当默认提供商加载完成且没有选中任何提供商时，自动选中默认提供商
+  useEffect(() => {
+    if (defaultProvider && !selectedProviderId) {
+      setSelectedProviderId(defaultProvider);
+    }
+  }, [defaultProvider, selectedProviderId]);
+
+  // 合并官方提供商和自定义提供商
+  const allProviders: ProviderItem[] = [
+    // 官方提供商
+    ...mergeProviderStatuses(PROVIDER_LIST, state.providerStatuses).map(p => {
+      const providerConfig = state.customProviders[p.id];
+      const isConfigured = !!providerConfig;
+      const modelCount = providerConfig?.models?.length || 0;
+      
+      // 从 PROVIDER_LIST 中获取原始定义以获取元数据
+      const providerDef = PROVIDER_LIST.find(pd => pd.id === p.id);
+      
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        description: p.description,
+        authStatus: p.authStatus,
+        isConfigured,
+        isDefault: p.id === defaultProvider,
+        modelCount,
+        baseUrl: providerConfig?.baseUrl,
+        apiKey: providerConfig?.apiKey,
+        // 添加元数据
+        authType: providerDef?.authType,
+        envVar: providerDef?.envVar,
+        requiresConfig: providerDef?.requiresConfig,
+        defaultBaseUrl: providerDef?.defaultBaseUrl,
+        apiType: providerDef?.apiType,
+      };
+    }),
+    // 自定义提供商（不在官方列表中的）
+    ...Object.entries(state.customProviders)
+      .filter(([id]) => !PROVIDER_LIST.some(p => p.id === id))
+      .map(([id, config]) => ({
+        id,
+        name: config.name || id,
+        category: 'llm' as const,
+        description: '自定义提供商',
+        authStatus: state.providerStatuses[id] || 'unknown' as const,
+        isConfigured: true,
+        isDefault: id === defaultProvider,
+        modelCount: config.models?.length || 0,
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        // 自定义提供商默认值
+        authType: 'api-key' as const,
+        requiresConfig: true,
+      })),
+    // 虚拟的"添加自定义提供商"条目（用于右侧面板显示表单）
+    {
+      id: '__add_custom__',
+      name: '添加自定义提供商',
+      category: 'llm' as const,
+      description: '',
+      authStatus: 'unknown' as const,
+      isConfigured: false,
+      isDefault: false,
+      modelCount: 0,
+      authType: 'api-key' as const,
+      requiresConfig: true,
+    },
+  ];
+
+  // 选中的提供商
+  const selectedProvider = selectedProviderId 
+    ? (allProviders.find(p => p.id === selectedProviderId) || null)
+    : null;
+
+  // 选中提供商的模型列表
+  const selectedProviderModels: ModelItem[] = selectedProvider && selectedProvider.isConfigured
+    ? (state.customProviders[selectedProvider.id]?.models || []).map(model => {
+        const fullId = `${selectedProvider.id}/${model.id}`;
+        const aliasConfig = state.configuredModels[fullId];
+        const isDefault = state.primaryModel === fullId;
+        
+        return {
+          id: model.id,
+          name: model.name || model.id,
+          fullId,
+          alias: aliasConfig?.alias,
+          isDefault,
+          reasoning: model.reasoning,
+          input: model.input,
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
+          cost: model.cost,
+        };
+      })
+    : [];
+
+  /** 处理设置默认模型 */
+  const handleSetDefaultModel = async (fullId: string) => {
     try {
-      const result = await window.electronAPI.modelsOnboard();
+      const result = await window.electronAPI.modelsSetPrimary(fullId);
       if (result.success) {
-        showMessage(t('settings.models.onboardSuccess'));
-        // 完成后自动刷新认证状态
-        await loadProviderStatus();
+        setState(prev => ({ ...prev, primaryModel: fullId }));
+        showMessage('默认模型已设置', 'success');
       } else {
-        showMessage(`${t('settings.models.onboardError')}: ${result.error || ''}`);
+        throw new Error(result.error || '设置失败');
       }
     } catch (err) {
-      showMessage(`${t('settings.models.onboardError')}: ${err}`);
-    } finally {
-      setState(prev => ({ ...prev, onboardRunning: false }));
+      showMessage(`设置默认模型失败: ${err}`, 'error');
+      throw err;
     }
   };
 
-  /** 扫描可用模型 */
-  const handleScanModels = async () => {
-    setState(prev => ({ ...prev, scanRunning: true, scanResult: '' }));
-    try {
-      const result = await window.electronAPI.modelsScan();
-      if (result.success) {
-        setState(prev => ({ ...prev, scanResult: result.output || '', scanRunning: false }));
-        showMessage(t('settings.models.scanSuccess'));
-      } else {
-        showMessage(`${t('settings.models.scanError')}: ${result.error || ''}`);
-        setState(prev => ({ ...prev, scanRunning: false }));
-      }
-    } catch (err) {
-      showMessage(`${t('settings.models.scanError')}: ${err}`);
-      setState(prev => ({ ...prev, scanRunning: false }));
-    }
-  };
-
-  /** 保存主模型 */
-  const handleSavePrimaryModel = async () => {
-    const model = state.primaryModelDraft.trim();
+  /** 处理删除模型 */
+  const handleDeleteModel = async (modelId: string) => {
+    if (!selectedProviderId) return;
     
-    // 格式校验
-    if (!isValidModelFormat(model)) {
-      setState(prev => ({ ...prev, primaryModelError: t('settings.models.primaryModelFormatError') }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, primaryModelSaving: true, primaryModelError: '' }));
     try {
-      const result = await window.electronAPI.modelsSetPrimary(model);
+      const result = await window.electronAPI.modelsModelRemove(selectedProviderId, modelId);
       if (result.success) {
-        setState(prev => ({ ...prev, primaryModel: model, primaryModelSaving: false }));
-        showMessage(t('settings.models.primaryModelSaved'));
+        // 重新加载配置以更新 UI
+        await loadModelConfig();
+        showMessage('模型已删除', 'success');
       } else {
-        setState(prev => ({ 
-          ...prev, 
-          primaryModelError: result.error || t('settings.models.primaryModelSaveError'),
-          primaryModelSaving: false 
-        }));
+        throw new Error(result.error || '删除失败');
       }
     } catch (err) {
-      setState(prev => ({ 
-        ...prev, 
-        primaryModelError: String(err),
-        primaryModelSaving: false 
-      }));
+      showMessage(`删除模型失败: ${err}`, 'error');
+      throw err;
     }
   };
 
-  /** 添加备用模型 */
-  const handleAddFallback = async () => {
-    const model = newFallback.trim();
-    
-    // 格式校验
-    if (!isValidModelFormat(model)) {
-      showMessage(t('settings.models.fallbackFormatError'));
-      return;
-    }
-
-    // 重复检查
-    if (state.fallbacks.includes(model)) {
-      showMessage(t('settings.models.fallbackDuplicate'));
-      return;
-    }
-
+  /** 处理添加模型 */
+  const handleAddModel = async (providerId: string, model: { id: string; name: string; alias?: string; contextWindow?: number; maxTokens?: number }) => {
     try {
-      const result = await window.electronAPI.modelsFallbackAdd(model);
+      const result = await window.electronAPI.modelsModelAdd(providerId, model);
       if (result.success) {
-        setState(prev => ({ ...prev, fallbacks: addFallback(prev.fallbacks, model) }));
-        setNewFallback('');
+        await loadModelConfig();
+        showMessage('模型已添加', 'success');
       } else {
-        showMessage(`错误: ${result.error || '添加失败'}`);
+        throw new Error(result.error || '添加失败');
       }
     } catch (err) {
-      showMessage(`错误: ${err}`);
+      showMessage(`添加模型失败: ${err}`, 'error');
+      throw err;
     }
   };
 
-  /** 移除备用模型 */
-  const handleRemoveFallback = async (model: string) => {
-    if (!confirm(t('settings.models.fallbackRemoveConfirm'))) {
-      return;
-    }
-
+  /** 处理编辑模型 */
+  const handleEditModel = async (providerId: string, modelId: string, updates: { [key: string]: any }) => {
     try {
-      const result = await window.electronAPI.modelsFallbackRemove(model);
+      const result = await window.electronAPI.modelsModelUpdate(providerId, modelId, updates);
       if (result.success) {
-        setState(prev => ({ ...prev, fallbacks: removeFallback(prev.fallbacks, model) }));
+        await loadModelConfig();
+        showMessage('模型已更新', 'success');
       } else {
-        showMessage(`错误: ${result.error || '移除失败'}`);
+        throw new Error(result.error || '更新失败');
       }
     } catch (err) {
-      showMessage(`错误: ${err}`);
+      showMessage(`更新模型失败: ${err}`, 'error');
+      throw err;
     }
   };
 
-  /** 添加别名 */
-  const handleAddAlias = async () => {
-    const alias = newAliasName.trim();
-    const target = newAliasTarget.trim();
-
-    if (!alias) {
-      showMessage('别名名称不能为空');
-      return;
+  /** 处理保存提供商配置 */
+  const handleSaveProviderConfig = async (providerId: string, config: { baseUrl?: string; apiKey?: string }) => {
+    try {
+      const result = await window.electronAPI.modelsProviderConfigSave(providerId, config);
+      if (result.success) {
+        await loadModelConfig();
+        await loadProviderStatus(); // 重新加载认证状态
+        showMessage('提供商配置已保存', 'success');
+      } else {
+        throw new Error(result.error || '保存失败');
+      }
+    } catch (err) {
+      showMessage(`保存提供商配置失败: ${err}`, 'error');
+      throw err;
     }
+  };
 
-    // 目标格式校验
-    if (!isValidModelFormat(target)) {
-      showMessage(t('settings.models.aliasFormatError'));
-      return;
-    }
-
-    // 检查是否已存在
-    const existing = state.aliases.find(a => a.alias === alias);
-    if (existing) {
-      if (!confirm(t('settings.models.aliasDuplicate'))) {
+  /** 处理添加自定义提供商 */
+  const handleAddCustomProvider = async (provider: { 
+    id: string; 
+    name: string; 
+    description?: string;
+    baseUrl?: string;
+    apiKey?: string;
+    api: 'openai-completions' | 'anthropic-messages';
+    firstModel: {
+      id: string;
+      name: string;
+    };
+  }) => {
+    try {
+      // 检查提供商 ID 是否已存在
+      const existingProvider = allProviders.find(p => p.id === provider.id && p.id !== '__add_custom__');
+      if (existingProvider) {
+        showMessage(`提供商 ID "${provider.id}" 已存在`, 'error');
         return;
       }
-    }
 
-    try {
-      const result = await window.electronAPI.modelsAliasAdd(alias, target);
+      // 验证 Base URL 格式
+      if (!provider.baseUrl) {
+        showMessage('Base URL 是必填项', 'error');
+        return;
+      }
+
+      try {
+        new URL(provider.baseUrl);
+      } catch {
+        showMessage('Base URL 格式无效，请输入完整的 URL（如 https://api.example.com/v1）', 'error');
+        return;
+      }
+
+      // 创建新的提供商配置（使用 modelsProviderConfigSave）
+      // 这会在 models.providers 中创建一个新条目
+      const result = await window.electronAPI.modelsProviderConfigSave(provider.id, {
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        api: provider.api,
+      });
+
       if (result.success) {
-        await loadAliases();
-        setNewAliasName('');
-        setNewAliasTarget('');
+        // 添加第一个模型
+        const modelResult = await window.electronAPI.modelsModelAdd(provider.id, {
+          id: provider.firstModel.id,
+          name: provider.firstModel.name,
+        });
+
+        if (modelResult.success) {
+          showMessage(`自定义提供商 "${provider.name}" 已添加`, 'success');
+          // 重新加载配置
+          await loadModelConfig();
+          await loadProviderStatus();
+          // 自动选中新添加的提供商
+          setSelectedProviderId(provider.id);
+        } else {
+          showMessage(`提供商已创建，但添加模型失败: ${modelResult.error || '未知错误'}`, 'error');
+          // 仍然重新加载配置和选中提供商
+          await loadModelConfig();
+          await loadProviderStatus();
+          setSelectedProviderId(provider.id);
+        }
       } else {
-        showMessage(`错误: ${result.error || '添加失败'}`);
+        showMessage(`添加失败: ${result.error || '未知错误'}`, 'error');
       }
     } catch (err) {
-      showMessage(`错误: ${err}`);
+      showMessage(`添加失败: ${err}`, 'error');
     }
   };
-
-  /** 移除别名 */
-  const handleRemoveAlias = async (alias: string) => {
-    if (!confirm(t('settings.models.aliasRemoveConfirm'))) {
-      return;
-    }
-
-    try {
-      const result = await window.electronAPI.modelsAliasRemove(alias);
-      if (result.success) {
-        await loadAliases();
-      } else {
-        showMessage(`错误: ${result.error || '移除失败'}`);
-      }
-    } catch (err) {
-      showMessage(`错误: ${err}`);
-    }
-  };
-
-  // 合并静态提供商列表与运行时状态
-  const mergedProviders = mergeProviderStatuses(PROVIDER_LIST, state.providerStatuses);
-  const llmProviders = mergedProviders.filter(p => p.category === 'llm');
-  const transcriptionProviders = mergedProviders.filter(p => p.category === 'transcription');
-
-  /** 渲染认证状态徽章 */
-  const renderStatusBadge = (status: ProviderAuthStatus) => {
-    const config = {
-      authenticated: { 
-        icon: CheckCircle, 
-        color: '#4ADE80', 
-        bg: 'rgba(74, 222, 128, 0.12)',
-        text: t('settings.models.statusAuthenticated')
-      },
-      unauthenticated: { 
-        icon: XCircle, 
-        color: '#FB7185', 
-        bg: 'rgba(251, 113, 133, 0.12)',
-        text: t('settings.models.statusUnauthenticated')
-      },
-      unknown: { 
-        icon: HelpCircle, 
-        color: '#94A3B8', 
-        bg: 'rgba(148, 163, 184, 0.12)',
-        text: t('settings.models.statusUnknown')
-      },
-    };
-
-    const { icon: Icon, color, bg, text } = config[status];
-
-    return (
-      <div 
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-        style={{ backgroundColor: bg, color }}
-      >
-        <Icon size={12} />
-        {text}
-      </div>
-    );
-  };
-
-  /** 渲染提供商卡片 */
-  const renderProviderCard = (provider: typeof mergedProviders[0]) => (
-    <div
-      key={provider.id}
-      className="flex items-center justify-between rounded-xl p-3"
-      style={{
-        backgroundColor: 'var(--app-bg-subtle)',
-        border: '1px solid var(--app-border)',
-      }}
-    >
-      <div className="flex items-center gap-3">
-        <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-          style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)', color: '#818CF8' }}
-        >
-          <Bot size={16} />
-        </div>
-        <div>
-          <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-            {provider.name}
-          </div>
-          {provider.description && (
-            <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              {provider.description}
-            </div>
-          )}
-        </div>
-      </div>
-      {renderStatusBadge(provider.authStatus)}
-    </div>
-  );
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="space-y-6 p-1">
+    <div className="flex flex-col h-full">
+      {/* 顶部操作栏 */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
+            {t('settings.models')}
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <AppButton
+            variant="secondary"
+            onClick={loadProviderStatus}
+            disabled={state.statusLoading}
+            icon={<RefreshCw size={14} />}
+          >
+            {t('settings.models.refreshStatus')}
+          </AppButton>
+        </div>
+      </div>
+
       {/* 全局消息提示 */}
       {message && (
         <div
-          className="rounded-xl px-4 py-3 text-sm"
+          className="mb-3 rounded-xl px-4 py-3 text-sm"
           style={{
-            backgroundColor: 'rgba(34, 197, 94, 0.10)',
-            border: '1px solid rgba(34, 197, 94, 0.30)',
-            color: '#4ADE80',
+            backgroundColor: messageType === 'success' 
+              ? 'rgba(34, 197, 94, 0.10)' 
+              : 'rgba(239, 68, 68, 0.10)',
+            border: messageType === 'success'
+              ? '1px solid rgba(34, 197, 94, 0.30)'
+              : '1px solid rgba(239, 68, 68, 0.30)',
+            color: messageType === 'success' ? '#4ADE80' : '#F87171',
           }}
         >
           {message}
         </div>
       )}
 
-      {/* 提供商列表区块 */}
-      <GlassCard className="rounded-2xl p-5 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
-            <div
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-              style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)', color: '#818CF8' }}
-            >
-              <Bot size={18} />
-            </div>
-            <div className="flex-1">
-              <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>
-                {t('settings.models.providers')}
-              </div>
-              <div className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                {t('settings.models.providersDescription')}
-              </div>
-            </div>
-          </div>
-          <AppButton
-            variant="secondary"
-            size="sm"
-            icon={<RefreshCw size={14} />}
-            onClick={loadProviderStatus}
-            disabled={state.statusLoading}
-          >
-            {t('settings.models.refreshStatus')}
-          </AppButton>
-        </div>
+      {/* 两栏固定布局 */}
+      <div className="flex flex-1 gap-4 overflow-hidden">
+        {/* 左侧提供商列表 */}
+        <ProvidersList
+          providers={allProviders}
+          selectedProviderId={selectedProviderId}
+          onSelectProvider={setSelectedProviderId}
+        />
 
-        {/* 错误提示 */}
-        {state.statusError && (
-          <div
-            className="rounded-xl px-4 py-3 text-sm"
-            style={{
-              backgroundColor: 'rgba(244, 63, 94, 0.10)',
-              border: '1px solid rgba(244, 63, 94, 0.30)',
-              color: '#FB7185',
-            }}
-          >
-            {t('settings.models.statusLoadError')}: {state.statusError}
-          </div>
-        )}
-
-        {/* LLM 提供商 */}
-        <div className="space-y-2">
-          <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-            {t('settings.models.categoryLlm')} ({llmProviders.length})
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            {llmProviders.map(renderProviderCard)}
-          </div>
-        </div>
-
-        {/* 转录提供商 */}
-        {transcriptionProviders.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-              {t('settings.models.categoryTranscription')} ({transcriptionProviders.length})
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {transcriptionProviders.map(renderProviderCard)}
-            </div>
-          </div>
-        )}
-      </GlassCard>
-
-      {/* Onboard / Scan 操作区块 */}
-      <GlassCard className="rounded-2xl p-5 space-y-4">
-        <div className="flex items-start gap-4">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)', color: '#818CF8' }}
-          >
-            <Play size={18} />
-          </div>
-          <div className="flex-1">
-            <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>
-              {t('settings.models.actions')}
-            </div>
-          </div>
-        </div>
-
-        {/* Onboard 向导 */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-            {t('settings.models.runOnboard')}
-          </div>
-          <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {t('settings.models.runOnboardDescription')}
-          </div>
-          <AppButton
-            variant="primary"
-            icon={<Play size={14} />}
-            onClick={handleRunOnboard}
-            disabled={state.onboardRunning}
-          >
-            {state.onboardRunning ? t('settings.models.onboardRunning') : t('settings.models.runOnboard')}
-          </AppButton>
-        </div>
-
-        {/* 模型扫描 */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-            {t('settings.models.scanModels')}
-          </div>
-          <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            {t('settings.models.scanModelsDescription')}
-          </div>
-          <AppButton
-            variant="secondary"
-            icon={<Search size={14} />}
-            onClick={handleScanModels}
-            disabled={state.scanRunning}
-          >
-            {state.scanRunning ? t('settings.models.scanRunning') : t('settings.models.scanModels')}
-          </AppButton>
-
-          {/* 扫描结果 */}
-          {state.scanResult && (
-            <pre
-              className="mt-3 rounded-xl px-4 py-3 text-xs overflow-auto max-h-48"
-              style={{
-                backgroundColor: 'var(--app-bg-subtle)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text-muted)',
-                fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all',
-              }}
-            >
-              {state.scanResult}
-            </pre>
-          )}
-        </div>
-      </GlassCard>
-
-      {/* 主模型设置区块 */}
-      <GlassCard className="rounded-2xl p-5 space-y-4">
-        <div className="flex items-start gap-4">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)', color: '#818CF8' }}
-          >
-            <Bot size={18} />
-          </div>
-          <div className="flex-1">
-            <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>
-              {t('settings.models.primaryModel')}
-            </div>
-            <div className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-              {t('settings.models.primaryModelDescription')}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={state.primaryModelDraft}
-            onChange={(e) => setState(prev => ({ ...prev, primaryModelDraft: e.target.value, primaryModelError: '' }))}
-            placeholder={t('settings.models.primaryModelPlaceholder')}
-            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/20"
-            style={{
-              backgroundColor: 'var(--app-bg-subtle)',
-              borderColor: state.primaryModelError ? '#FB7185' : 'var(--app-border)',
-              color: 'var(--app-text)',
-            }}
+        {/* 右侧内容区 — 独立滚动 */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-0.5">
+          <ProviderDetail
+            provider={selectedProvider}
+            models={selectedProviderModels}
+            onSetDefaultModel={handleSetDefaultModel}
+            onDeleteModel={handleDeleteModel}
+            onEditModel={handleEditModel}
+            onAddModel={handleAddModel}
+            onSaveProviderConfig={handleSaveProviderConfig}
+            onAddCustomProvider={handleAddCustomProvider}
+            onCancelAddCustom={() => setSelectedProviderId(null)}
           />
-          
-          {/* 格式错误提示 */}
-          {state.primaryModelError && (
-            <div className="text-xs" style={{ color: '#FB7185' }}>
-              {state.primaryModelError}
-            </div>
-          )}
-
-          <AppButton
-            variant="primary"
-            onClick={handleSavePrimaryModel}
-            disabled={state.primaryModelSaving || state.primaryModelDraft === state.primaryModel}
-          >
-            {state.primaryModelSaving ? '保存中...' : t('settings.models.primaryModelSave')}
-          </AppButton>
         </div>
-      </GlassCard>
-
-      {/* 备用模型列表区块 */}
-      <GlassCard className="rounded-2xl p-5 space-y-4">
-        <div className="flex items-start gap-4">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)', color: '#818CF8' }}
-          >
-            <Bot size={18} />
-          </div>
-          <div className="flex-1">
-            <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>
-              {t('settings.models.fallbacks')}
-            </div>
-            <div className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-              {t('settings.models.fallbacksDescription')}
-            </div>
-          </div>
-        </div>
-
-        {/* 添加备用模型 */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newFallback}
-            onChange={(e) => setNewFallback(e.target.value)}
-            placeholder={t('settings.models.fallbackPlaceholder')}
-            className="flex-1 rounded-xl border px-4 py-2 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/20"
-            style={{
-              backgroundColor: 'var(--app-bg-subtle)',
-              borderColor: 'var(--app-border)',
-              color: 'var(--app-text)',
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleAddFallback();
-              }
-            }}
-          />
-          <AppButton
-            variant="primary"
-            size="sm"
-            icon={<Plus size={14} />}
-            onClick={handleAddFallback}
-          >
-            {t('settings.models.fallbackAdd')}
-          </AppButton>
-        </div>
-
-        {/* 备用模型列表 */}
-        {state.fallbacks.length === 0 ? (
-          <div className="text-sm text-center py-4" style={{ color: 'var(--app-text-muted)' }}>
-            {t('settings.models.fallbackEmpty')}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {state.fallbacks.map((model, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between rounded-xl p-3"
-                style={{
-                  backgroundColor: 'var(--app-bg-subtle)',
-                  border: '1px solid var(--app-border)',
-                }}
-              >
-                <div className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>
-                  {model}
-                </div>
-                <button
-                  onClick={() => handleRemoveFallback(model)}
-                  className="text-red-400 hover:text-red-300 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </GlassCard>
-
-      {/* 别名管理区块 */}
-      <GlassCard className="rounded-2xl p-5 space-y-4">
-        <div className="flex items-start gap-4">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ backgroundColor: 'rgba(129, 140, 248, 0.12)', color: '#818CF8' }}
-          >
-            <Bot size={18} />
-          </div>
-          <div className="flex-1">
-            <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>
-              {t('settings.models.aliases')}
-            </div>
-            <div className="mt-1 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-              {t('settings.models.aliasesDescription')}
-            </div>
-          </div>
-        </div>
-
-        {/* 添加别名 */}
-        <div className="space-y-2">
-          <input
-            type="text"
-            value={newAliasName}
-            onChange={(e) => setNewAliasName(e.target.value)}
-            placeholder={t('settings.models.aliasName')}
-            className="w-full rounded-xl border px-4 py-2 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/20"
-            style={{
-              backgroundColor: 'var(--app-bg-subtle)',
-              borderColor: 'var(--app-border)',
-              color: 'var(--app-text)',
-            }}
-          />
-          <input
-            type="text"
-            value={newAliasTarget}
-            onChange={(e) => setNewAliasTarget(e.target.value)}
-            placeholder={t('settings.models.aliasTarget')}
-            className="w-full rounded-xl border px-4 py-2 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/20"
-            style={{
-              backgroundColor: 'var(--app-bg-subtle)',
-              borderColor: 'var(--app-border)',
-              color: 'var(--app-text)',
-            }}
-          />
-          <AppButton
-            variant="primary"
-            size="sm"
-            icon={<Plus size={14} />}
-            onClick={handleAddAlias}
-          >
-            {t('settings.models.aliasAdd')}
-          </AppButton>
-        </div>
-
-        {/* 别名列表 */}
-        {state.aliases.length === 0 ? (
-          <div className="text-sm text-center py-4" style={{ color: 'var(--app-text-muted)' }}>
-            {t('settings.models.aliasEmpty')}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {state.aliases.map((item, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between rounded-xl p-3"
-                style={{
-                  backgroundColor: 'var(--app-bg-subtle)',
-                  border: '1px solid var(--app-border)',
-                }}
-              >
-                <div className="flex-1">
-                  <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                    {item.alias}
-                  </div>
-                  <div className="text-xs font-mono" style={{ color: 'var(--app-text-muted)' }}>
-                    → {item.target}
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleRemoveAlias(item.alias)}
-                  className="text-red-400 hover:text-red-300 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </GlassCard>
       </div>
     </div>
   );
