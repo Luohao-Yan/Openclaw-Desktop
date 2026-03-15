@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Logs
   logsGet: (lines) => ipcRenderer.invoke('logs:get', lines),
   openGatewayLog: () => ipcRenderer.invoke('logs:openGatewayLog'),
+  // 按过滤条件查询日志（用于渠道故障排查）
+  logsFilter: (filter) => ipcRenderer.invoke('logs:filter', filter),
 
   // Settings
   settingsGet: () => ipcRenderer.invoke('settings:get'),
@@ -76,15 +78,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentsSaveManagedFile: (agentId, targetPath, content) => ipcRenderer.invoke('agents:saveManagedFile', agentId, targetPath, content),
   agentsListWorkspaceEntries: (agentId, targetPath) => ipcRenderer.invoke('agents:listWorkspaceEntries', agentId, targetPath),
   agentsGetCount: () => ipcRenderer.invoke('agents:getCount'),
+  agentsUpdateIdentity: (agentId, identity) => ipcRenderer.invoke('agents:updateIdentity', agentId, identity),
+  
+  // Agent Enhancement - 智能体增强功能
   agentsGetPerformance: (agentId) => ipcRenderer.invoke('agents:getPerformance', agentId),
   agentsRunPerformanceTest: (agentId) => ipcRenderer.invoke('agents:runPerformanceTest', agentId),
   agentsGetEnhancements: (agentId) => ipcRenderer.invoke('agents:getEnhancements', agentId),
   agentsToggleEnhancement: (agentId, enhancementId, enabled) => ipcRenderer.invoke('agents:toggleEnhancement', agentId, enhancementId, enabled),
   agentsUpdateEnhancementSettings: (agentId, enhancementId, settings) => ipcRenderer.invoke('agents:updateEnhancementSettings', agentId, enhancementId, settings),
+  agentsOpenDebugTerminal: (agentId) => ipcRenderer.invoke('agents:openDebugTerminal', agentId),
+  agentsExportConfig: (agentId) => ipcRenderer.invoke('agents:exportConfig', agentId),
+  agentsImportConfig: (agentId, filePath) => ipcRenderer.invoke('agents:importConfig', agentId, filePath),
+  agentsClone: (agentId, newName, workspace) => ipcRenderer.invoke('agents:clone', agentId, newName, workspace),
+  agentsGenerateReport: (agentId, format) => ipcRenderer.invoke('agents:generateReport', agentId, format),
+  agentsRestart: (agentId) => ipcRenderer.invoke('agents:restart', agentId),
+  agentsSecurityCheck: (agentId) => ipcRenderer.invoke('agents:securityCheck', agentId),
 
   // Sessions
   sessionsList: () => ipcRenderer.invoke('sessions:list'),
   sessionsGet: (sessionId) => ipcRenderer.invoke('sessions:get', sessionId),
+  sessionsTranscript: (agentId, sessionKey) => ipcRenderer.invoke('sessions:transcript', agentId, sessionKey),
   sessionsCreate: (agent, model) => ipcRenderer.invoke('sessions:create', agent, model),
   sessionsSend: (sessionId, message) => ipcRenderer.invoke('sessions:send', sessionId, message),
   sessionsClose: (sessionId) => ipcRenderer.invoke('sessions:close', sessionId),
@@ -143,6 +156,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 应用配置管理
   appConfigReset: () => ipcRenderer.invoke('app-config:reset'),
   appConfigReinstallOpenclaw: () => ipcRenderer.invoke('app-config:reinstall-openclaw'),
+
+  // Channels — 渠道管理
+  channelsStatus: () => ipcRenderer.invoke('channels:status'),
+  channelsList: () => ipcRenderer.invoke('channels:list'),
+  // 渠道诊断：执行 openclaw channels status --channel <channelType>
+  channelsDiagnose: (channelType) => ipcRenderer.invoke('channels:diagnose', channelType),
+  // 渠道重连：执行 openclaw channels reconnect --channel <channelType>
+  channelsReconnect: (channelType) => ipcRenderer.invoke('channels:reconnect', channelType),
+  // DM 配对请求列表：执行 openclaw pairing list <channel>
+  pairingList: (channel) => ipcRenderer.invoke('channels:pairingList', channel),
+  // DM 配对审批：执行 openclaw pairing approve <channel> <code>
+  pairingApprove: (channel, code) => ipcRenderer.invoke('channels:pairingApprove', channel, code),
 
   // Models — 模型配置管理
   modelsStatus: () => ipcRenderer.invoke('models:status'),

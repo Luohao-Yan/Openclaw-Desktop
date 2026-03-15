@@ -1,0 +1,2259 @@
+{
+  "manifestVersion": "3.13",
+  "openclawVersionRange": "3.13",
+  "capabilities": {
+    "gateway": true,
+    "modelAuth": true,
+    "workspace": true,
+    "maintenance": true
+  },
+  "sections": [
+    {
+      "id": "setup",
+      "title": "Setup / Onboard",
+      "description": "初始化配置、工作区与首次引导向导。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "setup",
+          "label": "Setup",
+          "command": "openclaw",
+          "subcommands": ["setup"]
+        },
+        {
+          "id": "onboard",
+          "label": "Onboard Wizard",
+          "command": "openclaw",
+          "subcommands": ["onboard"]
+        },
+        {
+          "id": "onboardLocal",
+          "label": "Onboard (Local Mode)",
+          "command": "openclaw",
+          "subcommands": ["onboard", "--mode", "local"]
+        },
+        {
+          "id": "onboardRemote",
+          "label": "Onboard (Remote Mode)",
+          "command": "openclaw",
+          "subcommands": ["onboard", "--mode", "remote", "--remote-url", "<url>", "--remote-token", "<token>"]
+        },
+        {
+          "id": "configure",
+          "label": "Configure (Interactive)",
+          "command": "openclaw",
+          "subcommands": ["configure"]
+        },
+        {
+          "id": "configGet",
+          "label": "Config Get",
+          "command": "openclaw",
+          "subcommands": ["config", "get", "<path>"]
+        },
+        {
+          "id": "configSet",
+          "label": "Config Set",
+          "command": "openclaw",
+          "subcommands": ["config", "set", "<path>", "<value>"]
+        },
+        {
+          "id": "configUnset",
+          "label": "Config Unset",
+          "command": "openclaw",
+          "subcommands": ["config", "unset", "<path>"]
+        },
+        {
+          "id": "configFile",
+          "label": "Config File Path",
+          "command": "openclaw",
+          "subcommands": ["config", "file"]
+        },
+        {
+          "id": "configValidate",
+          "label": "Config Validate",
+          "command": "openclaw",
+          "subcommands": ["config", "validate"]
+        }
+      ]
+    },
+
+    {
+      "id": "acp",
+      "title": "ACP",
+      "description": "配置 Agent Client Protocol 桥接，将 IDE 或 ACP 客户端连接到 OpenClaw Gateway。",
+      "fields": [
+        {
+          "id": "acpRemoteUrl",
+          "label": "Gateway URL",
+          "type": "text",
+          "path": "gateway.remote.url",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpRemoteToken",
+          "label": "Gateway Token",
+          "type": "password",
+          "path": "gateway.remote.token",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpTokenFile",
+          "label": "Token File Path",
+          "type": "text",
+          "path": "acp.tokenFile",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpPassword",
+          "label": "Gateway Password",
+          "type": "password",
+          "path": "acp.password",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpPasswordFile",
+          "label": "Password File Path",
+          "type": "text",
+          "path": "acp.passwordFile",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpSession",
+          "label": "Default Session Key",
+          "type": "text",
+          "path": "acp.session",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpSessionLabel",
+          "label": "Default Session Label",
+          "type": "text",
+          "path": "acp.sessionLabel",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpRequireExisting",
+          "label": "Require Existing Session",
+          "type": "text",
+          "path": "acp.requireExisting",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpResetSession",
+          "label": "Reset Session on Start",
+          "type": "text",
+          "path": "acp.resetSession",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpNoPrefixCwd",
+          "label": "No Prefix CWD",
+          "type": "text",
+          "path": "acp.noPrefixCwd",
+          "defaultValue": ""
+        },
+        {
+          "id": "acpVerbose",
+          "label": "Verbose Logging",
+          "type": "text",
+          "path": "acp.verbose",
+          "defaultValue": ""
+        }
+      ],
+      "commands": [
+        {
+          "id": "acpStart",
+          "label": "Start ACP Bridge",
+          "command": "openclaw",
+          "subcommands": ["acp"]
+        },
+        {
+          "id": "acpRemote",
+          "label": "Start ACP (Remote Gateway)",
+          "command": "openclaw",
+          "subcommands": ["acp", "--url", "<url>", "--token-file", "~/.openclaw/gateway.token"]
+        },
+        {
+          "id": "acpSession",
+          "label": "Attach to Session",
+          "command": "openclaw",
+          "subcommands": ["acp", "--session", "agent:main:main"]
+        },
+        {
+          "id": "acpClient",
+          "label": "ACP Client (Debug)",
+          "command": "openclaw",
+          "subcommands": ["acp", "client"]
+        },
+        {
+          "id": "acpConfigSetUrl",
+          "label": "Config Set Gateway URL",
+          "command": "openclaw",
+          "subcommands": ["config", "set", "gateway.remote.url", "<url>"]
+        },
+        {
+          "id": "acpConfigSetToken",
+          "label": "Config Set Gateway Token",
+          "command": "openclaw",
+          "subcommands": ["config", "set", "gateway.remote.token", "<token>"]
+        }
+      ]
+    },
+    {
+      "id": "approvals",
+      "title": "Approvals",
+      "description": "管理本地主机、Gateway 主机或 Node 主机的 exec approvals。",
+      "fields": [
+        {
+          "id": "approvalsFile",
+          "label": "Approvals File Path",
+          "type": "text",
+          "path": "approvals.file",
+          "defaultValue": "~/.openclaw/exec-approvals.json"
+        }
+      ],
+      "commands": [
+        {
+          "id": "approvalsGet",
+          "label": "Get Local Approvals",
+          "command": "openclaw",
+          "subcommands": ["approvals", "get"]
+        },
+        {
+          "id": "approvalsGetNode",
+          "label": "Get Node Approvals",
+          "command": "openclaw",
+          "subcommands": ["approvals", "get", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "approvalsGetGateway",
+          "label": "Get Gateway Approvals",
+          "command": "openclaw",
+          "subcommands": ["approvals", "get", "--gateway"]
+        },
+        {
+          "id": "approvalsSetFile",
+          "label": "Set Local Approvals from File",
+          "command": "openclaw",
+          "subcommands": ["approvals", "set", "--file", "./exec-approvals.json"]
+        },
+        {
+          "id": "approvalsSetNodeFile",
+          "label": "Set Node Approvals from File",
+          "command": "openclaw",
+          "subcommands": ["approvals", "set", "--node", "<id|name|ip>", "--file", "./exec-approvals.json"]
+        },
+        {
+          "id": "approvalsSetGatewayFile",
+          "label": "Set Gateway Approvals from File",
+          "command": "openclaw",
+          "subcommands": ["approvals", "set", "--gateway", "--file", "./exec-approvals.json"]
+        },
+        {
+          "id": "approvalsAllowlistAdd",
+          "label": "Allowlist Add (All Agents)",
+          "command": "openclaw",
+          "subcommands": ["approvals", "allowlist", "add", "\"~/Projects/**/bin/rg\""]
+        },
+        {
+          "id": "approvalsAllowlistAddAgent",
+          "label": "Allowlist Add (Specific Agent + Node)",
+          "command": "openclaw",
+          "subcommands": ["approvals", "allowlist", "add", "--agent", "main", "--node", "<id|name|ip>", "\"/usr/bin/uptime\""]
+        },
+        {
+          "id": "approvalsAllowlistAddAll",
+          "label": "Allowlist Add (Wildcard Agent)",
+          "command": "openclaw",
+          "subcommands": ["approvals", "allowlist", "add", "--agent", "\"*\"", "\"/usr/bin/uname\""]
+        },
+        {
+          "id": "approvalsAllowlistRemove",
+          "label": "Allowlist Remove",
+          "command": "openclaw",
+          "subcommands": ["approvals", "allowlist", "remove", "\"~/Projects/**/bin/rg\""]
+        }
+      ]
+    },
+    {
+      "id": "runtime",
+      "title": "Runtime / Version",
+      "description": "识别当前 OpenClaw CLI 版本、命令集版本和配置文件位置。",
+      "fields": [
+        {
+          "id": "version",
+          "label": "OpenClaw 版本",
+          "type": "readonly",
+          "source": "runtime.version"
+        },
+        {
+          "id": "manifestVersion",
+          "label": "命令集版本",
+          "type": "readonly",
+          "source": "runtime.manifestVersion"
+        },
+        {
+          "id": "configPath",
+          "label": "配置文件路径",
+          "type": "readonly",
+          "source": "runtime.configPath"
+        }
+      ],
+      "commands": [
+        {
+          "id": "version",
+          "label": "Print Version",
+          "command": "openclaw",
+          "subcommands": ["--version"]
+        },
+        {
+          "id": "doctor",
+          "label": "Doctor",
+          "command": "openclaw",
+          "subcommands": ["doctor"]
+        },
+        {
+          "id": "doctorDeep",
+          "label": "Doctor (Deep Scan)",
+          "command": "openclaw",
+          "subcommands": ["doctor", "--deep"]
+        },
+        {
+          "id": "doctorYes",
+          "label": "Doctor (Non-Interactive)",
+          "command": "openclaw",
+          "subcommands": ["doctor", "--yes"]
+        }
+      ]
+    },
+
+    {
+      "id": "gateway",
+      "title": "Gateway",
+      "description": "管理 port、bind、认证和 Tailscale 暴露方式。",
+      "fields": [
+        {
+          "id": "gatewayMode",
+          "label": "Gateway Mode",
+          "type": "select",
+          "path": "gateway.mode",
+          "defaultValue": "local",
+          "options": [
+            { "label": "local", "value": "local" },
+            { "label": "remote", "value": "remote" }
+          ]
+        },
+        {
+          "id": "gatewayBind",
+          "label": "Gateway Bind",
+          "type": "select",
+          "path": "gateway.bind",
+          "defaultValue": "loopback",
+          "options": [
+            { "label": "loopback", "value": "loopback" },
+            { "label": "local", "value": "local" },
+            { "label": "lan", "value": "lan" },
+            { "label": "tailnet", "value": "tailnet" },
+            { "label": "custom", "value": "custom" }
+          ]
+        },
+        {
+          "id": "host",
+          "label": "Bind Host",
+          "type": "text",
+          "path": "gateway.host",
+          "defaultValue": "127.0.0.1"
+        },
+        {
+          "id": "port",
+          "label": "Port",
+          "type": "number",
+          "path": "gateway.port",
+          "defaultValue": 18789
+        },
+        {
+          "id": "gatewayUrl",
+          "label": "Gateway URL",
+          "type": "text",
+          "path": "gateway.url",
+          "defaultValue": ""
+        },
+        {
+          "id": "authMode",
+          "label": "认证模式",
+          "type": "select",
+          "path": "gateway.auth.mode",
+          "defaultValue": "token",
+          "options": [
+            { "label": "Token", "value": "token" },
+            { "label": "Password", "value": "password" },
+            { "label": "Disabled", "value": "disabled" }
+          ]
+        },
+        {
+          "id": "token",
+          "label": "Gateway Token",
+          "type": "password",
+          "path": "gateway.auth.token",
+          "defaultValue": ""
+        },
+        {
+          "id": "tokenRefEnv",
+          "label": "Gateway Token Ref Env",
+          "type": "text",
+          "path": "gateway.auth.tokenRefEnv",
+          "defaultValue": ""
+        },
+        {
+          "id": "legacyGatewayToken",
+          "label": "Legacy Gateway Token",
+          "type": "password",
+          "path": "gateway.token",
+          "defaultValue": ""
+        },
+        {
+          "id": "gatewayRemoteUrl",
+          "label": "Remote Gateway URL",
+          "type": "text",
+          "path": "gateway.remote.url",
+          "defaultValue": ""
+        },
+        {
+          "id": "gatewayRemoteToken",
+          "label": "Remote Gateway Token",
+          "type": "password",
+          "path": "gateway.remote.token",
+          "defaultValue": ""
+        },
+        {
+          "id": "exposureMode",
+          "label": "Tailscale Exposure",
+          "type": "select",
+          "path": "desktop.exposureMode",
+          "defaultValue": "tailnet",
+          "options": [
+            { "label": "Off", "value": "off" },
+            { "label": "Tailnet (Serve)", "value": "tailnet" },
+            { "label": "Public (Funnel)", "value": "public" }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "id": "gatewayRun",
+          "label": "Run Gateway",
+          "command": "openclaw",
+          "subcommands": ["gateway", "run"]
+        },
+        {
+          "id": "gatewayStart",
+          "label": "Gateway Service Start",
+          "command": "openclaw",
+          "subcommands": ["gateway", "start"]
+        },
+        {
+          "id": "gatewayStop",
+          "label": "Gateway Service Stop",
+          "command": "openclaw",
+          "subcommands": ["gateway", "stop"]
+        },
+        {
+          "id": "gatewayRestart",
+          "label": "Gateway Service Restart",
+          "command": "openclaw",
+          "subcommands": ["gateway", "restart"]
+        },
+        {
+          "id": "gatewayInstall",
+          "label": "Gateway Service Install",
+          "command": "openclaw",
+          "subcommands": ["gateway", "install"]
+        },
+        {
+          "id": "gatewayUninstall",
+          "label": "Gateway Service Uninstall",
+          "command": "openclaw",
+          "subcommands": ["gateway", "uninstall"]
+        },
+        {
+          "id": "gatewayStatus",
+          "label": "Gateway Status",
+          "command": "openclaw",
+          "subcommands": ["gateway", "status"]
+        },
+        {
+          "id": "gatewayHealth",
+          "label": "Gateway Health",
+          "command": "openclaw",
+          "subcommands": ["gateway", "health"]
+        },
+        {
+          "id": "gatewayProbe",
+          "label": "Gateway Probe",
+          "command": "openclaw",
+          "subcommands": ["gateway", "probe"]
+        },
+        {
+          "id": "gatewayDiscover",
+          "label": "Gateway Discover",
+          "command": "openclaw",
+          "subcommands": ["gateway", "discover"]
+        },
+        {
+          "id": "health",
+          "label": "Health Check",
+          "command": "openclaw",
+          "subcommands": ["health"]
+        },
+        {
+          "id": "statusDeep",
+          "label": "Deep Status",
+          "command": "openclaw",
+          "subcommands": ["status", "--deep"]
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "command": "openclaw",
+          "subcommands": ["status"]
+        },
+        {
+          "id": "statusUsage",
+          "label": "Status with Usage",
+          "command": "openclaw",
+          "subcommands": ["status", "--usage"]
+        }
+      ]
+    },
+    {
+      "id": "modelAuth",
+      "title": "Model & Auth",
+      "description": "对齐官方 wizard 的 provider / model / auth 选择。",
+      "fields": [
+        {
+          "id": "provider",
+          "label": "Provider",
+          "type": "text",
+          "path": "agents.defaults.provider",
+          "defaultValue": "anthropic"
+        },
+        {
+          "id": "model",
+          "label": "Default Model",
+          "type": "text",
+          "path": "agents.defaults.model",
+          "defaultValue": ""
+        },
+        {
+          "id": "authChoice",
+          "label": "Auth Choice",
+          "type": "select",
+          "path": "agents.defaults.authChoice",
+          "defaultValue": "anthropic-api-key",
+          "options": [
+            { "label": "Anthropic API Key", "value": "anthropic-api-key" },
+            { "label": "Anthropic OAuth", "value": "anthropic-oauth" },
+            { "label": "OpenAI API Key", "value": "openai-api-key" },
+            { "label": "Custom API Key", "value": "custom-api-key" }
+          ]
+        },
+        {
+          "id": "apiKeyEnv",
+          "label": "API Key Env Ref",
+          "type": "text",
+          "path": "agents.defaults.apiKeyEnv",
+          "defaultValue": ""
+        },
+        {
+          "id": "customBaseUrl",
+          "label": "Custom Base URL",
+          "type": "text",
+          "path": "models.providers.custom.baseUrl",
+          "defaultValue": ""
+        },
+        {
+          "id": "customModelId",
+          "label": "Custom Model ID",
+          "type": "text",
+          "path": "models.providers.custom.modelId",
+          "defaultValue": ""
+        },
+        {
+          "id": "customCompatibility",
+          "label": "Custom Compatibility",
+          "type": "select",
+          "path": "models.providers.custom.compatibility",
+          "defaultValue": "openai",
+          "options": [
+            { "label": "OpenAI", "value": "openai" },
+            { "label": "Anthropic", "value": "anthropic" }
+          ]
+        }
+      ],
+      "commands": [
+        {
+          "id": "modelsList",
+          "label": "Models List",
+          "command": "openclaw",
+          "subcommands": ["models", "list"]
+        },
+        {
+          "id": "modelsStatus",
+          "label": "Models Status",
+          "command": "openclaw",
+          "subcommands": ["models", "status"]
+        },
+        {
+          "id": "modelsStatusProbe",
+          "label": "Models Status (Live Probe)",
+          "command": "openclaw",
+          "subcommands": ["models", "status", "--probe"]
+        },
+        {
+          "id": "modelsSet",
+          "label": "Set Default Model",
+          "command": "openclaw",
+          "subcommands": ["models", "set", "<model>"]
+        },
+        {
+          "id": "modelsSetImage",
+          "label": "Set Image Model",
+          "command": "openclaw",
+          "subcommands": ["models", "set-image", "<model>"]
+        },
+        {
+          "id": "modelsScan",
+          "label": "Scan Models",
+          "command": "openclaw",
+          "subcommands": ["models", "scan"]
+        },
+        {
+          "id": "modelsAliasesList",
+          "label": "Model Aliases List",
+          "command": "openclaw",
+          "subcommands": ["models", "aliases", "list"]
+        },
+        {
+          "id": "modelsAliasesAdd",
+          "label": "Model Aliases Add",
+          "command": "openclaw",
+          "subcommands": ["models", "aliases", "add", "<alias>", "<model>"]
+        },
+        {
+          "id": "modelsAliasesRemove",
+          "label": "Model Aliases Remove",
+          "command": "openclaw",
+          "subcommands": ["models", "aliases", "remove", "<alias>"]
+        },
+        {
+          "id": "modelsFallbacksList",
+          "label": "Model Fallbacks List",
+          "command": "openclaw",
+          "subcommands": ["models", "fallbacks", "list"]
+        },
+        {
+          "id": "modelsFallbacksAdd",
+          "label": "Model Fallbacks Add",
+          "command": "openclaw",
+          "subcommands": ["models", "fallbacks", "add", "<model>"]
+        },
+        {
+          "id": "modelsFallbacksRemove",
+          "label": "Model Fallbacks Remove",
+          "command": "openclaw",
+          "subcommands": ["models", "fallbacks", "remove", "<model>"]
+        },
+        {
+          "id": "modelsFallbacksClear",
+          "label": "Model Fallbacks Clear",
+          "command": "openclaw",
+          "subcommands": ["models", "fallbacks", "clear"]
+        },
+        {
+          "id": "modelsAuthAdd",
+          "label": "Model Auth Add",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "add"]
+        },
+        {
+          "id": "modelsAuthSetupToken",
+          "label": "Model Auth Setup Token (Anthropic)",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "setup-token", "--provider", "anthropic"]
+        },
+        {
+          "id": "modelsAuthOrderGet",
+          "label": "Model Auth Order Get",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "order", "get"]
+        },
+        {
+          "id": "authCustomApiKey",
+          "label": "Custom API Key Setup",
+          "command": "openclaw",
+          "subcommands": ["wizard", "--auth-choice", "custom-api-key"]
+        }
+      ]
+    },
+    {
+      "id": "workspace",
+      "title": "Workspace",
+      "description": "维护 workspace 位置与 reset 行为提示。",
+      "fields": [
+        {
+          "id": "workspaceRoot",
+          "label": "Workspace Root",
+          "type": "text",
+          "path": "workspace.root",
+          "defaultValue": "~/.openclaw/workspace"
+        },
+        {
+          "id": "openclawRootDir",
+          "label": "OpenClaw Root Dir",
+          "type": "text",
+          "path": "desktop.openclawRootDir",
+          "defaultValue": ""
+        }
+      ],
+      "commands": [
+        {
+          "id": "resetConfig",
+          "label": "Reset Config",
+          "command": "openclaw",
+          "subcommands": ["reset", "--scope", "config"]
+        },
+        {
+          "id": "resetConfigCredsSessions",
+          "label": "Reset Config + Creds + Sessions",
+          "command": "openclaw",
+          "subcommands": ["reset", "--scope", "config+creds+sessions", "--yes"]
+        },
+        {
+          "id": "resetFull",
+          "label": "Full Reset",
+          "command": "openclaw",
+          "subcommands": ["reset", "--scope", "full", "--yes"]
+        },
+        {
+          "id": "doctor",
+          "label": "Doctor",
+          "command": "openclaw",
+          "subcommands": ["doctor"]
+        },
+        {
+          "id": "backupCreate",
+          "label": "Backup Create",
+          "command": "openclaw",
+          "subcommands": ["backup", "create"]
+        },
+        {
+          "id": "backupVerify",
+          "label": "Backup Verify",
+          "command": "openclaw",
+          "subcommands": ["backup", "verify"]
+        }
+      ]
+    },
+
+    {
+      "id": "channels",
+      "title": "Channels",
+      "description": "管理聊天频道账号（WhatsApp/Telegram/Discord/Slack 等）。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "channelsList",
+          "label": "Channels List",
+          "command": "openclaw",
+          "subcommands": ["channels", "list"]
+        },
+        {
+          "id": "channelsStatus",
+          "label": "Channels Status",
+          "command": "openclaw",
+          "subcommands": ["channels", "status"]
+        },
+        {
+          "id": "channelsStatusProbe",
+          "label": "Channels Status (Probe)",
+          "command": "openclaw",
+          "subcommands": ["channels", "status", "--probe"]
+        },
+        {
+          "id": "channelsLogs",
+          "label": "Channels Logs",
+          "command": "openclaw",
+          "subcommands": ["channels", "logs"]
+        },
+        {
+          "id": "channelsAddTelegram",
+          "label": "Add Telegram Account",
+          "command": "openclaw",
+          "subcommands": ["channels", "add", "--channel", "telegram", "--account", "<id>", "--name", "<label>", "--token", "<token>"]
+        },
+        {
+          "id": "channelsAddDiscord",
+          "label": "Add Discord Account",
+          "command": "openclaw",
+          "subcommands": ["channels", "add", "--channel", "discord", "--account", "<id>", "--name", "<label>", "--token", "<token>"]
+        },
+        {
+          "id": "channelsRemove",
+          "label": "Remove Channel Account",
+          "command": "openclaw",
+          "subcommands": ["channels", "remove", "--channel", "<name>", "--account", "<id>", "--delete"]
+        },
+        {
+          "id": "channelsLoginWhatsapp",
+          "label": "WhatsApp Login",
+          "command": "openclaw",
+          "subcommands": ["channels", "login", "--channel", "whatsapp"]
+        },
+        {
+          "id": "channelsLogout",
+          "label": "Channel Logout",
+          "command": "openclaw",
+          "subcommands": ["channels", "logout", "--channel", "<name>"]
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "title": "Skills",
+      "description": "列出并检查可用技能及其就绪状态。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "skillsList",
+          "label": "Skills List",
+          "command": "openclaw",
+          "subcommands": ["skills", "list"]
+        },
+        {
+          "id": "skillsListEligible",
+          "label": "Skills List (Eligible Only)",
+          "command": "openclaw",
+          "subcommands": ["skills", "list", "--eligible"]
+        },
+        {
+          "id": "skillsInfo",
+          "label": "Skill Info",
+          "command": "openclaw",
+          "subcommands": ["skills", "info", "<name>"]
+        },
+        {
+          "id": "skillsCheck",
+          "label": "Skills Check",
+          "command": "openclaw",
+          "subcommands": ["skills", "check"]
+        }
+      ]
+    },
+    {
+      "id": "message",
+      "title": "Message",
+      "description": "统一出站消息发送与频道操作。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "messageSend",
+          "label": "Send Message",
+          "command": "openclaw",
+          "subcommands": ["message", "send", "--target", "<target>", "--message", "<text>"]
+        },
+        {
+          "id": "messagePoll",
+          "label": "Send Poll",
+          "command": "openclaw",
+          "subcommands": ["message", "poll", "--channel", "discord", "--target", "channel:<id>", "--poll-question", "<question>", "--poll-option", "<opt1>", "--poll-option", "<opt2>"]
+        },
+        {
+          "id": "messageReact",
+          "label": "React to Message",
+          "command": "openclaw",
+          "subcommands": ["message", "react"]
+        },
+        {
+          "id": "messageEdit",
+          "label": "Edit Message",
+          "command": "openclaw",
+          "subcommands": ["message", "edit"]
+        },
+        {
+          "id": "messageDelete",
+          "label": "Delete Message",
+          "command": "openclaw",
+          "subcommands": ["message", "delete"]
+        },
+        {
+          "id": "messagePin",
+          "label": "Pin Message",
+          "command": "openclaw",
+          "subcommands": ["message", "pin"]
+        },
+        {
+          "id": "messageSearch",
+          "label": "Search Messages",
+          "command": "openclaw",
+          "subcommands": ["message", "search"]
+        },
+        {
+          "id": "messageThreadCreate",
+          "label": "Create Thread",
+          "command": "openclaw",
+          "subcommands": ["message", "thread", "create"]
+        },
+        {
+          "id": "messageThreadList",
+          "label": "List Threads",
+          "command": "openclaw",
+          "subcommands": ["message", "thread", "list"]
+        },
+        {
+          "id": "messageThreadReply",
+          "label": "Reply to Thread",
+          "command": "openclaw",
+          "subcommands": ["message", "thread", "reply"]
+        }
+      ]
+    },
+
+    {
+      "id": "agents",
+      "title": "Agents",
+      "description": "管理隔离 Agent（工作区、认证与路由）。",
+      "fields": [
+        {
+          "id": "agentDefaultModelPrimary",
+          "label": "Agent Default Model Primary",
+          "type": "text",
+          "path": "agents.defaults.model.primary",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultModelFallbacks",
+          "label": "Agent Default Model Fallbacks",
+          "type": "text",
+          "path": "agents.defaults.model.fallbacks",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsSubagentsMaxConcurrent",
+          "label": "Agent Defaults Subagents Max Concurrent",
+          "type": "number",
+          "path": "agents.defaults.subagents.maxConcurrent",
+          "defaultValue": 5
+        },
+        {
+          "id": "agentDefaultsSkipBootstrap",
+          "label": "Agent Defaults Skip Bootstrap",
+          "type": "text",
+          "path": "agents.defaults.skipBootstrap",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsBootstrapMaxChars",
+          "label": "Agent Defaults Bootstrap Max Chars",
+          "type": "number",
+          "path": "agents.defaults.bootstrapMaxChars",
+          "defaultValue": 20000
+        },
+        {
+          "id": "agentDefaultsBootstrapTotalMaxChars",
+          "label": "Agent Defaults Bootstrap Total Max Chars",
+          "type": "number",
+          "path": "agents.defaults.bootstrapTotalMaxChars",
+          "defaultValue": 150000
+        },
+        {
+          "id": "agentDefaultsBootstrapPromptTruncationWarning",
+          "label": "Agent Defaults Bootstrap Prompt Truncation Warning",
+          "type": "select",
+          "path": "agents.defaults.bootstrapPromptTruncationWarning",
+          "defaultValue": "once",
+          "options": [
+            { "label": "off", "value": "off" },
+            { "label": "once", "value": "once" },
+            { "label": "always", "value": "always" }
+          ]
+        },
+        {
+          "id": "agentDefaultsCompactionMode",
+          "label": "Agent Defaults Compaction Mode",
+          "type": "select",
+          "path": "agents.defaults.compaction.mode",
+          "defaultValue": "safeguard",
+          "options": [
+            { "label": "default", "value": "default" },
+            { "label": "safeguard", "value": "safeguard" }
+          ]
+        },
+        {
+          "id": "agentDefaultsCompactionReserveTokensFloor",
+          "label": "Agent Defaults Compaction Reserve Tokens Floor",
+          "type": "number",
+          "path": "agents.defaults.compaction.reserveTokensFloor",
+          "defaultValue": 24000
+        },
+        {
+          "id": "agentDefaultsCompactionIdentifierPolicy",
+          "label": "Agent Defaults Compaction Identifier Policy",
+          "type": "select",
+          "path": "agents.defaults.compaction.identifierPolicy",
+          "defaultValue": "strict",
+          "options": [
+            { "label": "strict", "value": "strict" },
+            { "label": "off", "value": "off" },
+            { "label": "custom", "value": "custom" }
+          ]
+        },
+        {
+          "id": "agentDefaultsCompactionIdentifierInstructions",
+          "label": "Agent Defaults Compaction Identifier Instructions",
+          "type": "text",
+          "path": "agents.defaults.compaction.identifierInstructions",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsCompactionPostSections",
+          "label": "Agent Defaults Compaction Post Sections",
+          "type": "text",
+          "path": "agents.defaults.compaction.postCompactionSections",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsCompactionModel",
+          "label": "Agent Defaults Compaction Model",
+          "type": "text",
+          "path": "agents.defaults.compaction.model",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsCompactionMemoryFlushEnabled",
+          "label": "Agent Defaults Compaction Memory Flush Enabled",
+          "type": "text",
+          "path": "agents.defaults.compaction.memoryFlush.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsCompactionMemoryFlushSoftThresholdTokens",
+          "label": "Agent Defaults Compaction Memory Flush Soft Threshold Tokens",
+          "type": "number",
+          "path": "agents.defaults.compaction.memoryFlush.softThresholdTokens",
+          "defaultValue": 6000
+        },
+        {
+          "id": "agentDefaultsCompactionMemoryFlushSystemPrompt",
+          "label": "Agent Defaults Compaction Memory Flush System Prompt",
+          "type": "text",
+          "path": "agents.defaults.compaction.memoryFlush.systemPrompt",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentDefaultsCompactionMemoryFlushPrompt",
+          "label": "Agent Defaults Compaction Memory Flush Prompt",
+          "type": "text",
+          "path": "agents.defaults.compaction.memoryFlush.prompt",
+          "defaultValue": ""
+        },
+        {
+          "id": "agentList",
+          "label": "Agent List",
+          "type": "text",
+          "path": "agents.list",
+          "defaultValue": ""
+        }
+      ],
+      "commands": [
+        {
+          "id": "agentsList",
+          "label": "Agents List",
+          "command": "openclaw",
+          "subcommands": ["agents", "list"]
+        },
+        {
+          "id": "agentsListBindings",
+          "label": "Agents List (with Bindings)",
+          "command": "openclaw",
+          "subcommands": ["agents", "list", "--bindings"]
+        },
+        {
+          "id": "agentsAdd",
+          "label": "Agents Add",
+          "command": "openclaw",
+          "subcommands": ["agents", "add", "<name>", "--workspace", "<dir>"]
+        },
+        {
+          "id": "agentsBindings",
+          "label": "Agents Bindings",
+          "command": "openclaw",
+          "subcommands": ["agents", "bindings"]
+        },
+        {
+          "id": "agentsBind",
+          "label": "Agents Bind",
+          "command": "openclaw",
+          "subcommands": ["agents", "bind", "--agent", "<id>", "--bind", "<channel>"]
+        },
+        {
+          "id": "agentsUnbind",
+          "label": "Agents Unbind",
+          "command": "openclaw",
+          "subcommands": ["agents", "unbind", "--agent", "<id>", "--bind", "<channel>"]
+        },
+        {
+          "id": "agentsDelete",
+          "label": "Agents Delete",
+          "command": "openclaw",
+          "subcommands": ["agents", "delete", "<id>", "--force"]
+        },
+        {
+          "id": "agentRun",
+          "label": "Agent Run (Single Turn)",
+          "command": "openclaw",
+          "subcommands": ["agent", "--message", "<text>"]
+        },
+        {
+          "id": "agentRunLocal",
+          "label": "Agent Run (Local Embedded)",
+          "command": "openclaw",
+          "subcommands": ["agent", "--message", "<text>", "--local"]
+        }
+      ]
+    },
+    {
+      "id": "sessions",
+      "title": "Sessions",
+      "description": "列出并管理存储的会话。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "sessionsList",
+          "label": "Sessions List",
+          "command": "openclaw",
+          "subcommands": ["sessions"]
+        },
+        {
+          "id": "sessionsListJson",
+          "label": "Sessions List (JSON)",
+          "command": "openclaw",
+          "subcommands": ["sessions", "--json"]
+        },
+        {
+          "id": "sessionsActive",
+          "label": "Sessions Active (Last 30min)",
+          "command": "openclaw",
+          "subcommands": ["sessions", "--active", "30"]
+        }
+      ]
+    },
+    {
+      "id": "logs",
+      "title": "Logs",
+      "description": "通过 RPC 拉取 Gateway 文件日志。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "logsFollow",
+          "label": "Logs Follow",
+          "command": "openclaw",
+          "subcommands": ["logs", "--follow"]
+        },
+        {
+          "id": "logsLimit",
+          "label": "Logs (Last 200)",
+          "command": "openclaw",
+          "subcommands": ["logs", "--limit", "200"]
+        },
+        {
+          "id": "logsJson",
+          "label": "Logs (JSON)",
+          "command": "openclaw",
+          "subcommands": ["logs", "--json"]
+        },
+        {
+          "id": "logsPlain",
+          "label": "Logs (Plain)",
+          "command": "openclaw",
+          "subcommands": ["logs", "--plain"]
+        }
+      ]
+    },
+
+    {
+      "id": "nodes",
+      "title": "Nodes",
+      "description": "管理与 Gateway 配对的节点，支持远程调用、通知与屏幕操作。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "nodesStatus",
+          "label": "Nodes Status",
+          "command": "openclaw",
+          "subcommands": ["nodes", "status"]
+        },
+        {
+          "id": "nodesList",
+          "label": "Nodes List",
+          "command": "openclaw",
+          "subcommands": ["nodes", "list"]
+        },
+        {
+          "id": "nodesListConnected",
+          "label": "Nodes List (Connected)",
+          "command": "openclaw",
+          "subcommands": ["nodes", "list", "--connected"]
+        },
+        {
+          "id": "nodesDescribe",
+          "label": "Nodes Describe",
+          "command": "openclaw",
+          "subcommands": ["nodes", "describe", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesPending",
+          "label": "Nodes Pending",
+          "command": "openclaw",
+          "subcommands": ["nodes", "pending"]
+        },
+        {
+          "id": "nodesApprove",
+          "label": "Nodes Approve",
+          "command": "openclaw",
+          "subcommands": ["nodes", "approve", "<requestId>"]
+        },
+        {
+          "id": "nodesReject",
+          "label": "Nodes Reject",
+          "command": "openclaw",
+          "subcommands": ["nodes", "reject", "<requestId>"]
+        },
+        {
+          "id": "nodesRename",
+          "label": "Nodes Rename",
+          "command": "openclaw",
+          "subcommands": ["nodes", "rename", "--node", "<id|name|ip>", "--name", "<displayName>"]
+        },
+        {
+          "id": "nodesInvoke",
+          "label": "Nodes Invoke Command",
+          "command": "openclaw",
+          "subcommands": ["nodes", "invoke", "--node", "<id|name|ip>", "--command", "<command>"]
+        },
+        {
+          "id": "nodesRun",
+          "label": "Nodes Run",
+          "command": "openclaw",
+          "subcommands": ["nodes", "run", "--node", "<id|name|ip>", "<command>"]
+        },
+        {
+          "id": "nodesNotify",
+          "label": "Nodes Notify",
+          "command": "openclaw",
+          "subcommands": ["nodes", "notify", "--node", "<id|name|ip>", "--title", "<title>", "--body", "<body>"]
+        },
+        {
+          "id": "nodesCameraSnap",
+          "label": "Nodes Camera Snap",
+          "command": "openclaw",
+          "subcommands": ["nodes", "camera", "snap", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesCanvasSnapshot",
+          "label": "Nodes Canvas Snapshot",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "snapshot", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesScreenRecord",
+          "label": "Nodes Screen Record",
+          "command": "openclaw",
+          "subcommands": ["nodes", "screen", "record", "--node", "<id|name|ip>", "--duration", "10s"]
+        },
+        {
+          "id": "nodesLocationGet",
+          "label": "Nodes Location Get",
+          "command": "openclaw",
+          "subcommands": ["nodes", "location", "get", "--node", "<id|name|ip>"]
+        }
+      ]
+    },
+    {
+      "id": "node",
+      "title": "Node Host",
+      "description": "运行无头节点主机或将其作为后台服务管理。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "nodeRun",
+          "label": "Node Run",
+          "command": "openclaw",
+          "subcommands": ["node", "run", "--host", "<gateway-host>", "--port", "18789"]
+        },
+        {
+          "id": "nodeStatus",
+          "label": "Node Status",
+          "command": "openclaw",
+          "subcommands": ["node", "status"]
+        },
+        {
+          "id": "nodeInstall",
+          "label": "Node Install",
+          "command": "openclaw",
+          "subcommands": ["node", "install", "--host", "<gateway-host>"]
+        },
+        {
+          "id": "nodeUninstall",
+          "label": "Node Uninstall",
+          "command": "openclaw",
+          "subcommands": ["node", "uninstall"]
+        },
+        {
+          "id": "nodeStart",
+          "label": "Node Start",
+          "command": "openclaw",
+          "subcommands": ["node", "start"]
+        },
+        {
+          "id": "nodeStop",
+          "label": "Node Stop",
+          "command": "openclaw",
+          "subcommands": ["node", "stop"]
+        },
+        {
+          "id": "nodeRestart",
+          "label": "Node Restart",
+          "command": "openclaw",
+          "subcommands": ["node", "restart"]
+        }
+      ]
+    },
+    {
+      "id": "browser",
+      "title": "Browser",
+      "description": "控制专用 Chrome/Brave/Edge/Chromium 浏览器实例。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "browserStatus",
+          "label": "Browser Status",
+          "command": "openclaw",
+          "subcommands": ["browser", "status"]
+        },
+        {
+          "id": "browserStart",
+          "label": "Browser Start",
+          "command": "openclaw",
+          "subcommands": ["browser", "start"]
+        },
+        {
+          "id": "browserStop",
+          "label": "Browser Stop",
+          "command": "openclaw",
+          "subcommands": ["browser", "stop"]
+        },
+        {
+          "id": "browserTabs",
+          "label": "Browser Tabs",
+          "command": "openclaw",
+          "subcommands": ["browser", "tabs"]
+        },
+        {
+          "id": "browserOpen",
+          "label": "Browser Open URL",
+          "command": "openclaw",
+          "subcommands": ["browser", "open", "<url>"]
+        },
+        {
+          "id": "browserScreenshot",
+          "label": "Browser Screenshot",
+          "command": "openclaw",
+          "subcommands": ["browser", "screenshot"]
+        },
+        {
+          "id": "browserSnapshot",
+          "label": "Browser Snapshot",
+          "command": "openclaw",
+          "subcommands": ["browser", "snapshot"]
+        },
+        {
+          "id": "browserNavigate",
+          "label": "Browser Navigate",
+          "command": "openclaw",
+          "subcommands": ["browser", "navigate", "<url>"]
+        },
+        {
+          "id": "browserClick",
+          "label": "Browser Click",
+          "command": "openclaw",
+          "subcommands": ["browser", "click", "<ref>"]
+        },
+        {
+          "id": "browserType",
+          "label": "Browser Type",
+          "command": "openclaw",
+          "subcommands": ["browser", "type", "<ref>", "<text>"]
+        },
+        {
+          "id": "browserEvaluate",
+          "label": "Browser Evaluate JS",
+          "command": "openclaw",
+          "subcommands": ["browser", "evaluate", "--fn", "<code>"]
+        },
+        {
+          "id": "browserProfiles",
+          "label": "Browser Profiles",
+          "command": "openclaw",
+          "subcommands": ["browser", "profiles"]
+        },
+        {
+          "id": "browserCreateProfile",
+          "label": "Browser Create Profile",
+          "command": "openclaw",
+          "subcommands": ["browser", "create-profile", "--name", "<name>"]
+        },
+        {
+          "id": "browserResetProfile",
+          "label": "Browser Reset Profile",
+          "command": "openclaw",
+          "subcommands": ["browser", "reset-profile"]
+        }
+      ]
+    },
+
+    {
+      "id": "sandbox",
+      "title": "Sandbox",
+      "description": "管理沙箱环境列表与重建操作。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "sandboxList",
+          "label": "Sandbox List",
+          "command": "openclaw",
+          "subcommands": ["sandbox", "list"]
+        },
+        {
+          "id": "sandboxRecreate",
+          "label": "Sandbox Recreate",
+          "command": "openclaw",
+          "subcommands": ["sandbox", "recreate"]
+        },
+        {
+          "id": "sandboxExplain",
+          "label": "Sandbox Explain",
+          "command": "openclaw",
+          "subcommands": ["sandbox", "explain"]
+        }
+      ]
+    },
+    {
+      "id": "system",
+      "title": "System",
+      "description": "管理系统事件、心跳与 presence 状态（Gateway RPC）。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "systemEvent",
+          "label": "System Event",
+          "command": "openclaw",
+          "subcommands": ["system", "event", "--text", "<text>"]
+        },
+        {
+          "id": "systemEventNow",
+          "label": "System Event (Now)",
+          "command": "openclaw",
+          "subcommands": ["system", "event", "--text", "<text>", "--mode", "now"]
+        },
+        {
+          "id": "systemHeartbeatLast",
+          "label": "Heartbeat Last",
+          "command": "openclaw",
+          "subcommands": ["system", "heartbeat", "last"]
+        },
+        {
+          "id": "systemHeartbeatEnable",
+          "label": "Heartbeat Enable",
+          "command": "openclaw",
+          "subcommands": ["system", "heartbeat", "enable"]
+        },
+        {
+          "id": "systemHeartbeatDisable",
+          "label": "Heartbeat Disable",
+          "command": "openclaw",
+          "subcommands": ["system", "heartbeat", "disable"]
+        },
+        {
+          "id": "systemPresence",
+          "label": "System Presence",
+          "command": "openclaw",
+          "subcommands": ["system", "presence"]
+        }
+      ]
+    },
+    {
+      "id": "memory",
+      "title": "Memory",
+      "description": "管理全局 memory backend、citation 模式与 QMD 配置。",
+      "fields": [
+        {
+          "id": "memoryBackend",
+          "label": "Memory Backend",
+          "type": "select",
+          "path": "memory.backend",
+          "defaultValue": "builtin",
+          "options": [
+            { "label": "builtin", "value": "builtin" },
+            { "label": "qmd", "value": "qmd" }
+          ]
+        },
+        {
+          "id": "memoryCitationsMode",
+          "label": "Memory Citations Mode",
+          "type": "select",
+          "path": "memory.citationsMode",
+          "defaultValue": "off",
+          "options": [
+            { "label": "off", "value": "off" },
+            { "label": "inline", "value": "inline" },
+            { "label": "footnote", "value": "footnote" }
+          ]
+        },
+        {
+          "id": "memoryQmdBaseUrl",
+          "label": "Qmd Base URL",
+          "type": "text",
+          "path": "memory.qmd.baseUrl",
+          "defaultValue": ""
+        },
+        {
+          "id": "memoryQmdCollection",
+          "label": "Qmd Collection",
+          "type": "text",
+          "path": "memory.qmd.collection",
+          "defaultValue": ""
+        }
+      ],
+      "commands": [
+        {
+          "id": "memoryStatus",
+          "label": "Memory Status",
+          "command": "openclaw",
+          "subcommands": ["memory", "status"]
+        },
+        {
+          "id": "memoryIndex",
+          "label": "Memory Index",
+          "command": "openclaw",
+          "subcommands": ["memory", "index"]
+        },
+        {
+          "id": "memorySearch",
+          "label": "Memory Search",
+          "command": "openclaw",
+          "subcommands": ["memory", "search", "--query", "<query>"]
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "description": "审计配置与本地状态，检查常见安全问题。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "securityAudit",
+          "label": "Security Audit",
+          "command": "openclaw",
+          "subcommands": ["security", "audit"]
+        },
+        {
+          "id": "securityAuditDeep",
+          "label": "Security Audit (Deep)",
+          "command": "openclaw",
+          "subcommands": ["security", "audit", "--deep"]
+        },
+        {
+          "id": "securityAuditFix",
+          "label": "Security Audit (Fix)",
+          "command": "openclaw",
+          "subcommands": ["security", "audit", "--fix"]
+        }
+      ]
+    },
+    {
+      "id": "secrets",
+      "title": "Secrets",
+      "description": "管理 Secret 引用、重新加载与迁移。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "secretsReload",
+          "label": "Secrets Reload",
+          "command": "openclaw",
+          "subcommands": ["secrets", "reload"]
+        },
+        {
+          "id": "secretsMigrate",
+          "label": "Secrets Migrate",
+          "command": "openclaw",
+          "subcommands": ["secrets", "migrate"]
+        },
+        {
+          "id": "secretsConfigure",
+          "label": "Secrets Configure",
+          "command": "openclaw",
+          "subcommands": ["secrets", "configure"]
+        },
+        {
+          "id": "secretsApply",
+          "label": "Secrets Apply from Plan",
+          "command": "openclaw",
+          "subcommands": ["secrets", "apply", "--from", "<plan.json>"]
+        },
+        {
+          "id": "secretsAudit",
+          "label": "Secrets Audit",
+          "command": "openclaw",
+          "subcommands": ["secrets", "audit"]
+        }
+      ]
+    },
+    {
+      "id": "plugins",
+      "title": "Plugins",
+      "description": "管理扩展插件及其配置。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "pluginsList",
+          "label": "Plugins List",
+          "command": "openclaw",
+          "subcommands": ["plugins", "list"]
+        },
+        {
+          "id": "pluginsInfo",
+          "label": "Plugins Info",
+          "command": "openclaw",
+          "subcommands": ["plugins", "info", "<id>"]
+        },
+        {
+          "id": "pluginsInstall",
+          "label": "Plugins Install",
+          "command": "openclaw",
+          "subcommands": ["plugins", "install", "<path|.tgz|npm-spec>"]
+        },
+        {
+          "id": "pluginsEnable",
+          "label": "Plugins Enable",
+          "command": "openclaw",
+          "subcommands": ["plugins", "enable", "<id>"]
+        },
+        {
+          "id": "pluginsDisable",
+          "label": "Plugins Disable",
+          "command": "openclaw",
+          "subcommands": ["plugins", "disable", "<id>"]
+        },
+        {
+          "id": "pluginsDoctor",
+          "label": "Plugins Doctor",
+          "command": "openclaw",
+          "subcommands": ["plugins", "doctor"]
+        }
+      ]
+    },
+
+    {
+      "id": "pairing",
+      "title": "Pairing",
+      "description": "审批跨频道 DM 配对请求。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "pairingList",
+          "label": "Pairing List",
+          "command": "openclaw",
+          "subcommands": ["pairing", "list"]
+        },
+        {
+          "id": "pairingApprove",
+          "label": "Pairing Approve",
+          "command": "openclaw",
+          "subcommands": ["pairing", "approve", "<channel>", "<code>"]
+        },
+        {
+          "id": "qr",
+          "label": "QR Code",
+          "command": "openclaw",
+          "subcommands": ["qr"]
+        }
+      ]
+    },
+    {
+      "id": "devices",
+      "title": "Devices",
+      "description": "管理 Gateway 设备配对条目与每角���设备令牌。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "devicesList",
+          "label": "Devices List",
+          "command": "openclaw",
+          "subcommands": ["devices", "list"]
+        },
+        {
+          "id": "devicesApprove",
+          "label": "Devices Approve",
+          "command": "openclaw",
+          "subcommands": ["devices", "approve", "<requestId>"]
+        },
+        {
+          "id": "devicesReject",
+          "label": "Devices Reject",
+          "command": "openclaw",
+          "subcommands": ["devices", "reject", "<requestId>"]
+        },
+        {
+          "id": "devicesRemove",
+          "label": "Devices Remove",
+          "command": "openclaw",
+          "subcommands": ["devices", "remove", "<deviceId>"]
+        },
+        {
+          "id": "devicesClear",
+          "label": "Devices Clear",
+          "command": "openclaw",
+          "subcommands": ["devices", "clear", "--yes"]
+        },
+        {
+          "id": "devicesRotate",
+          "label": "Devices Rotate Token",
+          "command": "openclaw",
+          "subcommands": ["devices", "rotate", "--device", "<id>", "--role", "<role>"]
+        },
+        {
+          "id": "devicesRevoke",
+          "label": "Devices Revoke Token",
+          "command": "openclaw",
+          "subcommands": ["devices", "revoke", "--device", "<id>", "--role", "<role>"]
+        }
+      ]
+    },
+    {
+      "id": "webhooks",
+      "title": "Webhooks",
+      "description": "管理 Webhook 集成（如 Gmail Pub/Sub）。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "webhooksGmailSetup",
+          "label": "Webhooks Gmail Setup",
+          "command": "openclaw",
+          "subcommands": ["webhooks", "gmail", "setup", "--account", "<email>"]
+        },
+        {
+          "id": "webhooksGmailRun",
+          "label": "Webhooks Gmail Run",
+          "command": "openclaw",
+          "subcommands": ["webhooks", "gmail", "run"]
+        }
+      ]
+    },
+    {
+      "id": "dns",
+      "title": "DNS",
+      "description": "广域发现 DNS 辅助工具（CoreDNS + Tailscale）。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "dnsSetup",
+          "label": "DNS Setup",
+          "command": "openclaw",
+          "subcommands": ["dns", "setup"]
+        },
+        {
+          "id": "dnsSetupApply",
+          "label": "DNS Setup (Apply)",
+          "command": "openclaw",
+          "subcommands": ["dns", "setup", "--apply"]
+        }
+      ]
+    },
+    {
+      "id": "tui",
+      "title": "TUI",
+      "description": "打开连接到 Gateway 的终端 UI。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "tui",
+          "label": "Open TUI",
+          "command": "openclaw",
+          "subcommands": ["tui"]
+        },
+        {
+          "id": "tuiSession",
+          "label": "TUI (Attach Session)",
+          "command": "openclaw",
+          "subcommands": ["tui", "--session", "<key>"]
+        },
+        {
+          "id": "tuiMessage",
+          "label": "TUI (Send Message)",
+          "command": "openclaw",
+          "subcommands": ["tui", "--message", "<text>"]
+        }
+      ]
+    },
+    {
+      "id": "maintenance",
+      "title": "Maintenance",
+      "description": "提供官方维护命令参考，包括更新、重置与卸载。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "update",
+          "label": "Update",
+          "command": "openclaw",
+          "subcommands": ["update"]
+        },
+        {
+          "id": "dashboard",
+          "label": "Dashboard",
+          "command": "openclaw",
+          "subcommands": ["dashboard"]
+        },
+        {
+          "id": "uninstallService",
+          "label": "Uninstall Service",
+          "command": "openclaw",
+          "subcommands": ["uninstall", "--service", "--yes"]
+        },
+        {
+          "id": "uninstallAll",
+          "label": "Uninstall All",
+          "command": "openclaw",
+          "subcommands": ["uninstall", "--all", "--yes"]
+        },
+        {
+          "id": "completion",
+          "label": "Shell Completion",
+          "command": "openclaw",
+          "subcommands": ["completion"]
+        },
+        {
+          "id": "directory",
+          "label": "Directory",
+          "command": "openclaw",
+          "subcommands": ["directory"]
+        },
+        {
+          "id": "docs",
+          "label": "Docs Search",
+          "command": "openclaw",
+          "subcommands": ["docs"]
+        }
+      ]
+    },
+    {
+      "id": "cron",
+      "title": "Cron",
+      "description": "管理 Gateway scheduler、cron.jobs 默认行为、run log 保留与 Webhook 交付设置。",
+      "fields": [
+        {
+          "id": "cronSessionRetention",
+          "label": "Cron Session Retention",
+          "type": "text",
+          "path": "cron.sessionRetention",
+          "defaultValue": "24h"
+        },
+        {
+          "id": "cronRunLogMaxBytes",
+          "label": "Cron Run Log Max Bytes",
+          "type": "number",
+          "path": "cron.runLog.maxBytes",
+          "defaultValue": 1048576
+        },
+        {
+          "id": "cronRunLogKeepLines",
+          "label": "Cron Run Log Keep Lines",
+          "type": "number",
+          "path": "cron.runLog.keepLines",
+          "defaultValue": 2000
+        },
+        {
+          "id": "cronWebhook",
+          "label": "Cron Webhook",
+          "type": "text",
+          "path": "cron.webhook",
+          "defaultValue": ""
+        },
+        {
+          "id": "cronWebhookToken",
+          "label": "Cron Webhook Token",
+          "type": "password",
+          "path": "cron.webhookToken",
+          "defaultValue": ""
+        },
+        {
+          "id": "cronJobs",
+          "label": "Cron Jobs",
+          "type": "text",
+          "path": "cron.jobs",
+          "defaultValue": ""
+        }
+      ],
+      "commands": [
+        {
+          "id": "cronList",
+          "label": "Cron List",
+          "command": "openclaw",
+          "subcommands": ["cron", "list", "--all", "--json"]
+        },
+        {
+          "id": "cronStatus",
+          "label": "Cron Status",
+          "command": "openclaw",
+          "subcommands": ["cron", "status", "--json"]
+        },
+        {
+          "id": "cronAddAtSystemEvent",
+          "label": "Create One-Time System Event",
+          "command": "openclaw",
+          "subcommands": ["cron", "add", "--name", "<name>", "--at", "<time>", "--session", "main", "--system-event", "<text>", "--wake", "now", "--delete-after-run"]
+        },
+        {
+          "id": "cronAddRecurringAgentTurn",
+          "label": "Create Recurring Agent Turn",
+          "command": "openclaw",
+          "subcommands": ["cron", "add", "--name", "<name>", "--cron", "0 7 * * *", "--session", "isolated", "--message", "<text>", "--announce", "--channel", "telegram", "--to", "<target>"]
+        },
+        {
+          "id": "cronEdit",
+          "label": "Edit Job",
+          "command": "openclaw",
+          "subcommands": ["cron", "edit", "<jobId>", "--message", "<text>", "--thinking", "low"]
+        },
+        {
+          "id": "cronEnable",
+          "label": "Enable Job",
+          "command": "openclaw",
+          "subcommands": ["cron", "enable", "<jobId>"]
+        },
+        {
+          "id": "cronDisable",
+          "label": "Disable Job",
+          "command": "openclaw",
+          "subcommands": ["cron", "disable", "<jobId>"]
+        },
+        {
+          "id": "cronRun",
+          "label": "Run Job Now",
+          "command": "openclaw",
+          "subcommands": ["cron", "run", "<jobId>", "--due"]
+        },
+        {
+          "id": "cronRuns",
+          "label": "Run History",
+          "command": "openclaw",
+          "subcommands": ["cron", "runs", "--id", "<jobId>", "--limit", "10"]
+        },
+        {
+          "id": "cronRemove",
+          "label": "Remove Job",
+          "command": "openclaw",
+          "subcommands": ["cron", "rm", "<jobId>"]
+        }
+      ]
+    },
+    {
+      "id": "canvasHost",
+      "title": "Canvas Host",
+      "description": "管理 Canvas Host 的启用状态、Live Reload 和基础访问地址。",
+      "fields": [
+        {
+          "id": "canvasHostEnabled",
+          "label": "Canvas Host Enabled",
+          "type": "text",
+          "path": "canvasHost.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "canvasHostLiveReload",
+          "label": "Canvas Host Live Reload",
+          "type": "text",
+          "path": "canvasHost.liveReload",
+          "defaultValue": ""
+        },
+        {
+          "id": "canvasHostBaseUrl",
+          "label": "Canvas Host Base URL",
+          "type": "text",
+          "path": "canvasHost.baseUrl",
+          "defaultValue": ""
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "environment",
+      "title": "Environment",
+      "description": "管理 shell 环境导入与环境变量覆盖。",
+      "fields": [
+        {
+          "id": "shellEnvironmentImportEnabled",
+          "label": "Shell Environment Import Enabled",
+          "type": "text",
+          "path": "environment.shellImport.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "shellEnvironmentImportTimeoutMs",
+          "label": "Shell Environment Import Timeout (ms)",
+          "type": "number",
+          "path": "environment.shellImport.timeoutMs",
+          "defaultValue": 0
+        },
+        {
+          "id": "environmentVariableOverrides",
+          "label": "Environment Variable Overrides",
+          "type": "text",
+          "path": "environment.overrides",
+          "defaultValue": ""
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "media",
+      "title": "Media",
+      "description": "管理媒体文件名保留策略与保留时长。",
+      "fields": [
+        {
+          "id": "preserveMediaFilenames",
+          "label": "Preserve Media Filenames",
+          "type": "text",
+          "path": "media.preserveFilenames",
+          "defaultValue": ""
+        },
+        {
+          "id": "mediaRetentionTtlHours",
+          "label": "Media Retention TTL (hours)",
+          "type": "number",
+          "path": "media.retentionTtlHours",
+          "defaultValue": 0
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "metadata",
+      "title": "Metadata",
+      "description": "记录配置文件最近写入时间与版本信息。",
+      "fields": [
+        {
+          "id": "configLastTouchedAt",
+          "label": "Config Last Touched At",
+          "type": "readonly",
+          "path": "metadata.configLastTouchedAt"
+        },
+        {
+          "id": "configLastTouchedVersion",
+          "label": "Config Last Touched Version",
+          "type": "readonly",
+          "path": "metadata.configLastTouchedVersion"
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "webChannel",
+      "title": "Web Channel",
+      "description": "管理 Web Channel 的启用、心跳与重连退避。",
+      "fields": [
+        {
+          "id": "webChannelEnabled",
+          "label": "Web Channel Enabled",
+          "type": "text",
+          "path": "webChannel.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "webChannelHeartbeatIntervalSeconds",
+          "label": "Web Channel Heartbeat Interval (seconds)",
+          "type": "number",
+          "path": "webChannel.heartbeatIntervalSeconds",
+          "defaultValue": 0
+        },
+        {
+          "id": "webChannelReconnectBackoffSeconds",
+          "label": "Web Channel Reconnect Backoff (seconds)",
+          "type": "number",
+          "path": "webChannel.reconnectBackoffSeconds",
+          "defaultValue": 0
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "setupWizardState",
+      "title": "Setup Wizard State",
+      "description": "记录 Setup Wizard 最近一次运行信息。",
+      "fields": [
+        {
+          "id": "wizardLastRunTimestamp",
+          "label": "Wizard Last Run Timestamp",
+          "type": "readonly",
+          "path": "setupWizardState.lastRunTimestamp"
+        },
+        {
+          "id": "wizardLastRunCommand",
+          "label": "Wizard Last Run Command",
+          "type": "readonly",
+          "path": "setupWizardState.lastRunCommand"
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "updates",
+      "title": "Updates",
+      "description": "管理更新策略、更新通道与启动检查。",
+      "fields": [
+        {
+          "id": "autoUpdateBetaCheckIntervalHours",
+          "label": "Auto Update Beta Check Interval (hours)",
+          "type": "number",
+          "path": "updates.auto.betaCheckIntervalHours",
+          "defaultValue": 1
+        },
+        {
+          "id": "autoUpdateEnabled",
+          "label": "Auto Update Enabled",
+          "type": "text",
+          "path": "updates.auto.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "autoUpdateStableDelayHours",
+          "label": "Auto Update Stable Delay (hours)",
+          "type": "number",
+          "path": "updates.auto.stableDelayHours",
+          "defaultValue": 6
+        },
+        {
+          "id": "autoUpdateStableJitterHours",
+          "label": "Auto Update Stable Jitter (hours)",
+          "type": "number",
+          "path": "updates.auto.stableJitterHours",
+          "defaultValue": 12
+        },
+        {
+          "id": "updateChannel",
+          "label": "Update Channel",
+          "type": "select",
+          "path": "updates.channel",
+          "defaultValue": "stable",
+          "options": [
+            { "label": "stable", "value": "stable" },
+            { "label": "beta", "value": "beta" },
+            { "label": "nightly", "value": "nightly" }
+          ]
+        },
+        {
+          "id": "updateCheckOnStart",
+          "label": "Update Check on Start",
+          "type": "text",
+          "path": "updates.checkOnStart",
+          "defaultValue": ""
+        }
+      ],
+      "commands": [
+        {
+          "id": "update",
+          "label": "Run Update",
+          "command": "openclaw",
+          "subcommands": ["update"]
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "title": "CLI",
+      "description": "管理 CLI Banner 的 Tagline 展示模式。",
+      "fields": [
+        {
+          "id": "cliBannerTaglineMode",
+          "label": "CLI Banner Tagline Mode",
+          "type": "select",
+          "path": "cli.banner.taglineMode",
+          "defaultValue": "random",
+          "options": [
+            { "label": "random", "value": "random" },
+            { "label": "default", "value": "default" },
+            { "label": "off", "value": "off" }
+          ]
+        }
+      ],
+      "commands": []
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics",
+      "description": "管理 Diagnostics 总开关、Cache Trace 与调试标志。",
+      "fields": [
+        {
+          "id": "cacheTraceEnabled",
+          "label": "Cache Trace Enabled",
+          "type": "text",
+          "path": "diagnostics.cacheTrace.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "cacheTraceFilePath",
+          "label": "Cache Trace File Path",
+          "type": "text",
+          "path": "diagnostics.cacheTrace.filePath",
+          "defaultValue": ""
+        },
+        {
+          "id": "cacheTraceIncludeMessages",
+          "label": "Cache Trace Include Messages",
+          "type": "text",
+          "path": "diagnostics.cacheTrace.includeMessages",
+          "defaultValue": ""
+        },
+        {
+          "id": "cacheTraceIncludePrompt",
+          "label": "Cache Trace Include Prompt",
+          "type": "text",
+          "path": "diagnostics.cacheTrace.includePrompt",
+          "defaultValue": ""
+        },
+        {
+          "id": "cacheTraceIncludeSystem",
+          "label": "Cache Trace Include System",
+          "type": "text",
+          "path": "diagnostics.cacheTrace.includeSystem",
+          "defaultValue": ""
+        },
+        {
+          "id": "diagnosticsEnabled",
+          "label": "Diagnostics Enabled",
+          "type": "text",
+          "path": "diagnostics.enabled",
+          "defaultValue": ""
+        },
+        {
+          "id": "diagnosticsFlags",
+          "label": "Diagnostics Flags",
+          "type": "text",
+          "path": "diagnostics.flags",
+          "defaultValue": ""
+        }
+      ],
+      "commands": []
+    }
+  ]
+}

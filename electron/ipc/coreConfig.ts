@@ -5,6 +5,7 @@ import path from 'path';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
 import { fileURLToPath } from 'url';
 import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
+import { CURRENT_MANIFEST_VERSION } from '../config/manifest-version.js';
 
 interface OpenClawConfigObject {
   [key: string]: any;
@@ -53,8 +54,10 @@ interface OpenClawManifest {
   sections: ManifestSection[];
 }
 
+/** manifest 文件 URL 映射，使用集中配置的版本号 */
 const manifestFileUrls: Record<string, URL> = {
   '3.8': new URL('../config/openclaw-manifests/3.8.json', import.meta.url),
+  '3.13': new URL('../config/openclaw-manifests/3.13.json', import.meta.url),
 };
 
 const OPENCLAW_VERSION_TIMEOUT_MS = 5000;
@@ -69,16 +72,21 @@ const safeParseVersion = (rawVersionOutput: string) => {
   return matched?.[1] || '';
 };
 
+/** 根据检测到的 OpenClaw 版本号选择对应的 manifest 版本 */
 const pickManifestVersion = (version: string) => {
-  if (version.startsWith('3.8')) {
-    return '3.8';
+  // 检查是否匹配已知的 manifest 版本前缀
+  for (const key of Object.keys(manifestFileUrls)) {
+    if (version.startsWith(key)) {
+      return key;
+    }
   }
-
-  return '3.8';
+  // 默认使用集中配置的当前版本
+  return CURRENT_MANIFEST_VERSION;
 };
 
 const loadManifest = async (version: string): Promise<OpenClawManifest> => {
-  const manifestUrl = manifestFileUrls[version] || manifestFileUrls['3.8'];
+  /** 加载指定版本的 manifest 文件，找不到时回退到当前默认版本 */
+  const manifestUrl = manifestFileUrls[version] || manifestFileUrls[CURRENT_MANIFEST_VERSION];
   const candidatePaths = [
     fileURLToPath(manifestUrl),
     path.resolve(currentDirPath, '../config/openclaw-manifests', `${version}.json`),

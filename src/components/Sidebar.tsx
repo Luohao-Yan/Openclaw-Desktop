@@ -312,11 +312,9 @@ const Sidebar: React.FC = () => {
         {/* 身份信息 */}
         {!collapsed && (
           <div
-            className="rounded-2xl border p-3"
+            className="rounded-xl border p-3"
             style={{
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
               borderColor: 'var(--app-border)',
-              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.18)',
             }}
           >
             <div className="flex items-start gap-3">
@@ -344,15 +342,29 @@ const Sidebar: React.FC = () => {
           </div>
         )}
 
-        {/* 版本号卡片：上下分栏布局 */}
+        {/* 版本号卡片：徽章在右上角 */}
         {!collapsed && (
           <div
-            className="rounded-xl border overflow-hidden"
+            className="relative rounded-xl border overflow-hidden"
             style={{
               backgroundColor: 'rgba(255,255,255,0.02)',
               borderColor: 'var(--app-border)',
             }}
           >
+            {/* 预览版徽章 - 右上角角标 */}
+            {isPreviewVersion && (
+              <span
+                className="absolute top-1.5 right-1.5 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
+                style={{
+                  backgroundColor: 'rgba(0, 180, 255, 0.12)',
+                  borderColor: 'rgba(0, 180, 255, 0.28)',
+                  color: '#00B4FF',
+                }}
+              >
+                {t('previewBadge')}
+              </span>
+            )}
+
             {/* 上栏：VERSION 标签 */}
             <div className="px-3 py-1.5 border-b" style={{ borderColor: 'var(--app-border)' }}>
               <div className="text-[10px] font-medium uppercase tracking-[0.08em]" style={{ color: 'var(--app-text-muted)' }}>
@@ -360,23 +372,11 @@ const Sidebar: React.FC = () => {
               </div>
             </div>
 
-            {/* 下栏：版本号和徽章 */}
-            <div className="flex items-center justify-between gap-2 px-3 py-2">
-              <div className="truncate text-sm font-medium" style={{ color: 'var(--app-text)' }}>
+            {/* 下栏：版本号 */}
+            <div className="px-3 py-2">
+              <div className="text-[11px] font-mono font-medium" style={{ color: 'var(--app-text)' }}>
                 {appVersionLabel}
               </div>
-              {isPreviewVersion && (
-                <span
-                  className="inline-flex flex-shrink-0 items-center rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]"
-                  style={{
-                    backgroundColor: 'rgba(0, 180, 255, 0.12)',
-                    borderColor: 'rgba(0, 180, 255, 0.28)',
-                    color: '#00B4FF',
-                  }}
-                >
-                  {t('previewBadge')}
-                </span>
-              )}
             </div>
           </div>
         )}

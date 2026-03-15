@@ -6,6 +6,68 @@
 
 ---
 
+## [0.3.13-preview-1] - 2026-03-16
+
+### ✨ 新增功能 (Features)
+
+#### 渠道管理系统
+- **渠道配置页面重构**：`SettingsChannels` 页面全面重写，支持多渠道多账号管理
+- **渠道配置弹窗**：新增 `ChannelConfigModal`，三段式布局（Tab 切换 + 滚动内容 + 底部操作栏）
+- **添加渠道/账号**：新增 `AddChannelModal`、`AddAccountModal`，网格式渠道类型选择
+- **渠道路由配置**：新增 `ChannelRoutingConfig`，按优先级管理消息路由规则
+- **广播群组配置**：新增 `BroadcastGroupsConfig`，支持多目标消息推送
+- **群组管理**：新增 `GroupsManager`，管理已知群组及其配置
+- **群消息配置**：新增 `GroupMessagesConfig`，管理群消息处理策略（触发条件、渠道级覆盖）
+- **位置解析配置**：新增 `LocationParsingConfig`，支持正则和预定义格式两种解析模式
+- **配对管理**：新增 `PairingManager`，DM 配对审批和节点配对列表管理
+- **故障排查面板**：新增 `TroubleshootingPanel`，渠道诊断、日志查看和重新连接
+- **渠道 IPC 接口**：新增 `electron/ipc/channels.ts`，支持渠道状态查询、列表、诊断、重连、配对审批
+
+#### 智能体创建向导
+- **多步骤创建流程**：新增 `CreateAgentWizard`，四步向导（基础信息 → 模板选择 → Identity 配置 → 确认创建）
+- **Identity 更新接口**：新增 `agents:updateIdentity` IPC，支持写入智能体名称、主题、Emoji、头像
+- **智能体增强功能**：扩展 agents IPC，新增性能监控、安全检查、配置导出/导入、克隆、重启等接口
+
+#### 会话管理重构
+- **会话页面拆分**：将单文件 `Sessions.tsx` 拆分为模块化子组件目录 `src/pages/sessions/`
+  - `Sessions.tsx` — 主组件（状态管理 + 紧凑工具栏布局）
+  - `SessionList.tsx` — 左侧会话列表（卡片式、选中高亮）
+  - `SessionChatPanel.tsx` — 右侧对话面板（transcript 显示 + 消息输入）
+  - `SessionStatCards.tsx` — 统计卡片组件
+  - `CreateSessionModal.tsx` — 新建会话弹窗
+  - `types.ts` — 共享类型与工具函数
+- **对话记录加载**：从 `.jsonl` 文件读取真实对话记录，支持 `sessionsGet` + `sessionsTranscript` 双接口
+- **紧凑布局重设计**：顶部从三层（标题+统计+搜索）压缩为两行工具栏，统计数字内联 pill 显示，最大化对话区域
+- **消息发送**：支持在会话面板中直接发送消息，乐观 UI 更新
+
+#### 日志增强
+- **日志过滤接口**：新增 `logsFilter` IPC，支持按条件过滤查询日志
+
+### 🎨 界面优化 (UI/UX)
+
+- **AppSelect 组件重写**：优化下拉选择组件的样式和交互体验
+- **JsonFormEditor 优化**：改进 JSON 表单编辑器
+- **侧边栏优化**：调整 `Sidebar` 组件布局和样式
+- **智能体页面增强**：`Agents.tsx` 和 `AgentWorkspace.tsx` 界面优化
+- **国际化扩展**：新增渠道管理、智能体创建、会话管理等模块的中英文翻译（约 200+ 条）
+
+### 🔧 技术改进 (Technical)
+
+- **升级至 OpenClaw 3.13**：新增 `openclaw-manifests/3.13.json` 配置清单，版本号跟随 3.13
+- **Manifest 版本集中管理**：新增 `electron/config/manifest-version.ts`
+- **纯函数工具集**：提取 `agentCreation.ts`、`channelOps.ts`、`bindingOps.ts` 纯函数模块，便于测试
+- **属性测试**：新增 `agentCreation.pbt.test.ts`、`channelOps.pbt.test.ts`、`bindingOps.pbt.test.ts` 等属性测试和单元测试
+- **类型定义扩展**：`src/types/electron.ts` 和 `types/electron.ts` 大幅扩展，覆盖渠道、会话、智能体增强等新接口
+- **Preload 扩展**：`preload.cjs` 新增渠道管理、配对、日志过滤等 API 暴露
+
+### 🗑️ 清理 (Cleanup)
+
+- 删除根目录临时文件 `AVATAR_OPTIMIZATION_SUMMARY.md`、`IMPLEMENTATION_SUMMARY.md`
+- 从 git 跟踪中移除 `.kiro` 目录
+- 更新 `.gitignore` 规则
+
+---
+
 ## [0.3.8-preview-2] - 2026-03-14
 
 ### ✨ 新增功能 (Features)
@@ -76,6 +138,7 @@
 
 ## 版本说明
 
-- **0.3.x** 系列版本对应 OpenClaw 3.8 运行时
+- **0.3.13.x** 系列版本对应 OpenClaw 3.13 运行时
+- **0.3.8.x** 系列版本对应 OpenClaw 3.8 运行时
 - **preview** 标识表示预览版本，可能包含实验性功能
 - 版本号格式：`0.主版本.次版本-preview-预览版本号`

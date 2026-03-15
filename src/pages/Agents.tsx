@@ -6,13 +6,16 @@ import {
   RefreshCw, Copy, AlertCircle, CheckCircle,
   User, FileText, Settings, ArrowRight,
   Plus,
-  Zap
+  Zap,
+  AlertTriangle,
 } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import AppIconButton from '../components/AppIconButton';
 import GlassCard from '../components/GlassCard';
 import AgentEnhancer from '../components/AgentEnhancer';
 import SegmentedTabs from '../components/SegmentedTabs';
+import { useI18n } from '../i18n/I18nContext';
+import CreateAgentWizard from './settings/CreateAgentWizard';
 
 const Agents: React.FC = () => {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -21,14 +24,15 @@ const Agents: React.FC = () => {
   const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'enhance'>('list');
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [creatingAgent, setCreatingAgent] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: '',
-    workspace: '',
-    model: '',
-  });
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  // 创建后引导面板状态
+  const [postGuideAgent, setPostGuideAgent] = useState<AgentInfo | null>(null);
+  // 全局绑定和渠道配置，用于检测 Agent 是否缺少绑定/账号
+  const [globalBindings, setGlobalBindings] = useState<any[]>([]);
+  const [globalChannels, setGlobalChannels] = useState<Record<string, any>>({});
+  // 可用模型列表，从 modelsGetConfig 获取，用于创建智能体时的模型下拉选择
+  const [availableModels, setAvailableModels] = useState<{ label: string; value: string; description?: string }[]>([]);
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const loadAgents = async () => {
@@ -41,6 +45,17 @@ const Agents: React.FC = () => {
       } else {
         setError(result.error || 'Failed to load agents');
       }
+      // 加载全局配置，获取 bindings 和 channels 用于绑定状态检测
+      try {
+        const configResult = await window.electronAPI.configGet();
+        if (configResult.success && configResult.config) {
+          setGlobalBindings(Array.isArray(configResult.config.bindings) ? configResult.config.bindings : []);
+          setGlobalChannels(configResult.config.channels || {});
+        }
+      } catch {
+        setGlobalBindings([]);
+        setGlobalChannels({});
+      }
     } catch (error) {
       console.error('Failed to load agents:', error);
       setError('Failed to connect to OpenClaw API');
@@ -50,51 +65,62 @@ const Agents: React.FC = () => {
   };
 
   const handleOpenCreateModal = () => {
-    setCreateError(null);
-    setCreateForm({
-      name: '',
-      workspace: '',
-      model: '',
-    });
-    setCreateModalOpen(true);
+    setWizardOpen(true);
+    // 加载可用模型列表
+    loadAvailableModels();
   };
 
-  const handleCreateAgent = async () => {
-    const trimmedName = createForm.name.trim();
-    const trimmedWorkspace = createForm.workspace.trim();
-    const trimmedModel = createForm.model.trim();
-
-    if (!trimmedName) {
-      setCreateError('请输入智能体名称');
-      return;
-    }
-
-    if (!trimmedWorkspace) {
-      setCreateError('请输入 Workspace 路径');
-      return;
-    }
-
-    setCreatingAgent(true);
-    setCreateError(null);
-
+  /** 从 modelsGetConfig 加载可用模型，构建下拉选项列表 */
+  const loadAvailableModels = async () => {
     try {
-      const result = await window.electronAPI.agentsCreate({
-        name: trimmedName,
-        workspace: trimmedWorkspace,
-        model: trimmedModel || undefined,
-      });
+      const result = await window.electronAPI.modelsGetConfig();
+      if (!result.success) return;
 
-      if (!result.success) {
-        setCreateError(result.error || '新增智能体失败');
-        return;
+      const modelSet = new Map<string, { label: string; value: string; description?: string }>();
+
+      // 1. 从 providers 中提取所有 provider/model 格式的模型
+      if (result.providers) {
+        for (const [providerId, provider] of Object.entries(result.providers)) {
+          if (Array.isArray(provider.models)) {
+            for (const model of provider.models) {
+              const fullId = `${providerId}/${model.id}`;
+              // 检查是否有别名
+              const aliasInfo = result.configuredModels?.[fullId];
+              const label = aliasInfo?.alias
+                ? `${aliasInfo.alias}  (${fullId})`
+                : model.name ? `${model.name}  (${fullId})` : fullId;
+              modelSet.set(fullId, { label, value: fullId, description: providerId });
+            }
+          }
+        }
       }
 
-      setCreateModalOpen(false);
-      await loadAgents();
-    } catch (createErr) {
-      setCreateError(`新增智能体时发生异常: ${createErr instanceof Error ? createErr.message : String(createErr)}`);
-    } finally {
-      setCreatingAgent(false);
+      // 2. 从 configuredModels 中补充（可能有不在 providers 里的模型）
+      if (result.configuredModels) {
+        for (const [modelId, config] of Object.entries(result.configuredModels)) {
+          if (!modelSet.has(modelId)) {
+            const label = config.alias ? `${config.alias}  (${modelId})` : modelId;
+            modelSet.set(modelId, { label, value: modelId });
+          }
+        }
+      }
+
+      // 3. 主模型和备用模型也加入（确保不遗漏）
+      if (result.primary && !modelSet.has(result.primary)) {
+        modelSet.set(result.primary, { label: `${result.primary}  (primary)`, value: result.primary });
+      }
+      if (Array.isArray(result.fallbacks)) {
+        for (const fb of result.fallbacks) {
+          if (!modelSet.has(fb)) {
+            modelSet.set(fb, { label: fb, value: fb });
+          }
+        }
+      }
+
+      setAvailableModels(Array.from(modelSet.values()));
+    } catch {
+      // 加载失败不影响创建流程，用户仍可手动输入
+      setAvailableModels([]);
     }
   };
 
@@ -147,7 +173,21 @@ const Agents: React.FC = () => {
     loadAgents();
   }, []);
 
-  const AgentCard = ({ agent }: { agent: AgentInfo }) => (
+  const AgentCard = ({ agent }: { agent: AgentInfo }) => {
+    // 检查该 Agent 的绑定状态
+    const agentBindings = globalBindings.filter((b: any) => b?.agentId === agent.id);
+    const hasNoBinding = agentBindings.length === 0;
+    // 检查是否有绑定但缺少账号配置
+    const hasBindingWithoutAccount = !hasNoBinding && agentBindings.some((b: any) => {
+      const channel = b?.match?.channel;
+      const accountId = b?.match?.accountId;
+      if (!channel || !accountId) return true;
+      // 检查 channels 配置中是否存在该账号
+      const channelConfig = globalChannels[channel];
+      return !channelConfig?.accounts?.[accountId];
+    });
+
+    return (
     <GlassCard className="p-6 hover:shadow-xl transition-all duration-300">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
@@ -189,6 +229,21 @@ const Agents: React.FC = () => {
           </AppIconButton>
         </div>
       </div>
+
+      {/* 绑定状态警告：无绑定或绑定缺少账号 */}
+      {(hasNoBinding || hasBindingWithoutAccount) && (
+        <div
+          className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 mb-4 text-xs font-medium"
+          style={{
+            backgroundColor: 'rgba(245, 158, 11, 0.10)',
+            border: '1px solid rgba(245, 158, 11, 0.22)',
+            color: '#B45309',
+          }}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: '#D97706' }} />
+          <span>{hasNoBinding ? t('binding.noBindingWarning') : t('binding.noAccountWarning')}</span>
+        </div>
+      )}
 
       <div className="space-y-3">
         <div className="flex items-start">
@@ -259,6 +314,7 @@ const Agents: React.FC = () => {
       </div>
     </GlassCard>
   );
+  };
 
   return (
     <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
@@ -446,83 +502,81 @@ const Agents: React.FC = () => {
               </p>
             </div>
 
-            {createModalOpen && (
+            {/* CreateAgentWizard 向导组件 */}
+            <CreateAgentWizard
+              open={wizardOpen}
+              onClose={() => setWizardOpen(false)}
+              agents={agents}
+              availableModels={availableModels}
+              onCreated={(agent) => {
+                setPostGuideAgent(agent);
+                loadAgents();
+              }}
+            />
+
+            {/* 创建后引导面板 */}
+            {postGuideAgent && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
-                <div className="w-full max-w-xl rounded-3xl border overflow-hidden" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-                  <div className="px-6 py-5 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-                    <div>
-                      <h3 className="text-2xl font-semibold">新增 OpenClaw 智能体</h3>
-                      <div className="text-sm mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                        创建完成后会自动刷新当前 Agent 列表。
-                      </div>
+                <div
+                  className="w-full max-w-lg rounded-3xl border overflow-hidden"
+                  style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+                >
+                  {/* 标题 */}
+                  <div className="px-6 py-5 border-b text-center" style={{ borderColor: 'var(--app-border)' }}>
+                    <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)' }}>
+                      <CheckCircle className="w-6 h-6 text-green-500" />
                     </div>
-                    <AppButton
-                      onClick={() => setCreateModalOpen(false)}
-                      size="sm"
-                      variant="secondary"
-                    >
-                      关闭
-                    </AppButton>
+                    <h3 className="text-xl font-semibold">{t('agent.wizard.postGuideTitle')}</h3>
+                    <p className="text-sm mt-1" style={{ color: 'var(--app-text-muted)' }}>{t('agent.wizard.postGuideSuccess')}</p>
                   </div>
 
-                  <div className="px-6 py-5 space-y-4">
-                    {createError && (
-                      <div className="p-4 border rounded-lg" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)' }}>
-                        <div className="flex items-center gap-2 text-red-500">
-                          <AlertCircle className="w-5 h-5" />
-                          <span>{createError}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="text-sm mb-2" style={{ color: 'var(--app-text-muted)' }}>智能体名称</div>
-                      <input
-                        value={createForm.name}
-                        onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))}
-                        className="w-full rounded-xl px-4 py-3 outline-none"
-                        style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                        placeholder="例如：data-analyst"
-                      />
+                  {/* Agent 信息摘要 */}
+                  <div className="px-6 py-4 space-y-2">
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>名称</span>
+                      <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{postGuideAgent.name}</span>
                     </div>
-
-                    <div>
-                      <div className="text-sm mb-2" style={{ color: 'var(--app-text-muted)' }}>Workspace 路径</div>
-                      <input
-                        value={createForm.workspace}
-                        onChange={(event) => setCreateForm((current) => ({ ...current, workspace: event.target.value }))}
-                        className="w-full rounded-xl px-4 py-3 outline-none"
-                        style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                        placeholder="例如：~/.openclaw/workspace-data-analyst"
-                      />
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>ID</span>
+                      <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{postGuideAgent.id}</span>
                     </div>
-
-                    <div>
-                      <div className="text-sm mb-2" style={{ color: 'var(--app-text-muted)' }}>模型（可选）</div>
-                      <input
-                        value={createForm.model}
-                        onChange={(event) => setCreateForm((current) => ({ ...current, model: event.target.value }))}
-                        className="w-full rounded-xl px-4 py-3 outline-none"
-                        style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                        placeholder="例如：deepseek/deepseek-chat"
-                      />
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Workspace</span>
+                      <span className="text-xs font-mono truncate max-w-[60%]" style={{ color: 'var(--app-text)' }}>{postGuideAgent.workspace}</span>
                     </div>
                   </div>
 
-                  <div className="px-6 py-5 border-t flex items-center justify-end gap-3" style={{ borderColor: 'var(--app-border)' }}>
+                  {/* 操作按钮 */}
+                  <div className="px-6 py-5 border-t space-y-3" style={{ borderColor: 'var(--app-border)' }}>
                     <AppButton
-                      onClick={() => setCreateModalOpen(false)}
-                      variant="secondary"
-                    >
-                      取消
-                    </AppButton>
-                    <AppButton
-                      onClick={handleCreateAgent}
-                      disabled={creatingAgent}
-                      icon={<Plus className="w-4 h-4" />}
+                      onClick={() => {
+                        setPostGuideAgent(null);
+                        navigate('/settings/channels');
+                      }}
                       variant="primary"
+                      className="w-full"
                     >
-                      {creatingAgent ? '创建中...' : '确认创建'}
+                      {t('agent.wizard.postGuideBinding')}
+                    </AppButton>
+                    <AppButton
+                      onClick={() => {
+                        setPostGuideAgent(null);
+                        openAgentWorkspace(postGuideAgent.id);
+                      }}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      {t('agent.wizard.postGuideWorkspace')}
+                    </AppButton>
+                    <AppButton
+                      onClick={() => {
+                        setPostGuideAgent(null);
+                        loadAgents();
+                      }}
+                      variant="secondary"
+                      className="w-full"
+                    >
+                      {t('agent.wizard.postGuideBackToList')}
                     </AppButton>
                   </div>
                 </div>

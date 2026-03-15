@@ -55,7 +55,7 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [expandedEnhancement, setExpandedEnhancement] = useState<string | null>(null);
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   // 加载性能数据
   const loadPerformanceMetrics = async () => {

@@ -28,6 +28,7 @@ export type JsonFormSchema = Record<string, JsonFormFieldSchema>;
 export type JsonFormTabItem = {
   key: string;
   label: string;
+  emptyHint?: string; // 当该 tab 对应的值为 null/undefined/空对象时显示的提示文案
 };
 
 type JsonFormEditorProps = {
@@ -440,6 +441,14 @@ const JsonFormEditor: React.FC<JsonFormEditorProps> = ({
 
   const currentSectionValue = activeTab ? getValueAtPath(value, [activeTab]) : value;
 
+  // 判断当前 tab 内容是否为空（null / undefined / 空对象）
+  const isCurrentSectionEmpty = currentSectionValue === undefined
+    || currentSectionValue === null
+    || (typeof currentSectionValue === 'object' && !Array.isArray(currentSectionValue) && Object.keys(currentSectionValue).length === 0);
+
+  // 获取当前 tab 的空状态提示文案
+  const activeTabEmptyHint = tabs?.find((item) => item.key === activeTab)?.emptyHint;
+
   return (
     <div className={`h-full min-h-0 overflow-hidden flex flex-col ${className}`}>
       <div className="flex items-center justify-between gap-4 border-b px-6 py-4" style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}>
@@ -475,7 +484,14 @@ const JsonFormEditor: React.FC<JsonFormEditorProps> = ({
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto p-6">
-        {currentSectionValue !== undefined ? (
+        {isCurrentSectionEmpty && activeTabEmptyHint ? (
+          /* 当前 tab 内容为空且配置了 emptyHint 时，显示友好的空状态提示 */
+          <div className="rounded-2xl border p-6" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
+            <div className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--app-text-muted)' }}>
+              {activeTabEmptyHint}
+            </div>
+          </div>
+        ) : currentSectionValue !== undefined && currentSectionValue !== null ? (
           <div className="space-y-3 pb-6">
             {visibleTabs.length ? (
               <div className="rounded-xl border p-3" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>

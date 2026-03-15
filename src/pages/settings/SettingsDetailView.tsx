@@ -38,7 +38,7 @@ const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({
       </div>
 
       <div
-        className="flex-1 overflow-hidden rounded-[24px] border"
+        className="flex-1 overflow-y-auto rounded-[24px] border"
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.02)',
           borderColor: 'var(--app-border)',

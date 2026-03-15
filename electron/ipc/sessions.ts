@@ -1,30 +1,73 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
 import { resolveOpenClawCommand, runCommand as runShellCommand } from './settings.js';
+import * as fs from 'fs';
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
+// 基于 openclaw sessions --all-agents --json 的真实返回格式：
+// {
+//   "path": null,
+//   "stores": [{ "agentId": "main", "path": "..." }, ...],
+//   "allAgents": true,
+//   "count": 2,
+//   "sessions": [
+//     { "agentId": "main", "key": "agent:main:main", "model": "gpt-5" },
+//     ...
+//   ]
+// }
 
-export interface Session {
-  id: string;        // session key，如 "agent:main:telegram:dm:123"
-  name: string;      // 显示名称
-  status: 'active' | 'idle' | 'inactive';
-  agent: string;     // agentId
+/** CLI 返回的原始 session 条目 */
+interface RawSession {
+  agentId: string;
+  key: string;
   model: string;
-  channel: string;
-  channelId: string;
-  createdAt: string;
-  lastActivity: string;
-  tokensUsed: number;
-  messagesCount: number;
-  participants: string[];
-  metadata?: Record<string, unknown>;
+  [k: string]: unknown;  // CLI 未来可能扩展的字段
 }
 
+/** CLI 返回的完整 JSON 结构 */
+interface RawSessionsOutput {
+  path: string | null;
+  stores: { agentId: string; path: string }[];
+  allAgents: boolean;
+  count: number;
+  sessions: RawSession[];
+}
+
+/** 前端使用的 session 数据模型 */
+export interface Session {
+  id: string;                                    // session key，如 "agent:main:main"
+  key: string;                                   // 原始 key
+  agent: string;                                 // agentId
+  model: string;                                 // 模型名称
+  channel: string;                               // 从 key 解析出的渠道类型
+  status: 'active' | 'idle' | 'inactive';        // 推断状态（CLI 不直接提供）
+}
+
+/** 前端使用的统计数据 */
 export interface SessionStats {
   total: number;
   active: number;
   idle: number;
   agents: Record<string, number>;
+  stores: { agentId: string; path: string }[];
+}
+
+/** cleanup 返回的 store 级别摘要 */
+interface CleanupStoreSummary {
+  agentId: string;
+  storePath: string;
+  beforeCount: number;
+  afterCount: number;
+  pruned: number;
+  capped: number;
+}
+
+/** cleanup 返回的完整 JSON 结构 */
+interface RawCleanupOutput {
+  allAgents: boolean;
+  mode: string;
+  dryRun: boolean;
+  stores: CleanupStoreSummary[];
 }
 
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -35,88 +78,247 @@ async function runCommand(args: string[]): Promise<{ success: boolean; output: s
   return runShellCommand(cmd, args);
 }
 
-/** 去除 ANSI 转义码 */
+/** 去除 ANSI 转义码及其他终端控制字符 */
 function stripAnsi(s: string): string {
-  return s.replace(/\u001b\[[0-9;]*m/g, '').replace(/\x1B\[[0-9;]*m/g, '');
+  return s
+    // 标准 ANSI 转义序列
+    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')
+    // OSC 序列 (如终端标题设置)
+    .replace(/\x1B\][^\x07]*\x07/g, '')
+    // 其他 ESC 序列
+    .replace(/\x1B[^[(\x07]*[\x07]/g, '')
+    // 回车符（某些终端输出会包含）
+    .replace(/\r/g, '');
 }
 
-/** 尝试解析 JSON，失败返回 null */
+/**
+ * 从可能包含非 JSON 前缀/后缀的字符串中提取并解析 JSON
+ * CLI 输出有时会在 JSON 前后附带日志行或空行
+ */
 function tryParseJson<T>(raw: string): T | null {
   const text = stripAnsi(raw).trim();
   if (!text) return null;
-  try { return JSON.parse(text) as T; } catch { return null; }
+
+  // 直接尝试解析
+  try { return JSON.parse(text) as T; } catch { /* 继续尝试提取 */ }
+
+  // 尝试找到第一个 '{' 或 '[' 到最后一个 '}' 或 ']' 的范围
+  const firstBrace = text.indexOf('{');
+  const firstBracket = text.indexOf('[');
+  let start = -1;
+
+  if (firstBrace >= 0 && (firstBracket < 0 || firstBrace < firstBracket)) {
+    start = firstBrace;
+  } else if (firstBracket >= 0) {
+    start = firstBracket;
+  }
+
+  if (start < 0) return null;
+
+  // 从末尾找对应的闭合符
+  const opener = text[start];
+  const closer = opener === '{' ? '}' : ']';
+  const lastClose = text.lastIndexOf(closer);
+
+  if (lastClose <= start) return null;
+
+  const jsonStr = text.substring(start, lastClose + 1);
+  try { return JSON.parse(jsonStr) as T; } catch { return null; }
+}
+
+/**
+ * 从 session key 中解析渠道类型
+ * key 格式示例: "agent:main:telegram:dm:123" → "telegram"
+ *              "agent:main:main" → "main"
+ */
+function parseChannelFromKey(key: string): string {
+  // key 格式: agent:<agentId>:<channel_or_main>[:...]
+  const parts = key.split(':');
+  return parts.length >= 3 ? parts[2] : 'unknown';
 }
 
 // ── 核心逻辑 ──────────────────────────────────────────────────────────────────
 
 /**
  * 获取所有 session 列表
- * 使用: openclaw sessions --all-agents --json
- * 返回格式: { sessions: [{ agentId, key, model, ... }], count, ... }
+ * 执行: openclaw sessions --all-agents --json
+ * 返回真实 CLI 数据，映射为前端 Session 类型
  */
-async function getSessionsList(): Promise<Session[]> {
+async function getSessionsList(): Promise<{
+  success: boolean;
+  sessions: Session[];
+  stores: { agentId: string; path: string }[];
+  error?: string;
+}> {
   const result = await runCommand(['sessions', '--all-agents', '--json']);
-  const parsed = tryParseJson<any>(result.output);
+
+  if (!result.success) {
+    const errMsg = result.error || result.output || 'CLI 执行失败';
+    console.error('[sessions] CLI 执行失败:', errMsg);
+    return { success: false, sessions: [], stores: [], error: errMsg };
+  }
+
+  const parsed = tryParseJson<RawSessionsOutput>(result.output);
 
   if (!parsed) {
-    console.error('sessions list 解析��败:', result.error || result.output);
+    const errMsg = 'JSON 解析失败: ' + (result.output?.substring(0, 200) || '空输出');
+    console.error('[sessions]', errMsg);
+    return { success: false, sessions: [], stores: [], error: errMsg };
+  }
+
+  // 从 parsed.sessions 数组映射为前端 Session
+  const rawList = Array.isArray(parsed.sessions) ? parsed.sessions : [];
+  const stores = Array.isArray(parsed.stores) ? parsed.stores : [];
+
+  const sessions: Session[] = rawList
+    .filter((item): item is RawSession => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      id: String(item.key || ''),
+      key: String(item.key || ''),
+      agent: String(item.agentId || 'unknown'),
+      model: String(item.model || 'unknown'),
+      channel: parseChannelFromKey(String(item.key || '')),
+      // CLI 不返回 status，标记为 active（已存在即活跃）
+      status: 'active' as const,
+    }));
+
+  return { success: true, sessions, stores };
+}
+
+/**
+ * 从 session 的 .jsonl 文件中读取对话记录
+ *
+ * sessions.json 结构:
+ *   { "<sessionKey>": { sessionFile: "/path/to/<uuid>.jsonl", ... }, ... }
+ *
+ * .jsonl 每行一个 JSON 对象，对话消息的行格式:
+ *   { "type": "message", "message": { "role": "user"|"assistant", "content": [{ "type": "text", "text": "..." }] }, "timestamp": "..." }
+ *
+ * 返回前端可用的 { role, content, timestamp } 数组
+ */
+async function readSessionTranscript(
+  agentId: string,
+  sessionKey: string,
+  stores: { agentId: string; path: string }[],
+): Promise<any[]> {
+  // 找到该 agent 对应的 store 路径（sessions.json）
+  const store = stores.find((s) => s.agentId === agentId);
+  if (!store?.path) {
+    console.log(`[sessions] transcript: 未找到 agent "${agentId}" 的 store`);
     return [];
   }
 
-  // 根据文档，返回格式为 { sessions: [...] }
-  const rawList: any[] = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray(parsed?.sessions)
-      ? parsed.sessions
-      : [];
+  try {
+    // 1. 读取 sessions.json，获取 sessionFile 路径
+    const indexContent = fs.readFileSync(store.path, 'utf-8');
+    const indexData = JSON.parse(indexContent);
 
-  return rawList
-    .filter((item) => typeof item === 'object' && item !== null)
-    .map((item): Session => ({
-      id: String(item.key || item.sessionId || item.id || ''),
-      name: String(item.name || item.key || item.sessionId || '未命名会话'),
-      // openclaw sessions 不直接返回 status，根据 updatedAt 推断
-      status: inferStatus(item),
-      agent: String(item.agentId || item.agent || 'unknown'),
-      model: String(item.model || 'unknown'),
-      channel: String(item.channel || item.kind || 'unknown'),
-      channelId: String(item.channelId || item.key || ''),
-      createdAt: String(item.createdAt || item.updatedAt || new Date().toISOString()),
-      lastActivity: String(item.updatedAt || item.lastActivity || new Date().toISOString()),
-      tokensUsed: typeof item.totalTokens === 'number' ? item.totalTokens : 0,
-      messagesCount: typeof item.messagesCount === 'number' ? item.messagesCount : 0,
-      participants: Array.isArray(item.participants) ? item.participants : [],
-      metadata: item,
-    }));
-}
+    const sessionMeta = indexData?.[sessionKey];
+    if (!sessionMeta) {
+      console.log(`[sessions] transcript: sessions.json 中未找到 key "${sessionKey}"`);
+      return [];
+    }
 
-/** 根据 updatedAt 推断 session 活跃状态 */
-function inferStatus(item: any): 'active' | 'idle' | 'inactive' {
-  if (item.status) {
-    const s = String(item.status).toLowerCase();
-    if (s === 'active') return 'active';
-    if (s === 'idle') return 'idle';
-    return 'inactive';
+    const sessionFile = sessionMeta.sessionFile;
+    if (!sessionFile || !fs.existsSync(sessionFile)) {
+      console.log(`[sessions] transcript: sessionFile 不存在: ${sessionFile}`);
+      return [];
+    }
+
+    // 2. 读取 .jsonl 文件，逐行解析
+    const jsonlContent = fs.readFileSync(sessionFile, 'utf-8');
+    const lines = jsonlContent.split('\n').filter((l) => l.trim());
+
+    const messages: any[] = [];
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line);
+        // 只取 type=message 的行
+        if (obj.type !== 'message' || !obj.message) continue;
+
+        const msg = obj.message;
+        const role = msg.role || 'unknown';
+
+        // content 可能是字符串或 [{type:'text', text:'...'}] 数组
+        let content = '';
+        if (typeof msg.content === 'string') {
+          content = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          // 拼接所有 text 类型的内容块
+          content = msg.content
+            .filter((item: any) => item?.type === 'text' && item?.text)
+            .map((item: any) => item.text)
+            .join('\n');
+        }
+
+        // 跳过空内容
+        if (!content.trim()) continue;
+
+        messages.push({
+          role,
+          content,
+          timestamp: obj.timestamp ? new Date(obj.timestamp).toLocaleString() : undefined,
+        });
+      } catch {
+        // 跳过解析失败的行
+      }
+    }
+
+    console.log(`[sessions] transcript: 从 ${sessionFile} 读取到 ${messages.length} 条消息`);
+    return messages;
+  } catch (err) {
+    console.error(`[sessions] 读取 transcript 失败 (agent=${agentId}, key=${sessionKey}):`, err);
+    return [];
   }
-  // 根据最后活跃时间推断：2分钟内=active，30分钟内=idle，否则=inactive
-  const lastActive = item.updatedAt || item.lastActivity;
-  if (!lastActive) return 'inactive';
-  const diffMs = Date.now() - new Date(lastActive).getTime();
-  if (diffMs < 2 * 60 * 1000) return 'active';
-  if (diffMs < 30 * 60 * 1000) return 'idle';
-  return 'inactive';
 }
+
+// ── IPC 注册 ──────────────────────────────────────────────────────────────────
 
 export function setupSessionsIPC() {
-  // 获取 session 列表
-  ipcMain.handle('sessions:list', async (): Promise<Session[]> => {
-    return getSessionsList();
+
+  // 获取 session 列表（返回带 success 标志的结构）
+  ipcMain.handle('sessions:list', async () => {
+    const result = await getSessionsList();
+    return { success: result.success, sessions: result.sessions, error: result.error };
   });
 
-  // 获取单个 session 详情（openclaw 暂无独立 get 命令，从列表中查找）
-  ipcMain.handle('sessions:get', async (_event, sessionId: string): Promise<Session | null> => {
-    const sessions = await getSessionsList();
-    return sessions.find((s) => s.id === sessionId) ?? null;
+  // 获取单个 session 详情 + transcript（从 sessions.json 文件读取对话记录）
+  ipcMain.handle('sessions:get', async (_event, sessionId: string) => {
+    const { sessions, stores } = await getSessionsList();
+    const session = sessions.find((s) => s.id === sessionId) ?? null;
+    if (!session) return { success: false, error: '会话不存在' };
+
+    // 尝试从 sessions.json 中读取该 session 的 transcript
+    const transcript = await readSessionTranscript(session.agent, sessionId, stores);
+
+    return { success: true, session, transcript };
+  });
+
+  // 读取 session transcript（独立接口）
+  ipcMain.handle('sessions:transcript', async (_event, agentId: string, sessionKey: string) => {
+    const { stores } = await getSessionsList();
+    const transcript = await readSessionTranscript(agentId, sessionKey, stores);
+    return { success: true, transcript };
+  });
+
+  // 获取 session 统计（从列表数据聚合）
+  ipcMain.handle('sessions:stats', async () => {
+    const result = await getSessionsList();
+    if (!result.success) {
+      return { success: false, total: 0, active: 0, idle: 0, agents: {}, stores: [], error: result.error };
+    }
+    const agents: Record<string, number> = {};
+    for (const s of result.sessions) {
+      agents[s.agent] = (agents[s.agent] || 0) + 1;
+    }
+    return {
+      success: true,
+      total: result.sessions.length,
+      active: result.sessions.length,
+      idle: 0,
+      agents,
+      stores: result.stores,
+    };
   });
 
   // 创建新 session
@@ -126,27 +328,25 @@ export function setupSessionsIPC() {
     args.push('--json');
 
     const result = await runCommand(args);
-    const parsed = tryParseJson<any>(result.output);
-
     if (!result.success) {
       return { success: false, error: result.error || '创建会话失败' };
     }
 
+    const parsed = tryParseJson<any>(result.output);
     return {
       success: true,
-      sessionId: parsed?.sessionId || parsed?.key || parsed?.id,
+      sessionId: parsed?.key || parsed?.sessionId || parsed?.id,
     };
   });
 
   // 向 session 发送消息
   ipcMain.handle('sessions:send', async (_event, sessionId: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> => {
     const result = await runCommand(['sessions', 'send', sessionId, '--message', message, '--json']);
-    const parsed = tryParseJson<any>(result.output);
-
     if (!result.success) {
       return { success: false, error: result.error || '发送消息失败' };
     }
 
+    const parsed = tryParseJson<any>(result.output);
     return {
       success: true,
       response: parsed?.text || parsed?.output || parsed?.response,
@@ -174,30 +374,16 @@ export function setupSessionsIPC() {
   // 导入 session
   ipcMain.handle('sessions:import', async (_event, data: string, format: string): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
     const result = await runCommand(['sessions', 'import', '--data', data, '--format', format, '--json']);
-    const parsed = tryParseJson<any>(result.output);
     if (!result.success) {
       return { success: false, error: result.error || '导入会话失败' };
     }
-    return { success: true, sessionId: parsed?.sessionId || parsed?.id };
-  });
-
-  // 获取 session 统计
-  ipcMain.handle('sessions:stats', async (): Promise<SessionStats> => {
-    const sessions = await getSessionsList();
-    const agents: Record<string, number> = {};
-    for (const s of sessions) {
-      agents[s.agent] = (agents[s.agent] || 0) + 1;
-    }
-    return {
-      total: sessions.length,
-      active: sessions.filter((s) => s.status === 'active').length,
-      idle: sessions.filter((s) => s.status === 'idle').length,
-      agents,
-    };
+    const parsed = tryParseJson<any>(result.output);
+    return { success: true, sessionId: parsed?.sessionId || parsed?.key || parsed?.id };
   });
 
   // 清理 session（维护）
-  ipcMain.handle('sessions:cleanup', async (_event, dryRun = true): Promise<{ success: boolean; output?: string; error?: string }> => {
+  // 支持 --dry-run 预览和 --enforce 执行
+  ipcMain.handle('sessions:cleanup', async (_event, dryRun = true): Promise<{ success: boolean; output?: string; summary?: RawCleanupOutput; error?: string }> => {
     const args = ['sessions', 'cleanup', '--all-agents', '--json'];
     if (dryRun) args.push('--dry-run');
     else args.push('--enforce');
@@ -206,6 +392,8 @@ export function setupSessionsIPC() {
     if (!result.success) {
       return { success: false, error: result.error || '清理会话失败' };
     }
-    return { success: true, output: result.output };
+
+    const parsed = tryParseJson<RawCleanupOutput>(result.output);
+    return { success: true, output: result.output, summary: parsed ?? undefined };
   });
 }

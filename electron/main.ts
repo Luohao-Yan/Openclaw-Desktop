@@ -19,6 +19,7 @@ import { setupCronIPC } from './ipc/cron.js';
 import { setupApprovalsIPC } from './ipc/approvals.js';
 import { setupAppConfigIPC } from './ipc/appConfig.js';
 import { setupModelsIPC } from './ipc/models.js';
+import { setupChannelsIPC } from './ipc/channels.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -174,6 +175,7 @@ app.whenReady().then(() => {
   setupApprovalsIPC();
   setupAppConfigIPC();
   setupModelsIPC();
+  setupChannelsIPC();
   setupShellIPC();
   setupWindowIPC();
   createWindow();

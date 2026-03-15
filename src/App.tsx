@@ -11,7 +11,7 @@ import Tasks from './pages/Tasks';
 import Logs from './pages/Logs';
 import Agents from './pages/Agents';
 import AgentWorkspace from './pages/AgentWorkspace';
-import Sessions from './pages/Sessions';
+import Sessions from './pages/sessions';
 import Instances from './pages/Instances';
 import Skills from './pages/Skills';
 import TitleBar from './components/TitleBar';
@@ -59,7 +59,7 @@ const MainAppLayout: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main
-          className="flex-1 overflow-auto min-h-full"
+          className="flex-1 overflow-auto min-h-full relative"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
           <Routes>

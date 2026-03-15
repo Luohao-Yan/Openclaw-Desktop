@@ -400,6 +400,118 @@ export interface ModelAlias {
   target: string;
 }
 
+// ── 智能体增强功能相关类型 ──────────────────────────────────────────────────────────
+
+/** 智能体性能指标 */
+export interface AgentPerformanceMetrics {
+  cpuUsage: number;          // CPU 使用率（百分比，0-100）
+  memoryUsage: number;       // 内存使用量（MB）
+  tokensPerSecond: number;   // Token 处理速度（tokens/秒）
+  responseTime: number;      // 平均响应时间（秒）
+  errorRate: number;         // 错误率（百分比，0-100）
+  uptime: number;            // 运行时间（秒）
+  sessionCount: number;      // 活跃会话数
+  totalMessages: number;     // 总消息数
+  lastUpdated: string;       // 最后更新时间（ISO 8601 格式）
+}
+
+/** 增强功能类型 */
+export type AgentEnhancementType = 'performance' | 'security' | 'monitoring' | 'integration' | 'automation' | 'utility';
+
+/** 增强功能状态 */
+export type AgentEnhancementStatus = 'active' | 'inactive' | 'error';
+
+/** 智能体增强功能 */
+export interface AgentEnhancementFeature {
+  id: string;                                    // 增强功能唯一标识
+  name: string;                                  // 显示名称
+  type: AgentEnhancementType;                    // 功能类型
+  description: string;                           // 功能描述
+  enabled: boolean;                              // 是否启用
+  settings: Record<string, any>;                 // 功能设置参数
+  lastApplied?: string;                          // 最后应用时间（ISO 8601）
+  status: AgentEnhancementStatus;                // 运行状态
+  dependencies?: string[];                       // 依赖的其他增强功能 ID
+  version?: string;                              // 功能版本
+}
+
+/** 增强功能配置文件结构 */
+export interface EnhancementConfig {
+  version: string;                              // 配置文件版本
+  agentId: string;                              // 智能体 ID
+  lastModified: string;                         // 最后修改时间
+  enhancements: {
+    [enhancementId: string]: {
+      enabled: boolean;                         // 是否启用
+      settings: Record<string, any>;            // 设置参数
+      lastApplied?: string;                     // 最后应用时间
+    };
+  };
+}
+
+/** 性能测试结果 */
+export interface PerformanceTestResult {
+  testId: string;                               // 测试 ID
+  agentId: string;                              // 智能体 ID
+  timestamp: string;                            // 测试时间
+  duration: number;                             // 测试时长（毫秒）
+  status: 'completed' | 'failed' | 'timeout';   // 测试状态
+  metrics: {
+    cpuUsage: number;                           // 测试期间平均 CPU 使用率
+    memoryUsage: number;                        // 测试期间平均内存使用量
+    tokensPerSecond: number;                    // Token 处理速度
+    responseTime: number;                       // 平均响应时间
+    errorRate: number;                          // 错误率
+    throughput: number;                         // 吞吐量（请求/秒）
+    success: boolean;                           // 测试是否成功
+  };
+  errors?: string[];                            // 错误信息列表
+}
+
+/** 安全检查类别 */
+export type SecurityCheckCategory = 'file-permissions' | 'api-keys' | 'network' | 'dependencies' | 'config';
+
+/** 安全检查风险等级 */
+export type SecurityRiskLevel = 'low' | 'medium' | 'high';
+
+/** 安全检查状态 */
+export type SecurityCheckStatus = 'pass' | 'warning' | 'fail';
+
+/** 安全检查结果 */
+export interface SecurityCheckResult {
+  checkId: string;                              // 检查项 ID
+  name: string;                                 // 检查项名称
+  category: SecurityCheckCategory;              // 检查类别
+  riskLevel: SecurityRiskLevel;                 // 风险等级
+  status: SecurityCheckStatus;                  // 检查状态
+  message: string;                              // 检查结果描述
+  recommendation?: string;                      // 修复建议
+  details?: Record<string, any>;                // 详细信息
+}
+
+/** 智能体配置导出数据 */
+export interface AgentConfigExport {
+  exportVersion: string;                        // 导出格式版本
+  exportDate: string;                           // 导出时间
+  agentInfo: {
+    id: string;                                 // 智能体 ID
+    name: string;                               // 智能体名称
+    model: string;                              // 模型配置
+    workspace: string;                          // 工作区路径
+  };
+  config: {
+    openclaw: any;                              // openclaw.json 内容
+    enhancements: EnhancementConfig;            // 增强功能配置
+  };
+  workspaceFiles: {
+    [fileName: string]: string;                 // 工作区文件内容
+  };
+  metadata: {
+    desktopVersion: string;                     // Desktop 应用版本
+    openclawVersion: string;                    // OpenClaw CLI 版本
+  };
+}
+
 export interface ElectronAPI {
   runtimeInfo: () => Promise<DesktopRuntimeInfo | null>;
   getCapabilities: () => Promise<DesktopRuntimeCapabilities | null>;
@@ -461,13 +573,38 @@ export interface ElectronAPI {
   agentsSaveManagedFile: (agentId: string, targetPath: string, content: string) => Promise<any>;
   agentsListWorkspaceEntries: (agentId: string, targetPath: string) => Promise<any>;
   agentsGetCount: () => Promise<any>;
+  /** 更新智能体 Identity 配置 */
+  agentsUpdateIdentity: (agentId: string, identity: { name?: string; theme?: string; emoji?: string; avatar?: string }) => Promise<{ success: boolean; error?: string }>;
+  
+  // ── 智能体增强功能 API ──────────────────────────────────────────────────────────
+  /** 获取智能体性能指标 */
   agentsGetPerformance: (agentId: string) => Promise<{ success: boolean; metrics?: AgentPerformanceMetrics; error?: string }>;
-  agentsRunPerformanceTest: (agentId: string) => Promise<{ success: boolean; result?: any; error?: string }>;
+  /** 执行性能测试 */
+  agentsRunPerformanceTest: (agentId: string) => Promise<{ success: boolean; result?: PerformanceTestResult; error?: string }>;
+  /** 获取增强功能列表 */
   agentsGetEnhancements: (agentId: string) => Promise<{ success: boolean; enhancements?: AgentEnhancementFeature[]; error?: string }>;
+  /** 启用/禁用增强功能 */
   agentsToggleEnhancement: (agentId: string, enhancementId: string, enabled: boolean) => Promise<{ success: boolean; enhancement?: AgentEnhancementFeature; error?: string }>;
+  /** 更新增强功能设置 */
   agentsUpdateEnhancementSettings: (agentId: string, enhancementId: string, settings: Record<string, any>) => Promise<{ success: boolean; enhancement?: AgentEnhancementFeature; error?: string }>;
+  /** 打开调试终端 */
+  agentsOpenDebugTerminal: (agentId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 导出配置 */
+  agentsExportConfig: (agentId: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  /** 导入配置 */
+  agentsImportConfig: (agentId: string, filePath: string) => Promise<{ success: boolean; error?: string }>;
+  /** 克隆智能体 */
+  agentsClone: (agentId: string, newName: string, workspace: string) => Promise<{ success: boolean; newAgentId?: string; error?: string }>;
+  /** 生成报告 */
+  agentsGenerateReport: (agentId: string, format: 'pdf' | 'markdown') => Promise<{ success: boolean; reportPath?: string; error?: string }>;
+  /** 重启智能体 */
+  agentsRestart: (agentId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 安全检查 */
+  agentsSecurityCheck: (agentId: string) => Promise<{ success: boolean; results?: SecurityCheckResult[]; error?: string }>;
+  
   sessionsList: () => Promise<any[]>;
   sessionsGet: (sessionId: string) => Promise<any>;
+  sessionsTranscript: (agentId: string, sessionKey: string) => Promise<any>;
   sessionsCreate: (agent: string, model?: string) => Promise<any>;
   sessionsSend: (sessionId: string, message: string) => Promise<any>;
   sessionsClose: (sessionId: string) => Promise<any>;
@@ -512,6 +649,26 @@ export interface ElectronAPI {
   // ── 模型配置管理 ──────────────────────────────────────────────────────────
   /** 获取所有提供商的认证状态 */
   modelsStatus: () => Promise<ModelsStatusResult>;
+
+  // ── 渠道管理 ──────────────────────────────────────────────────────────────
+  /** 查询渠道状态（执行 openclaw channels status） */
+  channelsStatus: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 查询渠道列表（执行 openclaw channels list） */
+  channelsList: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 诊断指定渠道连接状态（执行 openclaw channels status --channel <channelType>） */
+  channelsDiagnose: (channelType: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 重新连接指定渠道（执行 openclaw channels reconnect --channel <channelType>） */
+  channelsReconnect: (channelType: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 查询指定渠道的待审批 DM 配对请求（读取配对 JSON 文件） */
+  pairingList: (channel: string) => Promise<{
+    success: boolean;
+    requests?: Array<{ senderId: string; code: string; accountId: string; createdAt?: string; expiresAt?: string }>;
+    error?: string;
+  }>;
+  /** 审批指定渠道的 DM 配对请求（执行 openclaw pairing approve <channel> <code>） */
+  pairingApprove: (channel: string, code: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 按过滤条件查询日志（执行 openclaw logs --filter <filter>） */
+  logsFilter: (filter: string) => Promise<{ success: boolean; logs?: any[]; error?: string }>;
   /** 在系统终端启动 openclaw onboard 交互式向导 */
   modelsOnboard: () => Promise<BasicSuccessResult>;
   /** 执行 openclaw models scan，返回扫描输出文本 */

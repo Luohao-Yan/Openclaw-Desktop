@@ -19,7 +19,9 @@
 
 - `electron/ipc/gateway.ts`
 - `electron/ipc/coreConfig.ts`
-- `electron/config/openclaw-manifests/3.8.json`
+- `electron/config/openclaw-manifests/3.13.json`（当前版本）
+- `electron/config/openclaw-manifests/3.8.json`（旧版本，保留兼容）
+- `electron/config/manifest-version.ts`（版本集中配置）
 
 已确认真实字段：
 

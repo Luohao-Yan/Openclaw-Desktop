@@ -33,6 +33,7 @@ import AppSelect, { type AppSelectOption } from '../components/AppSelect';
 import JsonFormEditor, { type JsonFormSchema, type JsonFormTabItem } from '../components/JsonFormEditor';
 import AppTable from '../components/AppTable';
 import GlassCard from '../components/GlassCard';
+import { useI18n } from '../i18n/I18nContext';
 
 const CORE_FILES: AgentWorkspaceFileName[] = [
   'AGENTS.md',
@@ -75,8 +76,10 @@ type SessionEventRecord = {
   raw: Record<string, any>;
 };
 
+// 绑定编辑器状态：mode 区分新增和编辑模式
 type GlobalBindingEditorState = {
-  index: number;
+  mode: 'add' | 'edit';       // 操作模式：add 新增，edit 编辑
+  index: number;               // edit 模式下的绑定索引，add 模式下为 -1
   channel?: string;
   accountId?: string;
   binding: any;
@@ -324,6 +327,7 @@ const getSessionEventTone = (event: SessionEventRecord) => {
 const AgentWorkspace: React.FC = () => {
   const navigate = useNavigate();
   const { agentId } = useParams<{ agentId: string }>();
+  const { t } = useI18n();
   const [details, setDetails] = useState<AgentWorkspaceDetails | null>(null);
   const [activeFile, setActiveFile] = useState<AgentWorkspaceFileName>('AGENTS.md');
   const [fileState, setFileState] = useState<Record<string, AgentWorkspaceFileDetail>>({});
@@ -372,6 +376,9 @@ const AgentWorkspace: React.FC = () => {
   const [globalBindingDraft, setGlobalBindingDraft] = useState<any | null>(null);
   const [globalBindingBaseline, setGlobalBindingBaseline] = useState<any | null>(null);
   const [globalBindingSaving, setGlobalBindingSaving] = useState(false);
+  const [deletingBindingIndex, setDeletingBindingIndex] = useState<number | null>(null); // 待删除绑定的本地索引
+  const [bindingDeleting, setBindingDeleting] = useState(false); // 删除操作进行中
+  const [globalChannels, setGlobalChannels] = useState<Record<string, any>>({}); // 全局渠道配置（来自 openclaw.json channels 节点）
   const [managedFileOpen, setManagedFileOpen] = useState(false);
   const [managedFile, setManagedFile] = useState<AgentManagedFileDetail | null>(null);
   const [managedDraft, setManagedDraft] = useState('');
@@ -404,9 +411,12 @@ const AgentWorkspace: React.FC = () => {
         const configResult = await window.electronAPI.configGet();
         if (configResult.success && configResult.config) {
           setGlobalModelOptions(buildAgentModelOptions(configResult.config));
+          // 缓存全局渠道配置，供绑定编辑器下拉选项使用
+          setGlobalChannels((configResult.config as any).channels || {});
         }
       } catch {
         setGlobalModelOptions([]);
+        setGlobalChannels({});
       }
       const firstAvailable = result.details.files.find((item) => item.exists)?.name
         || result.details.files[0]?.name
@@ -706,6 +716,35 @@ const AgentWorkspace: React.FC = () => {
     }
   };
 
+  // 打开新增绑定编辑器（mode=add）
+  const openAddBindingEditor = () => {
+    if (!agentId) {
+      return;
+    }
+
+    setError(null);
+    setSaveMessage(null);
+
+    // 初始化空绑定模板
+    const emptyDraft = {
+      binding: {
+        agentId,
+        match: { channel: '', accountId: '' },
+        enabled: true,
+      },
+      accountConfig: null,
+    };
+
+    setGlobalBindingEditor({
+      mode: 'add',
+      index: -1,
+      binding: emptyDraft.binding,
+      accountConfig: null,
+    });
+    setGlobalBindingDraft(emptyDraft);
+    setGlobalBindingBaseline(emptyDraft);
+  };
+
   const openGlobalBindingEditor = (index: number) => {
     const bindingRecord = details?.globalAgentConfig?.bindings?.[index];
     if (!bindingRecord) {
@@ -715,6 +754,7 @@ const AgentWorkspace: React.FC = () => {
     setError(null);
     setSaveMessage(null);
     setGlobalBindingEditor({
+      mode: 'edit',
       index,
       channel: bindingRecord.channel,
       accountId: bindingRecord.accountId,
@@ -735,7 +775,7 @@ const AgentWorkspace: React.FC = () => {
     }
 
     if (toCanonicalJsonString(globalBindingDraft) !== toCanonicalJsonString(globalBindingBaseline)) {
-      const shouldClose = window.confirm('你有未保存的绑定配置修改，确认关闭吗？');
+      const shouldClose = window.confirm(t('binding.unsavedChanges'));
       if (!shouldClose) {
         return;
       }
@@ -746,8 +786,104 @@ const AgentWorkspace: React.FC = () => {
     setGlobalBindingBaseline(null);
   };
 
+  // 新增绑定：验证、构造记录、写入配置
+  const handleAddBinding = async () => {
+    if (!agentId || !globalBindingEditor) {
+      return;
+    }
+
+    const draft = globalBindingDraft || {};
+    const bindingData = draft.binding || {};
+    const channel = typeof bindingData?.match?.channel === 'string'
+      ? bindingData.match.channel.trim()
+      : '';
+    const accountId = typeof bindingData?.match?.accountId === 'string'
+      ? bindingData.match.accountId.trim()
+      : '';
+
+    // 通道名称不能为空
+    if (!channel) {
+      setError(t('binding.channelRequired'));
+      return;
+    }
+
+    setGlobalBindingSaving(true);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      // 读取当前配置
+      const configResult = await window.electronAPI.configGet();
+      if (!configResult.success || !configResult.config) {
+        setError(`${t('binding.loadFailed')}: ${configResult.error || ''}`);
+        return;
+      }
+
+      const bindings = Array.isArray(configResult.config?.bindings)
+        ? [...configResult.config.bindings]
+        : [];
+
+      // 构造新的绑定记录
+      const newBinding = {
+        agentId,
+        match: { channel, accountId },
+        enabled: true,
+        ...bindingData,
+        // 确保关键字段正确
+        agentId: agentId,
+        match: { channel, accountId },
+      };
+      bindings.push(newBinding);
+
+      const nextConfig = {
+        ...configResult.config,
+        bindings,
+      } as any;
+
+      // 如有账号配置且非空，写入 channels 节点
+      // 避免写入空对象导致已有配置被覆盖或创建无效账号
+      const accountConfig = draft.accountConfig;
+      if (accountConfig && typeof accountConfig === 'object' && Object.keys(accountConfig).length > 0 && channel && accountId) {
+        nextConfig.channels = {
+          ...(nextConfig.channels || {}),
+          [channel]: {
+            ...(nextConfig.channels?.[channel] || {}),
+            accounts: {
+              ...(nextConfig.channels?.[channel]?.accounts || {}),
+              [accountId]: accountConfig,
+            },
+          },
+        };
+      }
+
+      // 写回配置
+      const saveResult = await window.electronAPI.configSet(nextConfig);
+      if (!saveResult.success) {
+        setError(`${t('binding.saveFailed')}: ${saveResult.error || ''}`);
+        return;
+      }
+
+      // 成功：关闭弹窗、提示、刷新
+      setSaveMessage(t('binding.addSuccess'));
+      setGlobalBindingEditor(null);
+      setGlobalBindingDraft(null);
+      setGlobalBindingBaseline(null);
+      await loadWorkspace();
+    } catch (addError) {
+      setError(`${t('binding.saveFailed')}: ${addError instanceof Error ? addError.message : String(addError)}`);
+    } finally {
+      setGlobalBindingSaving(false);
+    }
+  };
+
   const handleSaveGlobalBindingConfig = async () => {
     if (!agentId || !globalBindingEditor) {
+      return;
+    }
+
+    // 根据 mode 分发到新增或编辑逻辑
+    if (globalBindingEditor.mode === 'add') {
+      await handleAddBinding();
       return;
     }
 
@@ -767,7 +903,7 @@ const AgentWorkspace: React.FC = () => {
 
       const configResult = await window.electronAPI.configGet();
       if (!configResult.success || !configResult.config) {
-        setError(configResult.error || '读取全局配置失败');
+        setError(`${t('binding.loadFailed')}: ${configResult.error || ''}`);
         return;
       }
 
@@ -780,7 +916,7 @@ const AgentWorkspace: React.FC = () => {
       const target = agentBindingIndexes[globalBindingEditor.index];
 
       if (!target) {
-        setError('未找到当前 Agent 对应的 binding 配置');
+        setError('未找到对应的绑定配置');
         return;
       }
 
@@ -801,34 +937,114 @@ const AgentWorkspace: React.FC = () => {
         ? nextBinding.match.accountId
         : globalBindingEditor.accountId;
 
+      // 写入 channels 节点：仅当用户实际填写了账号配置时才覆盖
+      // 避免将已有的完整账号配置覆盖为空对象
       if (channel && accountId) {
-        nextConfig.channels = {
-          ...(nextConfig.channels || {}),
-          [channel]: {
-            ...(nextConfig.channels?.[channel] || {}),
-            accounts: {
-              ...(nextConfig.channels?.[channel]?.accounts || {}),
-              [accountId]: nextAccountConfig ?? {},
+        const existingAccountConfig = nextConfig.channels?.[channel]?.accounts?.[accountId];
+        // 仅当用户提供了非空的 accountConfig 时才写入
+        if (nextAccountConfig && typeof nextAccountConfig === 'object' && Object.keys(nextAccountConfig).length > 0) {
+          nextConfig.channels = {
+            ...(nextConfig.channels || {}),
+            [channel]: {
+              ...(nextConfig.channels?.[channel] || {}),
+              accounts: {
+                ...(nextConfig.channels?.[channel]?.accounts || {}),
+                [accountId]: nextAccountConfig,
+              },
             },
-          },
-        };
+          };
+        } else if (!existingAccountConfig) {
+          // 账号配置不存在且用户未填写，不创建空记录
+          // 保持 channels 节点不变
+        }
       }
 
       const saveResult = await window.electronAPI.configSet(nextConfig);
       if (!saveResult.success) {
-        setError(saveResult.error || '保存全局 binding 配置失败');
+        setError(`${t('binding.saveFailed')}: ${saveResult.error || ''}`);
         return;
       }
 
-      setSaveMessage('全局 binding / channel 配置已保存');
+      setSaveMessage(t('binding.saveSuccess'));
       setGlobalBindingEditor(null);
       setGlobalBindingDraft(null);
       setGlobalBindingBaseline(null);
       await loadWorkspace();
     } catch (bindingError) {
-      setError(`保存全局 binding 配置时发生异常: ${bindingError instanceof Error ? bindingError.message : String(bindingError)}`);
+      setError(`${t('binding.saveFailed')}: ${bindingError instanceof Error ? bindingError.message : String(bindingError)}`);
     } finally {
       setGlobalBindingSaving(false);
+    }
+  };
+
+  // 删除绑定：弹出确认对话框，确认后从配置中移除
+  const handleDeleteBinding = async (bindingIndex: number) => {
+    if (!agentId) {
+      return;
+    }
+
+    const bindingRecord = globalAgentConfig?.bindings?.[bindingIndex];
+    if (!bindingRecord) {
+      setError('未找到对应的绑定配置');
+      return;
+    }
+
+    // 弹出确认对话框
+    const detail = t('binding.confirmDeleteDetail')
+      .replace('{channel}', bindingRecord.channel || '-')
+      .replace('{accountId}', bindingRecord.accountId || '-');
+    const shouldDelete = window.confirm(`${t('binding.confirmDelete')}\n${detail}`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingBindingIndex(bindingIndex);
+    setBindingDeleting(true);
+    setError(null);
+    setSaveMessage(null);
+
+    try {
+      // 读取当前配置
+      const configResult = await window.electronAPI.configGet();
+      if (!configResult.success || !configResult.config) {
+        setError(`${t('binding.loadFailed')}: ${configResult.error || ''}`);
+        return;
+      }
+
+      const bindings = Array.isArray(configResult.config?.bindings)
+        ? [...configResult.config.bindings]
+        : [];
+
+      // 定位当前 Agent 的第 bindingIndex 条绑定在全局数组中的实际索引
+      const agentBindingIndexes = bindings
+        .map((b: any, i: number) => ({ binding: b, index: i }))
+        .filter((item) => item.binding?.agentId === agentId);
+
+      if (bindingIndex < 0 || bindingIndex >= agentBindingIndexes.length) {
+        setError('未找到对应的绑定配置');
+        return;
+      }
+
+      const globalIndex = agentBindingIndexes[bindingIndex].index;
+      bindings.splice(globalIndex, 1);
+
+      // 写回配置
+      const saveResult = await window.electronAPI.configSet({
+        ...configResult.config,
+        bindings,
+      });
+      if (!saveResult.success) {
+        setError(`${t('binding.deleteFailed')}: ${saveResult.error || ''}`);
+        return;
+      }
+
+      setSaveMessage(t('binding.deleteSuccess'));
+      await loadWorkspace();
+    } catch (deleteError) {
+      setError(`${t('binding.deleteFailed')}: ${deleteError instanceof Error ? deleteError.message : String(deleteError)}`);
+    } finally {
+      setBindingDeleting(false);
+      setDeletingBindingIndex(null);
     }
   };
 
@@ -992,6 +1208,8 @@ const AgentWorkspace: React.FC = () => {
     setGlobalBindingEditor(null);
     setGlobalBindingDraft(null);
     setGlobalBindingBaseline(null);
+    setDeletingBindingIndex(null);
+    setBindingDeleting(false);
     setManagedFileOpen(false);
     setManagedFile(null);
     setManagedDraft('');
@@ -1030,77 +1248,97 @@ const AgentWorkspace: React.FC = () => {
   const skillsOverview = details?.skillsOverview;
   const globalAgentConfig = details?.globalAgentConfig as AgentGlobalConfigOverview | undefined;
   const globalBindingTabs = useMemo<JsonFormTabItem[]>(() => ([
-    { key: 'binding', label: '绑定规则' },
-    { key: 'accountConfig', label: '账号配置' },
-  ]), []);
+    { key: 'binding', label: t('binding.bindingRules') },
+    {
+      key: 'accountConfig',
+      label: t('binding.accountConfig'),
+      // 新建绑定时 accountConfig 为空，给用户友好的解释
+      emptyHint: t('binding.accountConfigEmptyHint'),
+    },
+  ]), [t]);
   const globalBindingSchema = useMemo<JsonFormSchema>(() => {
-    const channelOptions = Array.from(new Set((globalAgentConfig?.bindings || [])
-      .map((item) => item.channel)
-      .filter((value): value is string => Boolean(value))))
+    // 从全局 channels 配置中提取所有已配置的渠道类型作为通道选项
+    const channelOptions = Object.keys(globalChannels)
+      .filter((key) => Boolean(key))
       .map((value) => ({ label: value, value }));
-    const accountOptions = Array.from(new Set((globalAgentConfig?.bindings || [])
-      .map((item) => item.accountId)
-      .filter((value): value is string => Boolean(value))))
-      .map((value) => ({ label: value, value }));
+
+    // 根据当前绑定草稿中选中的通道，动态提取该通道下的账号列表
+    const selectedChannel = globalBindingDraft?.binding?.match?.channel || '';
+    const channelConfig = selectedChannel ? globalChannels[selectedChannel] : null;
+    const accountsFromChannel = channelConfig?.accounts
+      ? Object.keys(channelConfig.accounts).map((value) => ({ label: value, value }))
+      : [];
+
+    // 兜底：如果全局 channels 没有数据，也从已有 bindings 中提取（向后兼容）
+    const fallbackChannelOptions = channelOptions.length === 0
+      ? Array.from(new Set((globalAgentConfig?.bindings || [])
+          .map((item) => item.channel)
+          .filter((value): value is string => Boolean(value))))
+          .map((value) => ({ label: value, value }))
+      : channelOptions;
+
+    const fallbackAccountOptions = accountsFromChannel.length === 0
+      ? Array.from(new Set((globalAgentConfig?.bindings || [])
+          .map((item) => item.accountId)
+          .filter((value): value is string => Boolean(value))))
+          .map((value) => ({ label: value, value }))
+      : accountsFromChannel;
 
     return {
       binding: {
         label: '绑定规则',
-        description: '当前 Agent 在什么条件下命中这条 binding。',
+        description: '定义当前 Agent 在什么条件下命中这条绑定，决定消息从哪个渠道、哪个账号路由到此 Agent。',
       },
       'binding.match': {
         label: '命中条件',
-        description: '定义通道、账号等匹配条件。',
+        description: '当用户消息满足以下条件时，会被路由到当前 Agent 处理。',
       },
       'binding.match.channel': {
-        label: '通道',
-        description: '用户请求命中时使用的渠道。',
-        control: channelOptions.length ? 'select' : 'text',
-        options: channelOptions,
-        placeholder: '请选择通道',
+        label: '通道（Channel）',
+        description: '选择一个已配置的消息渠道（如 WeChat、Telegram、Slack 等）。渠道需要先在 Settings → Channels 中添加。',
+        control: fallbackChannelOptions.length ? 'select' : 'text',
+        options: fallbackChannelOptions,
+        placeholder: fallbackChannelOptions.length ? '请选择通道' : '暂无可用通道，请先在 Settings → Channels 中添加',
       },
       'binding.match.accountId': {
-        label: '账号 ID',
-        description: '当前通道下绑定的账号标识。',
-        control: accountOptions.length ? 'select' : 'text',
-        options: accountOptions,
-        placeholder: '请选择账号',
+        label: '账号（Account）',
+        description: '账号是渠道下的具体接入身份（如一个 Bot 账号、一个公众号等）。选择通道后，这里会列出该通道下已配置的所有账号。如果没有可选项，请先在 Settings → Channels 中为对应通道添加账号。',
+        control: fallbackAccountOptions.length ? 'select' : 'text',
+        options: fallbackAccountOptions,
+        placeholder: fallbackAccountOptions.length ? '请选择账号' : '请先选择通道，或在 Settings → Channels 中为通道添加账号',
       },
       'binding.agentId': {
         label: 'Agent ID',
-        description: '当前 binding 归属的 Agent 标识。',
+        description: '当前绑定归属的 Agent，系统自动填写，无需手动修改。',
+        readOnly: true,
       },
-      'binding.enabled': {
-        label: '启用状态',
-        description: '控制该 binding 是否生效。',
-        control: 'switch',
-      },
+
       accountConfig: {
-        label: '账号配置',
-        description: '命中该 binding 后实际使用的账号配置。',
+        label: '账号运行配置',
+        description: '该绑定对应账号的运行参数。新建绑定时为空，保存后会自动关联渠道中的账号配置。如需为此 Agent 单独定制参数，可在此覆盖默认值。',
       },
       'accountConfig.apiKey': {
         label: 'API Key',
-        description: '对应账号的密钥字段。',
+        description: '该账号的接口密钥，用于鉴权。留空则使用渠道默认配置。',
         control: 'textarea',
-        placeholder: '请输入 API Key',
+        placeholder: '请输入 API Key（留空使用默认值）',
       },
       'accountConfig.baseUrl': {
         label: 'Base URL',
-        description: '接口基础地址。',
-        placeholder: '请输入接口地址',
+        description: '接口基础地址。留空则使用渠道默认配置。',
+        placeholder: '请输入接口地址（留空使用默认值）',
       },
       'accountConfig.model': {
         label: '模型',
-        description: '该账号默认使用的模型。',
+        description: '该账号使用的模型标识。留空则使用渠道默认配置。',
       },
       'accountConfig.enabled': {
         label: '账号启用状态',
-        description: '控制该账号配置是否可用。',
+        description: '控制该账号配置是否可用。关闭后此账号将不会被使用。',
         control: 'switch',
       },
     };
-  }, [globalAgentConfig]);
+  }, [globalAgentConfig, globalChannels, globalBindingDraft]);
   const globalAgentConfigTabs = useMemo<JsonFormTabItem[]>(() => getTopLevelSections(globalAgentConfigDraft).map((section) => ({
     key: section,
     label: section,
@@ -1558,8 +1796,10 @@ const AgentWorkspace: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)] gap-6">
-          <div className="space-y-6">
+        {/* ── 垂直排列，每个卡片跨满整行，内部各自做响应式布局 ── */}
+        <div className="space-y-6">
+
+            {/* ── 核心文件（内部文件项网格排列） ── */}
             <GlassCard className="p-4">
               <div className="flex items-center gap-2 mb-4">
                 <FileText className="w-5 h-5 text-blue-400" />
@@ -1568,7 +1808,7 @@ const AgentWorkspace: React.FC = () => {
               <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 选择任意核心文件进入沉浸式编辑弹窗，减少误操作，保存体验更明确。
               </div>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
                 {CORE_FILES.map((fileName) => {
                   const summary = details?.files.find((item) => item.name === fileName);
                   const selected = activeFile === fileName;
@@ -1627,6 +1867,7 @@ const AgentWorkspace: React.FC = () => {
               </div>
             </GlassCard>
 
+            {/* ── Agent 运行配置 ── */}
             <GlassCard className="p-4">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-2">
@@ -1634,10 +1875,10 @@ const AgentWorkspace: React.FC = () => {
                   <h2 className="text-lg font-semibold">Agent 运行配置</h2>
                 </div>
               </div>
-              <code className="block mt-1 break-all" style={{ color: 'var(--app-text)' }}>
-                    {globalAgentConfig?.configPath || '未检测到 Global Agent 配置文件'}
-                  </code>
-              <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              <code className="block mt-1 break-all text-sm" style={{ color: 'var(--app-text)' }}>
+                {globalAgentConfig?.configPath || '未检测到 Global Agent 配置文件'}
+              </code>
+              <div className="mb-4 mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
                 汇总当前 Agent 的 Skills 运行状态、全局核心配置与绑定关系，便于统一查看和编辑。
               </div>
               <div className="space-y-4">
@@ -1865,8 +2106,14 @@ const AgentWorkspace: React.FC = () => {
                     </div>
 
                     <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                      <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
-                        Channel / Binding 配置
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
+                          Channel / Binding 配置
+                        </div>
+                        {/* 添加绑定按钮 */}
+                        <AppButton onClick={openAddBindingEditor} variant="secondary" size="sm">
+                          {t('binding.addBinding')}
+                        </AppButton>
                       </div>
                       <div className="mt-3 space-y-3">
                         {globalAgentConfig?.bindings?.length ? globalAgentConfig.bindings.map((item, index) => (
@@ -1882,13 +2129,13 @@ const AgentWorkspace: React.FC = () => {
                                     className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
                                     style={{ backgroundColor: 'rgba(14, 165, 233, 0.12)', color: '#0369A1' }}
                                   >
-                                    通道 · {item.channel || '-'}
+                                    {t('binding.channelLabel')} · {item.channel || '-'}
                                   </span>
                                   <span
                                     className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
                                     style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#047857' }}
                                   >
-                                    账号 · {item.accountId || '-'}
+                                    {t('binding.accountIdLabel')} · {item.accountId || '-'}
                                   </span>
                                   <span
                                     className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
@@ -1900,7 +2147,7 @@ const AgentWorkspace: React.FC = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                   <div className="rounded-xl px-3 py-3" style={{ backgroundColor: 'var(--app-bg)' }}>
                                     <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                                      绑定说明
+                                      {t('binding.bindingRules')}
                                     </div>
                                     <div className="mt-2 text-sm font-medium break-all" style={{ color: 'var(--app-text)' }}>
                                       {item.channel || '未指定通道'}
@@ -1913,7 +2160,7 @@ const AgentWorkspace: React.FC = () => {
                                   </div>
                                   <div className="rounded-xl px-3 py-3" style={{ backgroundColor: 'var(--app-bg)' }}>
                                     <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                                      账号配置状态
+                                      {t('binding.accountConfig')}
                                     </div>
                                     <div className="mt-2 text-sm font-medium" style={{ color: 'var(--app-text)' }}>
                                       {item.accountConfig ? '已配置，可直接调整' : '暂未配置，保存时会创建'}
@@ -1924,16 +2171,35 @@ const AgentWorkspace: React.FC = () => {
                                   </div>
                                 </div>
                               </div>
-                              <div className="shrink-0">
+                              <div className="shrink-0 flex items-center gap-2">
                                 <AppButton onClick={() => openGlobalBindingEditor(index)} variant="secondary" size="sm">
-                                  编辑配置
+                                  {t('binding.editBinding')}
+                                </AppButton>
+                                <AppButton
+                                  onClick={() => handleDeleteBinding(index)}
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={bindingDeleting && deletingBindingIndex === index}
+                                >
+                                  {bindingDeleting && deletingBindingIndex === index ? t('binding.deleting') : t('binding.deleteBinding')}
                                 </AppButton>
                               </div>
                             </div>
                           </div>
                         )) : (
-                          <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                            当前 Agent 没有命中的 bindings / channel account 配置。
+                          /* 空状态展示 */
+                          <div className="rounded-xl border p-6 text-center" style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}>
+                            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                              {t('binding.emptyState')}
+                            </div>
+                            <div className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                              {t('binding.emptyStateHint')}
+                            </div>
+                            <div className="mt-4">
+                              <AppButton onClick={openAddBindingEditor} variant="secondary" size="sm">
+                                {t('binding.addBinding')}
+                              </AppButton>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1942,10 +2208,6 @@ const AgentWorkspace: React.FC = () => {
                 </div>
               </div>
             </GlassCard>
-
-          </div>
-
-          <div className="space-y-6">
 
             <GlassCard className="p-4">
               <div className="flex items-start justify-between gap-3 mb-4">
@@ -2132,6 +2394,7 @@ const AgentWorkspace: React.FC = () => {
               </div>
             </GlassCard>
 
+            {/* ── 当前智能体配置（含 Config + Sessions 浏览，跨满所有列） ── */}
             <GlassCard className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <FileText className="w-5 h-5 text-emerald-400" />
@@ -2274,7 +2537,6 @@ const AgentWorkspace: React.FC = () => {
               </div>
             </GlassCard>
 
-          </div>
         </div>
       </div>
 
@@ -2455,16 +2717,16 @@ const AgentWorkspace: React.FC = () => {
           <div className="w-full max-w-5xl h-[78vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
             <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
               <div className="min-w-0">
-                <h3 className="text-xl font-semibold">编辑 Channel / Binding 配置</h3>
+                <h3 className="text-xl font-semibold">{globalBindingEditor?.mode === 'add' ? t('binding.addBinding') : t('binding.editBinding')}</h3>
                 <div className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  这里会一起修改当前 Agent 的 binding 规则，以及对应 channel account 的全局配置。
+                  配置当前 Agent 的消息路由规则：选择通道和账号，决定哪些消息会被路由到此 Agent。
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: 'rgba(14, 165, 233, 0.12)', color: '#0369A1' }}>
-                    通道 · {globalBindingEditor.channel || '-'}
+                    {t('binding.channelLabel')} · {globalBindingEditor.channel || '-'}
                   </span>
                   <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#047857' }}>
-                    账号 · {globalBindingEditor.accountId || '-'}
+                    {t('binding.accountIdLabel')} · {globalBindingEditor.accountId || '-'}
                   </span>
                 </div>
               </div>
@@ -2491,18 +2753,18 @@ const AgentWorkspace: React.FC = () => {
 
             <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
               <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                这里使用结构化表单编辑 binding 规则和账号配置，保存后会直接更新全局 `openclaw.json`。
+                保存后会直接更新全局配置文件，重启 Gateway 后生效。
               </div>
               <div className="flex items-center gap-3">
                 <AppButton onClick={closeGlobalBindingEditor} variant="secondary">
-                  取消
+                  {t('common.cancel')}
                 </AppButton>
                 <AppButton
                   onClick={handleSaveGlobalBindingConfig}
                   disabled={globalBindingSaving}
                   icon={<Save className="w-4 h-4" />}
                 >
-                  {globalBindingSaving ? '保存中...' : '保存绑定配置'}
+                  {globalBindingSaving ? t('binding.saving') : t('common.save')}
                 </AppButton>
               </div>
             </div>

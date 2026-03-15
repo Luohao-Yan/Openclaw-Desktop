@@ -357,6 +357,18 @@ button, input, select, textarea {
   }
 }
 
+/* Toast 从顶部滑入动画 */
+@keyframes fadeInDown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-12px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
 @keyframes scaleIn {
   from { 
     opacity: 0; 
