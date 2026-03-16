@@ -4,7 +4,7 @@ import { spawn } from 'child_process';
 import { join } from 'path';
 import { existsSync } from 'fs';
 import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
-import { readFile, readdir, rm } from 'fs/promises';
+import { rm } from 'fs/promises';
 
 const ANSI_ESCAPE_PATTERN = /\u001B\[[0-?]*[ -/]*[@-~]/g;
 const CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
@@ -84,122 +84,100 @@ async function runOpenClawCommand(args: string[]): Promise<{ success: boolean; o
   });
 }
 
-// 解析 OpenClaw 状态输出
+// ============================================================================
+// 解析 openclaw gateway status 输出
+// 从 CLI 输出中提取真正的运行时实例信息（Gateway 服务和 LaunchAgent）
+// ============================================================================
 function parseOpenClawStatus(output: string): InstanceInfo[] {
   const instances: InstanceInfo[] = [];
   const lines = stripAnsiAndControlChars(output).split('\n');
-  
-  let currentInstance: Partial<InstanceInfo> = {};
-  
+
+  // --- 解析 LaunchAgent 服务状态 ---
+  let launchAgentStatus: 'running' | 'stopped' | 'error' = 'stopped';
+  let launchAgentLoaded = false;
   for (const line of lines) {
     const trimmed = line.trim();
-    
-    if (trimmed.includes('Service:')) {
-      if (currentInstance.id) {
-        instances.push(currentInstance as InstanceInfo);
+    // 匹配 "Service: LaunchAgent (loaded)" 或 "Service: LaunchAgent (not loaded)"
+    if (trimmed.startsWith('Service:') && trimmed.includes('LaunchAgent')) {
+      launchAgentLoaded = trimmed.includes('loaded') && !trimmed.includes('not loaded');
+      if (launchAgentLoaded) {
+        launchAgentStatus = 'running';
       }
-      const serviceName = trimmed.replace('Service:', '').trim();
-      currentInstance = {
-        id: serviceName.toLowerCase().replace(/\s+/g, '-'),
-        name: serviceName,
-        type: 'service' as const,
-        status: 'checking' as any
-      };
-    } else if (trimmed.includes('Gateway:')) {
-      if (currentInstance.id) {
-        instances.push(currentInstance as InstanceInfo);
-      }
-      currentInstance = {
-        id: 'openclaw-gateway',
-        name: 'OpenClaw Gateway',
-        type: 'gateway' as const,
-        status: 'checking' as any
-      };
-    } else if (trimmed.includes('Runtime:')) {
-      if (trimmed.includes('running')) {
-        currentInstance.status = 'running';
-        const pidMatch = trimmed.match(/pid\s+(\d+)/);
-        if (pidMatch) {
-          currentInstance.pid = parseInt(pidMatch[1], 10);
-        }
-      } else if (trimmed.includes('stopped')) {
-        currentInstance.status = 'stopped';
-      } else if (trimmed.includes('error')) {
-        currentInstance.status = 'error';
-      }
-    } else if (trimmed.includes('Listening:')) {
-      const portMatch = trimmed.match(/:(\d+)/);
-      if (portMatch) {
-        currentInstance.port = parseInt(portMatch[1], 10);
-      }
-    } else if (trimmed.includes('Dashboard:')) {
-      const url = trimmed.replace('Dashboard:', '').trim();
-      currentInstance.configPath = url;
     }
   }
-  
-  // 添加最后一个实例
-  if (currentInstance.id) {
-    instances.push(currentInstance as InstanceInfo);
+
+  // --- 解析 Gateway 运行时状态 ---
+  let gatewayPid: number | undefined;
+  let gatewayPort: number | undefined;
+  let gatewayStatus: 'running' | 'stopped' | 'error' = 'stopped';
+  let dashboardUrl: string | undefined;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // 匹配 "Runtime: running (pid 19978, state active)"
+    if (trimmed.startsWith('Runtime:')) {
+      if (trimmed.includes('running')) {
+        gatewayStatus = 'running';
+        const pidMatch = trimmed.match(/pid\s+(\d+)/);
+        if (pidMatch) {
+          gatewayPid = parseInt(pidMatch[1], 10);
+        }
+      } else if (trimmed.includes('stopped') || trimmed.includes('not running')) {
+        gatewayStatus = 'stopped';
+      } else if (trimmed.includes('error')) {
+        gatewayStatus = 'error';
+      }
+    }
+
+    // 匹配 "Listening: 127.0.0.1:18789"
+    if (trimmed.startsWith('Listening:')) {
+      const portMatch = trimmed.match(/:(\d+)/);
+      if (portMatch) {
+        gatewayPort = parseInt(portMatch[1], 10);
+      }
+    }
+
+    // 匹配 "Dashboard: http://127.0.0.1:18789/"
+    if (trimmed.startsWith('Dashboard:')) {
+      dashboardUrl = trimmed.replace('Dashboard:', '').trim();
+    }
   }
-  
-  // 如果没有找到实例，添加一个默认的网关实例
-  if (instances.length === 0) {
-    instances.push({
-      id: 'openclaw-gateway',
-      name: 'OpenClaw Gateway',
-      type: 'gateway',
-      status: 'running',
-      port: 18789,
-      lastActive: new Date().toISOString()
-    });
-  }
-  
+
+  // 添加 LaunchAgent 服务实例
+  instances.push({
+    id: 'openclaw-launchagent',
+    name: 'LaunchAgent',
+    type: 'service',
+    status: launchAgentLoaded ? launchAgentStatus : 'stopped',
+    lastActive: new Date().toISOString(),
+  });
+
+  // 添加 Gateway 实例
+  instances.push({
+    id: 'openclaw-gateway',
+    name: 'OpenClaw Gateway',
+    type: 'gateway',
+    status: gatewayStatus,
+    pid: gatewayPid,
+    port: gatewayPort,
+    configPath: dashboardUrl,
+    lastActive: new Date().toISOString(),
+  });
+
   return instances;
 }
 
-// 获取所有 Agent 实例
+// ============================================================================
+// 获取 Agent 实例（已废弃）
+// Agent 不是独立的运行时实例，它们是配置定义，通过 Gateway 运行
+// 此函数保留但返回空数组，避免将 workspace 目录误认为运行中的实例
+// ============================================================================
 async function getAgentInstances(): Promise<InstanceInfo[]> {
-  const instances: InstanceInfo[] = [];
-  const rootDir = getOpenClawRootDir();
-  
-  try {
-    // 检查 ~/.openclaw/workspace-* 目录中的 Agent
-    const entries = await readdir(rootDir);
-    
-    for (const entry of entries) {
-      if (entry.startsWith('workspace-')) {
-        const agentPath = join(rootDir, entry);
-        const configFile = join(agentPath, 'AGENTS.md');
-        
-        if (existsSync(configFile)) {
-          try {
-            const content = await readFile(configFile, 'utf-8');
-            const nameMatch = content.match(/#\s+(.+?)\s+Workspace/) || 
-                            content.match(/#\s+(.+?)\s+Agent/) ||
-                            content.match(/##\s+(.+?)\s+-\s+cto/);
-            
-            const agentName = nameMatch ? nameMatch[1] : entry.replace('workspace-', '');
-            
-            instances.push({
-              id: `agent-${entry}`,
-              name: `${agentName} Agent`,
-              type: 'agent',
-              status: 'running', // 假设 workspace 存在则 Agent 在运行
-              configPath: agentPath,
-              lastActive: new Date().toISOString()
-            });
-          } catch (e) {
-            // 忽略读取错误
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error getting agent instances:', error);
-  }
-  
-  return instances;
+  // Agent 不是独立的运行时实例
+  // 它们是配置定义，通过 Gateway 统一管理和运行
+  // 真正的"实例"只有 Gateway 和 Node 服务
+  return [];
 }
 
 // 获取所有节点实例
@@ -321,22 +299,22 @@ export function setupInstancesIPC() {
     }
   });
 
-  // 删除实例
+  // 删除实例（仅支持停止 Gateway 服务）
   ipcMain.handle('instances:delete', async (_, instanceId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      if (instanceId.startsWith('agent-')) {
-        const workspaceName = instanceId.replace('agent-', 'workspace-');
-        const workspacePath = join(getOpenClawRootDir(), workspaceName);
-        
-        if (existsSync(workspacePath)) {
-          await rm(workspacePath, { recursive: true, force: true });
+      // 实例管理中不应删除 Agent workspace 目录
+      // Agent 的管理应在 Agent 管理页面中进行
+      if (instanceId === 'openclaw-gateway' || instanceId === 'openclaw-launchagent') {
+        // 卸载 LaunchAgent 服务
+        const result = await runOpenClawCommand(['gateway', 'uninstall']);
+        if (result.success) {
           return { success: true };
         } else {
-          return { success: false, error: `Workspace not found: ${workspacePath}` };
+          return { success: false, error: result.error };
         }
       }
-      
-      return { success: false, error: `Cannot delete instance: ${instanceId}` };
+
+      return { success: false, error: `不支持删除此实例: ${instanceId}` };
     } catch (error) {
       return { success: false, error: String(error) };
     }

@@ -53,8 +53,9 @@ const SUB_STEPS: Array<{ key: SubStep; label: string }> = [
 
 const StepBar: React.FC<{ current: SubStep }> = ({ current }) => {
   const idx = SUB_STEPS.findIndex((s) => s.key === current);
+  // 修复 Bug 2: 使用 gap-2 增大间距，overflow-x-auto 允许窄窗口下水平滚动
   return (
-    <div className="mb-6 flex items-center gap-1">
+    <div className="mb-6 flex items-center gap-2 overflow-x-auto">
       {SUB_STEPS.map((s, i) => {
         const done = i < idx;
         const active = i === idx;
@@ -70,7 +71,7 @@ const StepBar: React.FC<{ current: SubStep }> = ({ current }) => {
               }}
             >
               {done ? <CheckCircle2 size={12} /> : null}
-              <span className="hidden sm:inline">{s.label}</span>
+              <span className="hidden sm:inline whitespace-nowrap">{s.label}</span>
             </div>
             {i < SUB_STEPS.length - 1 && (
               <div className="h-px flex-1" style={{ backgroundColor: done ? 'rgba(16,185,129,0.3)' : 'var(--app-border)' }} />

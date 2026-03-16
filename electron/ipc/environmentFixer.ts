@@ -12,7 +12,7 @@ import path from 'path';
 import { existsSync, statSync } from 'fs';
 import fs from 'fs/promises';
 import { spawn } from 'child_process';
-import { getVersionManagerPaths, runCommand } from './settings.js';
+import { getVersionManagerPaths, runCommand, getShellPath, resetShellPathCache } from './settings.js';
 
 // ─── 类型定义（与 src/types/setup.ts 中的 FixResult 保持一致）────────────────
 
@@ -35,16 +35,12 @@ interface FixResult {
 // 实际清除逻辑：将 null 写入模块级缓存变量（见下方 clearPathCache）。
 
 /**
- * 清除 PATH 缓存的标记
- * 由于 settings.ts 和 system.ts 中的 _resolvedShellPath 是模块私有变量，
- * 这里通过执行一次空的 shell PATH 解析来间接刷新缓存。
+ * 清除 PATH 缓存
+ * 调用 settings.ts 导出的 resetShellPathCache() 真正重置 _resolvedShellPath 缓存，
+ * 使下次调用 getShellPath() 重新通过 login shell 解析完整 PATH。
  */
 async function clearPathCache(): Promise<void> {
-  // 通过 runCommand 执行一个简单命令，触发 getShellPath() 重新解析
-  // runCommand 内部会使用 getShellPath()，但缓存已存在时不会重新解析
-  // 因此我们需要一个更直接的方式：直接调用 settings.ts 导出的 runCommand
-  // 并依赖后续的环境重新检测来获取最新 PATH
-  await runCommand('echo', ['path-cache-cleared']);
+  resetShellPathCache();
 }
 
 // ─── 扫描版本管理器目录定位 Node.js ─────────────────────────────────────────
@@ -421,12 +417,12 @@ export async function upgradeNodeVersion(
       };
     }
 
-    // 验证升级结果
+    // 先清除 PATH 缓存，确保验证时使用最新 PATH
     sendFixProgress(sender, 'running', '正在验证升级结果…');
-    const nodeCheck = await runCommand('node', ['--version']);
-
-    // 清除 PATH 缓存
     await clearPathCache();
+
+    // 验证升级结果
+    const nodeCheck = await runCommand('node', ['--version']);
 
     if (nodeCheck.success) {
       sendFixProgress(sender, 'done', `Node.js 已升级到 ${nodeCheck.output.trim()}`);
@@ -527,6 +523,8 @@ async function detectVersionManager(): Promise<VersionManagerInfo | null> {
 
 /**
  * 执行版本管理器的升级命令
+ *
+ * nvm 场景下注入 NVM_DIR 环境变量，确保 nvm.sh 能正确初始化。
  */
 async function runUpgradeCommand(
   vm: VersionManagerInfo,
@@ -539,9 +537,13 @@ async function runUpgradeCommand(
     const shellBin = process.env.SHELL && process.env.SHELL.startsWith('/')
       ? process.env.SHELL
       : '/bin/bash';
-    const cmd = `source "${process.env.NVM_DIR || path.join(os.homedir(), '.nvm')}/nvm.sh" && ${vm.command} ${vm.args.join(' ')}`;
+    const nvmDir = process.env.NVM_DIR || path.join(os.homedir(), '.nvm');
+    const cmd = `source "${nvmDir}/nvm.sh" && ${vm.command} ${vm.args.join(' ')}`;
 
-    return runSpawnCommand(shellBin, ['-l', '-c', cmd], UPGRADE_TIMEOUT, sender);
+    // 注入 NVM_DIR 环境变量，确保子进程中 nvm.sh 能正确定位自身目录
+    const extraEnv: Record<string, string> = { NVM_DIR: nvmDir };
+
+    return runSpawnCommand(shellBin, ['-l', '-c', cmd], UPGRADE_TIMEOUT, sender, extraEnv);
   }
 
   return runSpawnCommand(vm.command, vm.args, UPGRADE_TIMEOUT, sender);
@@ -552,10 +554,13 @@ async function runUpgradeCommand(
 /**
  * 执行 spawn 命令并推送进度
  *
+ * 使用 getShellPath() 获取完整 PATH，确保子进程能访问版本管理器路径。
+ *
  * @param command 命令
  * @param args 参数列表
  * @param timeoutMs 超时时间（毫秒）
  * @param sender 渲染进程 WebContents（用于推送输出）
+ * @param extraEnv 额外注入的环境变量（如 NVM_DIR）
  * @returns 执行结果
  */
 async function runSpawnCommand(
@@ -563,11 +568,15 @@ async function runSpawnCommand(
   args: string[],
   timeoutMs: number,
   sender: Electron.WebContents,
+  extraEnv?: Record<string, string>,
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  // 获取完整的 shell PATH（包含版本管理器路径）
+  const shellPath = await getShellPath();
+
   return new Promise((resolve) => {
     try {
       const child = spawn(command, args, {
-        env: { ...process.env },
+        env: { ...process.env, PATH: shellPath, ...extraEnv },
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 

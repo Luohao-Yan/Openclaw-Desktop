@@ -14,6 +14,7 @@ import {
 } from 'fs';
 import { basename, dirname, extname, join, relative, resolve } from 'path';
 import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
+import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError } from './agentCreateLogic.js';
 
 const WORKSPACE_TRASH_DIRNAME = '.recycle-bin';
 const WORKSPACE_TRASH_MANIFEST = 'manifest.json';
@@ -331,7 +332,6 @@ function getAgentModelSummary(agent: any, config: any) {
 async function runAgentCreateCommand(payload: { name: string; workspace: string; model?: string }) {
   const trimmedName = payload.name.trim();
   const trimmedWorkspace = payload.workspace.trim();
-  const trimmedModel = payload.model?.trim();
 
   if (!trimmedName) {
     throw new Error('智能体名称不能为空');
@@ -341,22 +341,27 @@ async function runAgentCreateCommand(payload: { name: string; workspace: string;
     throw new Error('Workspace 路径不能为空');
   }
 
-  const args = [
-    'agents',
-    'add',
-    trimmedName,
-    '--workspace',
-    trimmedWorkspace,
-    '--non-interactive',
-    '--json',
-  ];
-
-  if (trimmedModel) {
-    args.push('--model', trimmedModel);
+  // 修复 Bug 3: 先执行 openclaw doctor --fix 自动修复配置文件中的 schema 不兼容问题
+  const openclawCmd = resolveOpenClawCommand();
+  try {
+    await new Promise<void>((resolve) => {
+      const doctorChild = spawn(openclawCmd, ['--no-color', 'doctor', '--fix'], {
+        env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+      });
+      doctorChild.on('close', () => resolve());
+      doctorChild.on('error', () => resolve());
+      // doctor --fix 超时 10 秒后继续，不阻塞创建流程
+      setTimeout(() => { try { doctorChild.kill(); } catch {} resolve(); }, 10000);
+    });
+  } catch {
+    // doctor --fix 失败不阻塞，继续尝试创建智能体
   }
 
+  // 使用提取的纯函数构建 CLI 参数
+  const args = buildAgentCreateArgs(payload);
+
   return new Promise<{ success: boolean; output: string; error?: string }>((resolvePromise) => {
-    const child = spawn(resolveOpenClawCommand(), ['--no-color', ...args], {
+    const child = spawn(openclawCmd, ['--no-color', ...args], {
       env: {
         ...process.env,
         NO_COLOR: '1',
@@ -381,10 +386,14 @@ async function runAgentCreateCommand(payload: { name: string; workspace: string;
         return;
       }
 
+      // 修复 Bug 3: 使用错误分类和友好格式化替代原始 stderr
+      const errorType = classifyAgentError(errorOutput);
+      const friendlyError = formatAgentCreateError(errorOutput, errorType);
+
       resolvePromise({
         success: false,
         output: '',
-        error: errorOutput || `Command exited with code ${code}`,
+        error: friendlyError || `Command exited with code ${code}`,
       });
     });
 

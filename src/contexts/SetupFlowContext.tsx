@@ -1,3 +1,9 @@
+// ============================================================================
+// Setup Flow Context — 重构版
+// 使用 useReducer 替代 15+ 个 useState，通过 dispatch(action) 驱动状态变更
+// 保持向后兼容：现有消费者无需修改
+// ============================================================================
+
 import React from 'react';
 import {
   matchPath,
@@ -11,9 +17,12 @@ import type {
 import type {
   ChannelAddResult,
   ChannelConfig,
+  EnvironmentCheckResult,
   FixResult,
-  RuntimeResolution,
+  LegacyRuntimeResolution,
   SetupEnvironmentCheck,
+  SetupEnvironmentCheckData,
+  SetupError,
   SetupInstallResult as SetupInstallFlowResult,
   SetupLocalCheckResult,
   SetupMode,
@@ -21,19 +30,54 @@ import type {
   SetupRemoteVerificationResult,
   SetupSettings,
 } from '../types/setup';
+import type { SetupAction } from './setupActions';
+import type { FixProgressState } from './setupActions';
+import {
+  setupReducer,
+  initialSetupState,
+  createSetupError,
+} from './setupReducer';
+import {
+  selectIsBusy,
+  selectError,
+  selectEnvironmentCheck,
+  selectChannelConfigs,
+  selectHasCompletedSetup,
+} from './setupSelectors';
+import { getPreviousStep } from './setupNavigationGraph';
+import { createFallbackEnvironmentCheck } from './setupFallback';
+import { createLazyChannelConfigs } from '../config/channelFieldDefinitions';
 
-/** 环境修复进度状态 */
-interface FixProgressState {
-  action: string;
-  status: 'idle' | 'running' | 'done' | 'error';
-  message: string;
-}
+// ============================================================================
+// Context Value 接口定义
+// ============================================================================
 
+/**
+ * SetupFlowContext 暴露给消费者的值接口
+ *
+ * 重构要点：
+ * - 新增 error: SetupError | null（结构化错误对象）
+ * - 新增 dispatch: React.Dispatch<SetupAction>（直接 dispatch 场景）
+ * - 保留 errorMessage: string（向后兼容，从 error?.message 派生）
+ * - 保留 environmentCheck: SetupEnvironmentCheck（向后兼容，从新类型映射回旧类型）
+ * - 新增 environmentCheckResult: EnvironmentCheckResult（新判别联合类型）
+ *
+ * @see 需求 1.1 — useReducer 模式
+ * @see 需求 2.4 — 结构化错误对象
+ */
 interface SetupFlowContextValue {
   completeSetup: () => Promise<void>;
   currentStep: string;
+  /** 旧版环境检测接口（向后兼容） */
   environmentCheck: SetupEnvironmentCheck;
+  /** 新版环境检测结果（判别联合） */
+  environmentCheckResult: EnvironmentCheckResult;
+  /** 结构化错误对象 */
+  error: SetupError | null;
+  /** 向后兼容：从 error?.message 派生的错误消息字符串 */
   errorMessage: string;
+  /** dispatch 函数，供需要直接 dispatch 的场景使用 */
+  dispatch: React.Dispatch<SetupAction>;
   goBackStep: () => void;
   hasCompletedSetup: boolean;
   isBootstrapping: boolean;
@@ -59,7 +103,7 @@ interface SetupFlowContextValue {
   verifyRemoteSetup: () => Promise<SetupRemoteVerificationResult>;
 
   // 运行时解析
-  runtimeResolution: RuntimeResolution | null;
+  runtimeResolution: LegacyRuntimeResolution | null;
 
   // 环境修复
   fixEnvironment: (action: 'install' | 'upgrade' | 'fixPath') => Promise<FixResult>;
@@ -83,13 +127,11 @@ interface SetupFlowContextValue {
 
 const SetupFlowContext = React.createContext<SetupFlowContextValue | undefined>(undefined);
 
-const defaultRemoteDraft: SetupRemoteDraft = {
-  host: '',
-  port: '3000',
-  protocol: 'http',
-  token: '',
-};
+// ============================================================================
+// 默认值常量
+// ============================================================================
 
+/** 默认本地检测结果 */
 const defaultLocalCheckResult: SetupLocalCheckResult = {
   commandDetected: false,
   commandPath: '',
@@ -100,187 +142,11 @@ const defaultLocalCheckResult: SetupLocalCheckResult = {
   error: '',
 };
 
-/** 默认支持的消息渠道列表 */
-const defaultChannelConfigs: ChannelConfig[] = [
-  // —— 内置渠道（Gateway 原生支持） ——
-  {
-    key: 'telegram', label: 'Telegram', hint: 'Bot API via grammY，支持群组', tokenLabel: 'Bot Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'token', label: 'Bot Token', placeholder: '例如 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11', type: 'password', required: true }],
-    cliHint: 'openclaw channels add --channel telegram --token <bot-token>',
-  },
-  {
-    key: 'whatsapp', label: 'WhatsApp', hint: '使用 Baileys，需 QR 配对扫码', tokenLabel: 'QR Pairing',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'info', label: '配对方式', placeholder: '启用后通过 openclaw channels login --channel whatsapp 扫码配对', type: 'info', required: false }],
-    cliHint: 'openclaw channels login --channel whatsapp',
-  },
-  {
-    key: 'feishu', label: 'Feishu / Lark', hint: '飞书/Lark 机器人，WebSocket 接入', tokenLabel: 'App ID / App Secret',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'appId', label: 'App ID', placeholder: '飞书开放平台应用的 App ID', type: 'text', required: true },
-      { id: 'appSecret', label: 'App Secret', placeholder: '飞书开放平台应用的 App Secret', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel feishu --app-id <id> --app-secret <secret>',
-  },
-  {
-    key: 'discord', label: 'Discord', hint: 'Bot API + Gateway，支持服务器/频道/DM', tokenLabel: 'Bot Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'token', label: 'Bot Token', placeholder: '从 Discord Developer Portal 获取', type: 'password', required: true }],
-    cliHint: 'openclaw channels add --channel discord --token <bot-token>',
-  },
-  {
-    key: 'signal', label: 'Signal', hint: '通过 signal-cli 接入，注重隐私', tokenLabel: 'Signal CLI Path',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'phone', label: '手机号', placeholder: '+86xxxxxxxxxxx', type: 'text', required: true }],
-    cliHint: 'openclaw channels add --channel signal --phone <number>',
-  },
-  {
-    key: 'slack', label: 'Slack', hint: 'Bolt SDK，Workspace 应用', tokenLabel: 'Bot OAuth Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'appToken', label: 'App Token', placeholder: 'xapp-1-...', type: 'password', required: true },
-      { id: 'botToken', label: 'Bot Token', placeholder: 'xoxb-...', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel slack --app-token <xapp-...> --bot-token <xoxb-...>',
-  },
-  {
-    key: 'bluebubbles', label: 'BlueBubbles', hint: '推荐的 iMessage 方案，需 macOS BlueBubbles 服务器', tokenLabel: 'Server Password',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'url', label: 'Server URL', placeholder: 'http://localhost:1234', type: 'text', required: true },
-      { id: 'password', label: 'Password', placeholder: 'BlueBubbles 服务器密码', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel bluebubbles --url <server-url> --password <pwd>',
-  },
-  {
-    key: 'imessage', label: 'iMessage (legacy)', hint: '旧版 imsg CLI 集成（已弃用，推荐 BlueBubbles）', tokenLabel: 'CLI Path',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'info', label: '说明', placeholder: '已弃用，请使用 BlueBubbles 替代', type: 'info', required: false }],
-    cliHint: 'openclaw channels add --channel imessage',
-  },
-  {
-    key: 'googlechat', label: 'Google Chat', hint: 'Google Chat API，HTTP Webhook', tokenLabel: 'Webhook URL / Service Account',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'serviceAccountKey', label: 'Service Account JSON', placeholder: 'Service Account 密钥文件路径或 JSON 内容', type: 'text', required: true }],
-    cliHint: 'openclaw channels add --channel googlechat --service-account-key <path>',
-  },
-  {
-    key: 'irc', label: 'IRC', hint: '经典 IRC 服务器，支持频道和 DM', tokenLabel: 'Server / Nick',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'server', label: 'Server', placeholder: 'irc.libera.chat:6697', type: 'text', required: true },
-      { id: 'nick', label: 'Nick', placeholder: 'openclaw-bot', type: 'text', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel irc --server <host:port> --nick <name>',
-  },
-  {
-    key: 'webchat', label: 'WebChat', hint: 'Gateway 内置 WebChat UI，WebSocket 连接', tokenLabel: 'WebSocket URL',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'info', label: '说明', placeholder: '无需额外配置，启用后 Gateway 自动提供 WebChat 界面', type: 'info', required: false }],
-    cliHint: 'openclaw channels add --channel webchat',
-  },
-  // —— 插件渠道（需单独安装） ——
-  {
-    key: 'line', label: 'LINE', hint: 'LINE Messaging API 机器人（插件）', tokenLabel: 'Channel Access Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'channelSecret', label: 'Channel Secret', placeholder: 'LINE Channel Secret', type: 'password', required: true },
-      { id: 'accessToken', label: 'Access Token', placeholder: 'LINE Channel Access Token', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel line --channel-secret <secret> --access-token <token>',
-  },
-  {
-    key: 'matrix', label: 'Matrix', hint: 'Matrix 协议接入（插件）', tokenLabel: 'Access Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'homeserver', label: 'Homeserver URL', placeholder: 'https://matrix.org', type: 'text', required: true },
-      { id: 'accessToken', label: 'Access Token', placeholder: 'Matrix Access Token', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel matrix --homeserver <url> --access-token <token>',
-  },
-  {
-    key: 'mattermost', label: 'Mattermost', hint: 'Bot API + WebSocket，支持频道/群组/DM（插件）', tokenLabel: 'Bot Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'url', label: 'Server URL', placeholder: 'https://mattermost.example.com', type: 'text', required: true },
-      { id: 'token', label: 'Bot Token', placeholder: 'Mattermost Bot Token', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel mattermost --url <server-url> --token <bot-token>',
-  },
-  {
-    key: 'msteams', label: 'Microsoft Teams', hint: 'Bot Framework，企业支持（插件）', tokenLabel: 'App ID / Password',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'appId', label: 'App ID', placeholder: 'Azure Bot App ID', type: 'text', required: true },
-      { id: 'appPassword', label: 'App Password', placeholder: 'Azure Bot App Password', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel msteams --app-id <id> --app-password <pwd>',
-  },
-  {
-    key: 'nextcloudtalk', label: 'Nextcloud Talk', hint: '自托管 Nextcloud Talk，Webhook 接入（插件）', tokenLabel: 'Webhook Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'url', label: 'Nextcloud URL', placeholder: 'https://cloud.example.com', type: 'text', required: true },
-      { id: 'token', label: 'App Token', placeholder: 'Nextcloud App Token', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel nextcloudtalk --url <nc-url> --token <app-token>',
-  },
-  {
-    key: 'nostr', label: 'Nostr', hint: '去中心化 DM，NIP-04 协议（插件）', tokenLabel: 'Private Key',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'privateKey', label: 'Private Key (nsec)', placeholder: 'nsec1...', type: 'password', required: true }],
-    cliHint: 'openclaw channels add --channel nostr --private-key <nsec...>',
-  },
-  {
-    key: 'synologychat', label: 'Synology Chat', hint: 'Synology NAS Chat，Webhook 接入（插件）', tokenLabel: 'Webhook URL',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'incomingUrl', label: 'Incoming Webhook URL', placeholder: 'https://nas.example.com/webapi/...', type: 'text', required: true },
-      { id: 'outgoingToken', label: 'Outgoing Token', placeholder: 'Outgoing Webhook Token', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel synologychat --incoming-url <url> --outgoing-token <token>',
-  },
-  {
-    key: 'tlon', label: 'Tlon', hint: 'Urbit 生态消息应用（插件）', tokenLabel: 'Ship Code',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'shipUrl', label: 'Ship URL', placeholder: 'http://localhost:8080', type: 'text', required: true },
-      { id: 'code', label: 'Access Code', placeholder: '+code from Urbit', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel tlon --ship-url <url> --code <access-code>',
-  },
-  {
-    key: 'twitch', label: 'Twitch', hint: 'Twitch 聊天，IRC 连接（插件）', tokenLabel: 'OAuth Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [
-      { id: 'channel', label: 'Channel', placeholder: 'Twitch 频道名', type: 'text', required: true },
-      { id: 'oauthToken', label: 'OAuth Token', placeholder: 'oauth:...', type: 'password', required: true },
-    ],
-    cliHint: 'openclaw channels add --channel twitch --channel-name <name> --oauth-token <token>',
-  },
-  {
-    key: 'zalo', label: 'Zalo', hint: 'Zalo Bot API，越南流行通讯应用（插件）', tokenLabel: 'API Token',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'token', label: 'API Token', placeholder: 'Zalo OA Access Token', type: 'password', required: true }],
-    cliHint: 'openclaw channels add --channel zalo --token <oa-access-token>',
-  },
-  {
-    key: 'zalopersonal', label: 'Zalo Personal', hint: 'Zalo 个人账号，QR 登录（插件）', tokenLabel: 'QR Login',
-    enabled: false, token: '', fieldValues: {}, testStatus: 'idle',
-    fields: [{ id: 'info', label: '配对方式', placeholder: '启用后通过 openclaw channels login --channel zalopersonal 扫码登录', type: 'info', required: false }],
-    cliHint: 'openclaw channels login --channel zalopersonal',
-  },
-];
+// ============================================================================
+// 路由匹配辅助
+// ============================================================================
 
-/** 默认环境修复进度状态 */
-const defaultFixProgress: FixProgressState = {
-  action: '',
-  status: 'idle',
-  message: '',
-};
-
+/** 引导流程所有路由模式 */
 const setupRoutePatterns = [
   '/setup/welcome',
   '/setup/local/intro',
@@ -290,7 +156,7 @@ const setupRoutePatterns = [
   '/setup/local/install-guide',
   '/setup/local/configure',
   '/setup/local/channels',
-  '/setup/local/create-agent',  // 新增：创建 Agent 步骤
+  '/setup/local/create-agent',
   '/setup/local/verify',
   '/setup/remote/intro',
   '/setup/remote/config',
@@ -298,221 +164,201 @@ const setupRoutePatterns = [
   '/setup/complete',
 ] as const;
 
+/** 根据当前路径匹配引导步骤 */
 const getCurrentStepFromPath = (pathname: string) => {
   const matchedPattern = setupRoutePatterns.find((pattern) => matchPath(pattern, pathname));
   return matchedPattern || '/setup/welcome';
 };
 
-const getPreviousStep = (
-  pathname: string,
+// ============================================================================
+// 类型映射辅助函数
+// ============================================================================
+
+/**
+ * 将新版 EnvironmentCheckResult 映射为旧版 SetupEnvironmentCheck
+ * 确保现有消费者页面无需修改即可继续使用旧接口
+ */
+const mapToLegacyEnvironmentCheck = (
+  result: EnvironmentCheckResult,
   setupSettings: SetupSettings,
-  mode: SetupMode | null,
-): string | null => {
-  const step = getCurrentStepFromPath(pathname);
+): SetupEnvironmentCheck => {
+  // 提取数据：成功和降级模式有 data，失败模式使用 partialData 或默认值
+  let data: Partial<SetupEnvironmentCheckData>;
+  let source: 'ipc' | 'fallback';
+  let diagnosticError: string | undefined;
 
-  if (step === '/setup/local/configure') {
-    if (setupSettings.localInstallValidated) {
-      return '/setup/local/confirm-existing';
-    }
-
-    return '/setup/local/install-guide';
+  switch (result.status) {
+    case 'success':
+      data = result.data;
+      source = 'ipc';
+      break;
+    case 'fallback':
+      data = result.data;
+      source = 'fallback';
+      break;
+    case 'failed':
+      data = result.partialData || {};
+      source = 'fallback';
+      diagnosticError = result.error.message;
+      break;
   }
 
-  if (step === '/setup/complete') {
-    return mode === 'remote'
-      ? '/setup/remote/verify'
-      : '/setup/local/verify';
-  }
+  // 确定 runtimeMode（旧版字段，从 runtimeTier 映射）
+  const runtimeTier = data.runtimeTier || 'missing';
+  let runtimeMode: 'bundled' | 'system' | 'missing' = 'missing';
+  if (runtimeTier === 'bundled') runtimeMode = 'bundled';
+  else if (runtimeTier === 'system') runtimeMode = 'system';
 
-  const backMap: Record<string, string | null> = {
-    '/setup/welcome': null,
-    '/setup/local/intro': '/setup/welcome',
-    '/setup/local/environment': '/setup/local/intro',
-    '/setup/local/check': '/setup/local/environment',
-    '/setup/local/confirm-existing': '/setup/local/check',
-    '/setup/local/install-guide': '/setup/local/check',
-    '/setup/local/channels': '/setup/local/configure',
-    '/setup/local/create-agent': '/setup/local/channels',
-    '/setup/local/verify': '/setup/local/create-agent',
-    '/setup/remote/intro': '/setup/welcome',
-    '/setup/remote/config': '/setup/remote/intro',
-    '/setup/remote/verify': '/setup/remote/config',
+  return {
+    source,
+    platform: data.platform || 'unknown',
+    platformLabel: data.platformLabel || '未知系统',
+    runtimeMode,
+    runtimeCommand: undefined,
+    bundledRuntimeAvailable: data.bundledNodeAvailable && data.bundledOpenClawAvailable ? true : false,
+    nodeInstalled: data.nodeInstalled ?? false,
+    nodeVersion: data.nodeVersion,
+    nodeVersionSatisfies: data.nodeVersionSatisfies ?? false,
+    npmInstalled: data.npmInstalled ?? false,
+    npmVersion: data.npmVersion,
+    openclawInstalled: data.openclawInstalled ?? false,
+    openclawVersion: data.openclawVersion,
+    openclawConfigExists: data.openclawConfigExists ?? false,
+    openclawRootDir: data.openclawRootDir || setupSettings.openclawRootDir || '',
+    recommendedInstallCommand: data.recommendedInstallCommand || '',
+    recommendedInstallLabel: data.recommendedInstallLabel || '',
+    notes: data.notes || [],
+    diagnosticError,
+    bundledNodeAvailable: data.bundledNodeAvailable ?? false,
+    bundledNodePath: data.bundledNodePath,
+    bundledOpenClawAvailable: data.bundledOpenClawAvailable ?? false,
+    bundledOpenClawPath: data.bundledOpenClawPath,
+    runtimeTier,
+    fixableIssues: data.fixableIssues || [],
   };
-
-  return backMap[step] || '/setup/welcome';
 };
 
+/**
+ * 将 IPC 返回的环境检测原始结果转换为新版 EnvironmentCheckResult（success 状态）
+ */
+const mapIpcResultToEnvironmentCheckResult = (
+  raw: any,
+): EnvironmentCheckResult & { status: 'success' } => {
+  return {
+    status: 'success',
+    data: {
+      platform: raw.platform || 'unknown',
+      platformLabel: raw.platformLabel || '未知系统',
+      runtimeTier: raw.runtimeTier || 'missing',
+      bundledNodeAvailable: raw.bundledNodeAvailable || false,
+      bundledNodePath: raw.bundledNodePath,
+      bundledOpenClawAvailable: raw.bundledOpenClawAvailable || false,
+      bundledOpenClawPath: raw.bundledOpenClawPath,
+      nodeInstalled: raw.nodeInstalled || false,
+      nodeVersion: raw.nodeVersion,
+      nodeVersionSatisfies: raw.nodeVersionSatisfies || false,
+      npmInstalled: raw.npmInstalled || false,
+      npmVersion: raw.npmVersion,
+      openclawInstalled: raw.openclawInstalled || false,
+      openclawVersion: raw.openclawVersion,
+      openclawConfigExists: raw.openclawConfigExists || false,
+      openclawRootDir: raw.openclawRootDir || '',
+      recommendedInstallCommand: raw.recommendedInstallCommand || '',
+      recommendedInstallLabel: raw.recommendedInstallLabel || '',
+      notes: raw.notes || [],
+      fixableIssues: raw.fixableIssues || [],
+    },
+  };
+};
+
+/**
+ * 规范化从持久化存储读取的设置
+ */
 const normalizeSettings = (
   result: SettingsGetResult<SetupSettings> | null,
 ): SetupSettings => {
   if (!result?.success || !result.settings) {
     return {};
   }
-
   return result.settings;
 };
 
-const detectRendererPlatform = () => {
-  const platform = navigator.platform || navigator.userAgent || 'unknown';
-  const normalized = platform.toLowerCase();
-
-  if (normalized.includes('mac')) {
-    return {
-      platform: 'darwin',
-      platformLabel: 'macOS',
-    };
-  }
-
-  if (normalized.includes('win')) {
-    return {
-      platform: 'win32',
-      platformLabel: 'Windows',
-    };
-  }
-
-  if (normalized.includes('linux')) {
-    return {
-      platform: 'linux',
-      platformLabel: 'Linux',
-    };
-  }
-
-  return {
-    platform: 'unknown',
-    platformLabel: '未知系统',
-  };
-};
-
-/**
- * 创建降级环境检测结果。
- * 当 IPC 调用失败或不可用时，保留已成功获取的部分检测结果，
- * 仅对缺失字段使用降级默认值。
- *
- * @param setupSettings - 当前设置状态，用于提取 openclawRootDir 等已知信息
- * @param errorMessage - 可选的具体错误原因，会写入 notes 和 diagnosticError
- * @param partialResult - 可选的部分检测结果，已成功获取的字段将被保留
- */
-const createFallbackEnvironmentCheck = (
-  setupSettings: SetupSettings,
-  errorMessage?: string,
-  partialResult?: Partial<SetupEnvironmentCheck>,
-): SetupEnvironmentCheck => {
-  const platformInfo = detectRendererPlatform();
-  const isWindows = platformInfo.platform === 'win32';
-
-  // 构建降级模式说明 notes
-  const notes: string[] = [
-    '当前未能从桌面端主进程拿到完整环境诊断结果，已切换为降级检测模式。',
-    '你仍然可以查看后续安装检测；如需完整 Node / npm / CLI 诊断，请确认桌面端已更新到最新运行时代码。',
-  ];
-
-  // 将具体错误原因插入 notes 首位
-  if (errorMessage) {
-    notes.unshift(`环境自检异常：${errorMessage}`);
-  }
-
-  // 降级默认值：所有字段的兜底
-  const defaults: SetupEnvironmentCheck = {
-    source: 'fallback',
-    platform: platformInfo.platform,
-    platformLabel: platformInfo.platformLabel,
-    runtimeMode: 'missing',
-    runtimeCommand: undefined,
-    bundledRuntimeAvailable: false,
-    nodeInstalled: false,
-    nodeVersionSatisfies: false,
-    npmInstalled: false,
-    openclawInstalled: false,
-    openclawConfigExists: false,
-    openclawRootDir: setupSettings.openclawRootDir || '',
-    recommendedInstallCommand: isWindows
-      ? 'iwr -useb https://openclaw.ai/install.ps1 | iex'
-      : 'curl -fsSL https://openclaw.ai/install.sh | bash',
-    recommendedInstallLabel: isWindows
-      ? 'PowerShell 安装脚本（Windows / WSL）'
-      : 'Shell 安装脚本（macOS / Linux）',
-    notes,
-    diagnosticError: errorMessage,
-    bundledNodeAvailable: false,
-    bundledOpenClawAvailable: false,
-    runtimeTier: 'missing',
-    fixableIssues: [],
-  };
-
-  // 无部分结果时直接返回默认值
-  if (!partialResult) {
-    return defaults;
-  }
-
-  // 合并：保留 partialResult 中已有的有效字段，缺失字段使用默认值。
-  // source 和 runtimeMode 强制为降级值，notes 合并部分结果中的原有备注。
-  const mergedNotes = [
-    ...notes,
-    ...(partialResult.notes || []),
-  ];
-
-  return {
-    ...defaults,
-    ...partialResult,
-    // 以下字段强制使用降级值，不被 partialResult 覆盖
-    source: 'fallback',
-    runtimeMode: 'missing',
-    notes: mergedNotes,
-    diagnosticError: errorMessage || partialResult.diagnosticError,
-    // 确保新增字段有兜底值（partialResult 中可能未包含）
-    bundledNodeAvailable: partialResult.bundledNodeAvailable ?? false,
-    bundledOpenClawAvailable: partialResult.bundledOpenClawAvailable ?? false,
-    runtimeTier: partialResult.runtimeTier ?? 'missing',
-    fixableIssues: partialResult.fixableIssues ?? [],
-  };
-};
-
-const defaultSetupInstallResult: SetupInstallFlowResult = {
-  success: false,
-  message: '',
-  command: '',
-};
+// ============================================================================
+// SetupFlowProvider — 使用 useReducer 的重构版
+// ============================================================================
 
 export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [isBootstrapping, setIsBootstrapping] = React.useState(true);
-  const [isBusy, setIsBusy] = React.useState(false);
-  const [setupSettings, setSetupSettings] = React.useState<SetupSettings>({});
-  const [mode, setMode] = React.useState<SetupMode | null>(null);
-  const [environmentCheck, setEnvironmentCheck] = React.useState<SetupEnvironmentCheck>(createFallbackEnvironmentCheck({}));
-  const [localCheckResult, setLocalCheckResult] = React.useState<SetupLocalCheckResult | null>(null);
-  const [remoteDraft, setRemoteDraft] = React.useState<SetupRemoteDraft>(defaultRemoteDraft);
-  const [remoteVerification, setRemoteVerification] = React.useState<SetupRemoteVerificationResult | null>(null);
-  const [setupInstallResult, setSetupInstallResult] = React.useState<SetupInstallFlowResult>(defaultSetupInstallResult);
-  const [errorMessage, setErrorMessage] = React.useState('');
+
+  // ========================================================================
+  // 核心状态：单一 useReducer 替代 15+ 个 useState
+  // @see 需求 1.1, 1.6
+  // ========================================================================
+  const [state, dispatch] = React.useReducer(setupReducer, {
+    ...initialSetupState,
+    channels: {
+      ...initialSetupState.channels,
+      configs: createLazyChannelConfigs(),
+    },
+  });
+
+  // 最新设置引用（用于异步回调中获取最新值）
   const latestSettingsRef = React.useRef<SetupSettings>({});
 
-  // 运行时解析状态
-  const [runtimeResolution, setRuntimeResolution] = React.useState<RuntimeResolution | null>(null);
+  // ========================================================================
+  // 从 reducer state 中通过 selectors 提取派生状态
+  // @see 需求 1.4, 1.6
+  // ========================================================================
+  const isBusy = selectIsBusy(state);
+  const error = selectError(state);
+  const environmentCheckResult = selectEnvironmentCheck(state);
+  const channelConfigs = selectChannelConfigs(state);
+  const hasCompletedSetup = selectHasCompletedSetup(state);
 
-  // 环境修复进度状态
-  const [fixProgress, setFixProgress] = React.useState<FixProgressState>(defaultFixProgress);
+  // 向后兼容：从结构化错误对象派生错误消息字符串
+  const errorMessage = error?.message || '';
 
-  // 渠道绑定配置状态
-  const [channelConfigs, setChannelConfigs] = React.useState<ChannelConfig[]>(defaultChannelConfigs);
-
-  // 渠道添加结果状态
-  const [channelAddResults, setChannelAddResults] = React.useState<ChannelAddResult[]>([]);
-  // 引导流程中创建的 Agent 信息
-  const [createdAgent, setCreatedAgent] = React.useState<{ id: string; name: string } | null>(null);
+  // 向后兼容：将新版 EnvironmentCheckResult 映射为旧版 SetupEnvironmentCheck
+  const environmentCheck = React.useMemo(
+    () => mapToLegacyEnvironmentCheck(environmentCheckResult, state.settings),
+    [environmentCheckResult, state.settings],
+  );
 
   const currentStep = React.useMemo(
     () => getCurrentStepFromPath(location.pathname),
     [location.pathname],
   );
 
-  const hasCompletedSetup = Boolean(setupSettings.setupCompleted);
-
+  // 同步最新设置到 ref
   React.useEffect(() => {
-    latestSettingsRef.current = setupSettings;
-  }, [setupSettings]);
+    latestSettingsRef.current = state.settings;
+  }, [state.settings]);
 
+  // ========================================================================
+  // 向后兼容：setErrorMessage 适配器
+  // 将旧版 setErrorMessage(string) 调用转换为 dispatch SET_ERROR
+  // ========================================================================
+  const setErrorMessage = React.useCallback<React.Dispatch<React.SetStateAction<string>>>((action) => {
+    if (typeof action === 'function') {
+      // 函数式更新：基于当前 errorMessage 计算新值
+      const currentMsg = error?.message || '';
+      const newMsg = action(currentMsg);
+      if (newMsg) {
+        dispatch({ type: 'SET_ERROR', payload: createSetupError('UNKNOWN', newMsg, '请重试') });
+      } else {
+        dispatch({ type: 'SET_ERROR', payload: null });
+      }
+    } else if (action) {
+      dispatch({ type: 'SET_ERROR', payload: createSetupError('UNKNOWN', action, '请重试') });
+    } else {
+      dispatch({ type: 'SET_ERROR', payload: null });
+    }
+  }, [error]);
+
+  // ========================================================================
+  // 持久化设置到 Electron Store
+  // ========================================================================
   const persistPartialState = React.useCallback(async (updates: Partial<SetupSettings>) => {
     const nextSettings = {
       ...latestSettingsRef.current,
@@ -521,73 +367,84 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     latestSettingsRef.current = nextSettings;
-    setSetupSettings(nextSettings);
+    dispatch({ type: 'SET_SETTINGS', payload: nextSettings });
 
     if (typeof window.electronAPI?.settingsSet === 'function') {
       await window.electronAPI.settingsSet(nextSettings);
     }
   }, []);
 
+  // ========================================================================
+  // 环境检测刷新
+  // @see 需求 2.1, 2.2
+  // ========================================================================
   const refreshEnvironmentCheck = React.useCallback(async () => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
-      const result = typeof window.electronAPI?.setupEnvironmentCheck === 'function'
-        ? await window.electronAPI.setupEnvironmentCheck()
-        : createFallbackEnvironmentCheck(latestSettingsRef.current, '当前桌面端未暴露 setupEnvironmentCheck IPC');
-      const normalizedResult: SetupEnvironmentCheck = (result as Partial<SetupEnvironmentCheck>).source
-        ? {
-            ...result,
-            source: 'ipc' as const,
-            runtimeMode: (result as Partial<SetupEnvironmentCheck>).runtimeMode || 'missing',
-            bundledRuntimeAvailable: (result as Partial<SetupEnvironmentCheck>).bundledRuntimeAvailable || false,
-            bundledNodeAvailable: (result as Partial<SetupEnvironmentCheck>).bundledNodeAvailable || false,
-            bundledOpenClawAvailable: (result as Partial<SetupEnvironmentCheck>).bundledOpenClawAvailable || false,
-            runtimeTier: (result as Partial<SetupEnvironmentCheck>).runtimeTier || 'missing',
-            fixableIssues: (result as Partial<SetupEnvironmentCheck>).fixableIssues || [],
-          } as SetupEnvironmentCheck
-        : {
-            ...result,
-            source: 'ipc' as const,
-            runtimeMode: 'missing',
-            bundledRuntimeAvailable: false,
-            bundledNodeAvailable: false,
-            bundledOpenClawAvailable: false,
-            runtimeTier: 'missing' as const,
-            fixableIssues: [],
-          };
+      if (typeof window.electronAPI?.setupEnvironmentCheck !== 'function') {
+        // IPC 不可用 — 使用降级结果并显示明确提示
+        // @see 需求 2.2
+        const fallbackResult = createFallbackEnvironmentCheck(
+          undefined,
+          '当前桌面端未暴露 setupEnvironmentCheck IPC',
+        );
+        dispatch({ type: 'SET_ENVIRONMENT_CHECK', payload: fallbackResult });
 
-      setEnvironmentCheck(normalizedResult);
+        const legacyResult = mapToLegacyEnvironmentCheck(fallbackResult, latestSettingsRef.current);
+        return legacyResult;
+      }
 
+      const raw = await window.electronAPI.setupEnvironmentCheck();
+      const newResult = mapIpcResultToEnvironmentCheckResult(raw);
+      dispatch({ type: 'SET_ENVIRONMENT_CHECK', payload: newResult });
+
+      // newResult 是 success 状态，可以安全访问 data
       await persistPartialState({
-        detectedPlatform: normalizedResult.platform,
-        detectedPlatformLabel: normalizedResult.platformLabel,
-        openclawRootDir: normalizedResult.openclawRootDir || latestSettingsRef.current.openclawRootDir,
+        detectedPlatform: newResult.data.platform,
+        detectedPlatformLabel: newResult.data.platformLabel,
+        openclawRootDir: newResult.data.openclawRootDir || latestSettingsRef.current.openclawRootDir,
         setupCurrentStep: '/setup/local/environment',
       });
 
-      return normalizedResult;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const fallbackResult = createFallbackEnvironmentCheck(latestSettingsRef.current, message);
-      setEnvironmentCheck(fallbackResult);
-      setErrorMessage('环境检测未能完成，请重试。');
+      return mapToLegacyEnvironmentCheck(newResult, latestSettingsRef.current);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // 使用降级工厂函数保留部分结果
+      const fallbackResult = createFallbackEnvironmentCheck(undefined, message);
+      dispatch({ type: 'SET_ENVIRONMENT_CHECK', payload: fallbackResult });
+      dispatch({
+        type: 'SET_ERROR',
+        payload: createSetupError(
+          'ENVIRONMENT_CHECK_FAILED',
+          '环境检测未能完成，请重试。',
+          '请检查桌面端是否为最新版本',
+          message,
+        ),
+      });
+
+      // fallbackResult 始终是 fallback 状态，提取 data 用于持久化
+      const fallbackData = fallbackResult.status !== 'failed' ? fallbackResult.data : undefined;
       await persistPartialState({
-        detectedPlatform: fallbackResult.platform,
-        detectedPlatformLabel: fallbackResult.platformLabel,
-        openclawRootDir: fallbackResult.openclawRootDir || latestSettingsRef.current.openclawRootDir,
+        detectedPlatform: fallbackData?.platform,
+        detectedPlatformLabel: fallbackData?.platformLabel,
+        openclawRootDir: fallbackData?.openclawRootDir || latestSettingsRef.current.openclawRootDir,
         setupCurrentStep: '/setup/local/environment',
       });
-      return fallbackResult;
+
+      return mapToLegacyEnvironmentCheck(fallbackResult, latestSettingsRef.current);
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
   }, [persistPartialState]);
 
+  // ========================================================================
+  // 本地安装检测刷新
+  // ========================================================================
   const refreshLocalCheck = React.useCallback(async () => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       const [detectedPathResult, commandResult, rootResult] = await Promise.all([
@@ -622,7 +479,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         error: commandResult?.error || rootResult?.error || '',
       };
 
-      setLocalCheckResult(nextResult);
+      dispatch({ type: 'SET_LOCAL_CHECK', payload: nextResult });
       await persistPartialState({
         localInstallValidated: nextResult.commandDetected && nextResult.rootDirDetected,
         openclawPath: nextResult.commandPath || latestSettingsRef.current.openclawPath,
@@ -631,23 +488,34 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
 
       return nextResult;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setErrorMessage('检测过程中出现问题，请重试。');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      dispatch({
+        type: 'SET_ERROR',
+        payload: createSetupError(
+          'IPC_CALL_FAILED',
+          '检测过程中出现问题，请重试。',
+          '请确认桌面端已正确安装',
+          message,
+        ),
+      });
       const nextResult = {
         ...defaultLocalCheckResult,
         error: message,
       };
-      setLocalCheckResult(nextResult);
+      dispatch({ type: 'SET_LOCAL_CHECK', payload: nextResult });
       return nextResult;
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
-  }, [persistPartialState, setupSettings.openclawPath, setupSettings.openclawRootDir]);
+  }, [persistPartialState]);
 
+  // ========================================================================
+  // OpenClaw 自动安装
+  // ========================================================================
   const installOpenClawForSetup = React.useCallback(async () => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     const runningState: SetupInstallFlowResult = {
       success: false,
@@ -655,7 +523,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       command: environmentCheck.recommendedInstallCommand,
     };
 
-    setSetupInstallResult(runningState);
+    dispatch({ type: 'SET_INSTALL_RESULT', payload: runningState });
     await persistPartialState({
       setupInstallStatus: 'running',
       setupInstallMessage: runningState.message,
@@ -666,13 +534,13 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const result: SetupInstallResult = typeof window.electronAPI?.setupInstallOpenClaw === 'function'
         ? await window.electronAPI.setupInstallOpenClaw()
         : {
-          success: false,
-          message: '当前桌面端未提供一键安装能力。',
-          command: environmentCheck.recommendedInstallCommand,
-          error: 'setupInstallOpenClaw IPC 不可用',
-        };
+            success: false,
+            message: '当前桌面端未提供一键安装能力。',
+            command: environmentCheck.recommendedInstallCommand,
+            error: 'setupInstallOpenClaw IPC 不可用',
+          };
 
-      setSetupInstallResult(result);
+      dispatch({ type: 'SET_INSTALL_RESULT', payload: result });
 
       await persistPartialState({
         setupInstallStatus: result.success ? 'succeeded' : 'failed',
@@ -681,26 +549,40 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
 
       if (!result.success) {
-        setErrorMessage('安装未能完成，请检查网络连接后重试。');
+        dispatch({
+          type: 'SET_ERROR',
+          payload: createSetupError(
+            'INSTALL_FAILED',
+            '安装未能完成，请检查网络连接后重试。',
+            '请确认网络连接正常',
+            result.error,
+          ),
+        });
         return result;
       }
 
       await refreshEnvironmentCheck();
       await refreshLocalCheck();
 
-      // 不在这里 navigate，让前端安装页面走完 model/workspace/gateway 子步骤后再跳转
-
       return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       const failedResult: SetupInstallFlowResult = {
         success: false,
         message: 'OpenClaw 自动安装失败。',
         command: environmentCheck.recommendedInstallCommand,
         error: message,
       };
-      setSetupInstallResult(failedResult);
-      setErrorMessage('安装未能完成，请检查网络连接后重试。');
+      dispatch({ type: 'SET_INSTALL_RESULT', payload: failedResult });
+      dispatch({
+        type: 'SET_ERROR',
+        payload: createSetupError(
+          'INSTALL_FAILED',
+          '安装未能完成，请检查网络连接后重试。',
+          '请确认网络连接正常',
+          message,
+        ),
+      });
       await persistPartialState({
         setupInstallStatus: 'failed',
         setupInstallMessage: failedResult.message,
@@ -708,16 +590,19 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
       return failedResult;
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
-  }, [environmentCheck.recommendedInstallCommand, navigate, persistPartialState, refreshEnvironmentCheck, refreshLocalCheck]);
+  }, [environmentCheck.recommendedInstallCommand, persistPartialState, refreshEnvironmentCheck, refreshLocalCheck]);
 
+  // ========================================================================
+  // 保存本地配置
+  // ========================================================================
   const saveLocalConfiguration = React.useCallback(async (payload: {
     openclawPath: string;
     openclawRootDir: string;
   }) => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       await persistPartialState({
@@ -727,19 +612,17 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setupCurrentStep: '/setup/local/configure',
         setupMode: 'local',
       });
-      setSetupSettings((prev) => ({
-        ...prev,
-        openclawPath: payload.openclawPath.trim(),
-        openclawRootDir: payload.openclawRootDir.trim(),
-      }));
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
   }, [persistPartialState]);
 
+  // ========================================================================
+  // 验证本地安装
+  // ========================================================================
   const verifyLocalSetup = React.useCallback(async () => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       const commandResult = typeof window.electronAPI?.testOpenClawCommand === 'function'
@@ -779,17 +662,28 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setupCurrentStep: '/setup/local/verify',
       });
       return true;
-    } catch (error) {
-      setErrorMessage('验证未能完成，请确认 OpenClaw 已正确安装后重试。');
+    } catch (err) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: createSetupError(
+          'VERIFY_FAILED',
+          '验证未能完成，请确认 OpenClaw 已正确安装后重试。',
+          '请检查 OpenClaw CLI 和网关状态',
+          err instanceof Error ? err.message : String(err),
+        ),
+      });
       return false;
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
   }, [persistPartialState]);
 
+  // ========================================================================
+  // 保存远程连接草稿
+  // ========================================================================
   const saveRemoteDraft = React.useCallback(async (payload: SetupRemoteDraft) => {
-    setRemoteDraft(payload);
-    setRemoteVerification(null);
+    dispatch({ type: 'SET_REMOTE_DRAFT', payload });
+    dispatch({ type: 'SET_REMOTE_VERIFICATION', payload: null });
     await persistPartialState({
       remoteConnectionValidated: false,
       remoteHost: payload.host.trim(),
@@ -801,9 +695,13 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   }, [persistPartialState]);
 
+  // ========================================================================
+  // 验证远程连接
+  // @see 需求 2.3
+  // ========================================================================
   const verifyRemoteSetup = React.useCallback(async () => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       if (typeof window.electronAPI?.remoteOpenClawTestConnection !== 'function') {
@@ -811,18 +709,18 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           success: false,
           error: '当前桌面端还未提供远程 OpenClaw 连接测试能力，请先完成 IPC 实现。',
         };
-        setRemoteVerification(unavailableResult);
+        dispatch({ type: 'SET_REMOTE_VERIFICATION', payload: unavailableResult });
         return unavailableResult;
       }
 
       const result = await window.electronAPI.remoteOpenClawTestConnection({
-        host: remoteDraft.host.trim(),
-        port: Number(remoteDraft.port) || undefined,
-        protocol: remoteDraft.protocol,
-        token: remoteDraft.token,
+        host: state.remote.draft.host.trim(),
+        port: Number(state.remote.draft.port) || undefined,
+        protocol: state.remote.draft.protocol,
+        token: state.remote.draft.token,
       });
 
-      setRemoteVerification(result);
+      dispatch({ type: 'SET_REMOTE_VERIFICATION', payload: result });
 
       if (!result.success) {
         throw new Error(result.error || '远程 OpenClaw 连接验证失败');
@@ -830,10 +728,10 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (typeof window.electronAPI?.remoteOpenClawSaveConnection === 'function') {
         await window.electronAPI.remoteOpenClawSaveConnection({
-          host: remoteDraft.host.trim(),
-          port: Number(remoteDraft.port) || undefined,
-          protocol: remoteDraft.protocol,
-          token: remoteDraft.token,
+          host: state.remote.draft.host.trim(),
+          port: Number(state.remote.draft.port) || undefined,
+          protocol: state.remote.draft.protocol,
+          token: state.remote.draft.token,
         });
       }
 
@@ -843,73 +741,90 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
 
       return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       const failedResult: SetupRemoteVerificationResult = {
         success: false,
         error: message,
       };
-      setErrorMessage(message);
-      setRemoteVerification(failedResult);
+      dispatch({
+        type: 'SET_ERROR',
+        payload: createSetupError(
+          'REMOTE_CONNECTION_FAILED',
+          message,
+          '请确认远程地址和端口正确',
+          message,
+        ),
+      });
+      dispatch({ type: 'SET_REMOTE_VERIFICATION', payload: failedResult });
       return failedResult;
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
-  }, [persistPartialState, remoteDraft]);
+  }, [persistPartialState, state.remote.draft]);
 
+  // ========================================================================
+  // 选择安装模式
+  // ========================================================================
   const selectMode = React.useCallback(async (nextMode: SetupMode) => {
-    setMode(nextMode);
+    dispatch({ type: 'SET_MODE', payload: nextMode });
     await persistPartialState({
       setupCurrentStep: nextMode === 'local' ? '/setup/local/intro' : '/setup/remote/intro',
       setupMode: nextMode,
     });
   }, [persistPartialState]);
 
+  // ========================================================================
+  // 完成引导流程
+  // ========================================================================
   const completeSetup = React.useCallback(async () => {
-    setIsBusy(true);
-    setErrorMessage('');
+    dispatch({ type: 'SET_BUSY', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       await persistPartialState({
-        runMode: mode || 'local',
+        runMode: state.mode || 'local',
         setupCompleted: true,
         setupCurrentStep: '/setup/complete',
       });
-      setSetupSettings((prev) => ({
-        ...prev,
-        runMode: mode || 'local',
-        setupCompleted: true,
-        setupCurrentStep: '/setup/complete',
-      }));
       navigate('/');
     } finally {
-      setIsBusy(false);
+      dispatch({ type: 'SET_BUSY', payload: false });
     }
-  }, [navigate, persistPartialState]);
+  }, [navigate, persistPartialState, state.mode]);
 
+  // ========================================================================
+  // 返回上一步 — 使用导航图的 getPreviousStep
+  // @see 需求 4.4
+  // ========================================================================
   const goBackStep = React.useCallback(() => {
-    const previousStep = getPreviousStep(location.pathname, setupSettings, mode);
+    const previousStep = getPreviousStep(location.pathname, state);
     if (previousStep) {
       navigate(previousStep);
     }
-  }, [location.pathname, mode, navigate, setupSettings]);
+  }, [location.pathname, state, navigate]);
 
-  /**
-   * 调用主进程修复环境问题（安装/升级/修复 PATH）。
-   * 同时监听 onFixProgress 事件推送修复进度到 UI。
-   */
+  // ========================================================================
+  // 环境修复
+  // ========================================================================
   const fixEnvironment = React.useCallback(async (action: 'install' | 'upgrade' | 'fixPath'): Promise<FixResult> => {
     // 重置进度状态为运行中
-    setFixProgress({ action, status: 'running', message: '正在执行修复…' });
+    dispatch({
+      type: 'SET_FIX_PROGRESS',
+      payload: { action, status: 'running', message: '正在执行修复…' },
+    });
 
     // 订阅修复进度事件
     let unsubscribe: (() => void) | undefined;
     if (typeof window.electronAPI?.onFixProgress === 'function') {
       unsubscribe = window.electronAPI.onFixProgress((data) => {
-        setFixProgress({
-          action: data.action || action,
-          status: data.status as FixProgressState['status'],
-          message: data.message || '',
+        dispatch({
+          type: 'SET_FIX_PROGRESS',
+          payload: {
+            action: data.action || action,
+            status: data.status as FixProgressState['status'],
+            message: data.message || '',
+          },
         });
       });
     }
@@ -922,17 +837,23 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           action,
           error: 'fixEnvironment IPC 不可用',
         };
-        setFixProgress({ action, status: 'error', message: unavailable.message });
+        dispatch({
+          type: 'SET_FIX_PROGRESS',
+          payload: { action, status: 'error', message: unavailable.message },
+        });
         return unavailable;
       }
 
       const result = await window.electronAPI.fixEnvironment(action);
 
       // 更新最终进度状态
-      setFixProgress({
-        action,
-        status: result.success ? 'done' : 'error',
-        message: result.message,
+      dispatch({
+        type: 'SET_FIX_PROGRESS',
+        payload: {
+          action,
+          status: result.success ? 'done' : 'error',
+          message: result.message,
+        },
       });
 
       // 修复完成后自动刷新环境检测
@@ -941,15 +862,18 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       return result;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       const failedResult: FixResult = {
         success: false,
         message: '环境修复失败。',
         action,
         error: message,
       };
-      setFixProgress({ action, status: 'error', message: failedResult.message });
+      dispatch({
+        type: 'SET_FIX_PROGRESS',
+        payload: { action, status: 'error', message: failedResult.message },
+      });
       return failedResult;
     } finally {
       // 清理进度事件订阅
@@ -957,48 +881,102 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [refreshEnvironmentCheck]);
 
-  /**
-   * 更新指定渠道的配置（局部更新）。
-   */
+  // ========================================================================
+  // 渠道配置更新（支持字段懒加载）
+  // 当用户启用渠道且 fields 为空时，自动加载完整字段定义
+  // @see 需求 3.6
+  // ========================================================================
   const updateChannelConfig = React.useCallback((key: string, updates: Partial<ChannelConfig>) => {
-    setChannelConfigs((prev) =>
-      prev.map((ch) => (ch.key === key ? { ...ch, ...updates } : ch)),
-    );
-  }, []);
+    // 懒加载：启用渠道时加载字段定义
+    if (updates.enabled === true) {
+      const current = state.channels.configs.find((c) => c.key === key);
+      if (current && current.fields.length === 0) {
+        import('../config/channelFieldDefinitions').then(({ getChannelFields }) => {
+          const fields = getChannelFields(key);
+          dispatch({ type: 'UPDATE_CHANNEL', payload: { key, updates: { ...updates, fields } } });
+        }).catch(() => {
+          // 加载失败时仍然启用渠道，只是没有字段定义
+          dispatch({ type: 'UPDATE_CHANNEL', payload: { key, updates } });
+        });
+        return;
+      }
+    }
+    dispatch({ type: 'UPDATE_CHANNEL', payload: { key, updates } });
+  }, [state.channels.configs]);
 
-  /**
-   * 测试指定渠道的连接有效性。
-   * 调用主进程 channelsDiagnose IPC 验证凭证。
-   */
+  // ========================================================================
+  // 渠道连接测试
+  // @see 需求 2.6
+  // ========================================================================
   const testChannelConnection = React.useCallback(async (key: string): Promise<boolean> => {
     // 标记为测试中
-    updateChannelConfig(key, { testStatus: 'testing', testError: undefined });
+    dispatch({ type: 'UPDATE_CHANNEL', payload: { key, updates: { testStatus: 'testing', testError: undefined } } });
 
     try {
       if (typeof window.electronAPI?.channelsDiagnose !== 'function') {
-        updateChannelConfig(key, { testStatus: 'error', testError: '当前桌面端未提供渠道诊断能力。' });
+        dispatch({
+          type: 'UPDATE_CHANNEL',
+          payload: { key, updates: { testStatus: 'error', testError: '当前桌面端未提供渠道诊断能力，请升级到最新版本。' } },
+        });
         return false;
       }
 
       const result = await window.electronAPI.channelsDiagnose(key);
 
       if (result.success) {
-        updateChannelConfig(key, { testStatus: 'ok', testError: undefined });
+        dispatch({ type: 'UPDATE_CHANNEL', payload: { key, updates: { testStatus: 'ok', testError: undefined } } });
         return true;
       }
 
-      updateChannelConfig(key, { testStatus: 'error', testError: result.error || '连接测试失败' });
+      // 区分具体失败原因
+      // @see 需求 2.6
+      const errorMsg = result.error || '';
+      let userFriendlyError = '连接测试失败';
+
+      // 解析错误类型，提供更友好的提示
+      if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('getaddrinfo')) {
+        userFriendlyError = '无法解析服务器地址，请检查网络连接或服务器地址是否正确。';
+      } else if (errorMsg.includes('ECONNREFUSED')) {
+        userFriendlyError = '连接被拒绝，请确认服务器正在运行且端口正确。';
+      } else if (errorMsg.includes('ETIMEDOUT') || errorMsg.includes('timeout')) {
+        userFriendlyError = '连接超时，请检查网络状况或服务器响应。';
+      } else if (errorMsg.includes('401') || errorMsg.includes('Unauthorized') || errorMsg.includes('invalid token')) {
+        userFriendlyError = '凭证无效，请检查 Token 或密钥是否正确。';
+      } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
+        userFriendlyError = '访问被禁止，请检查账号权限设置。';
+      } else if (errorMsg.includes('404') || errorMsg.includes('Not Found')) {
+        userFriendlyError = '资源不存在，请检查配置的 URL 或路径是否正确。';
+      } else if (errorMsg.includes('500') || errorMsg.includes('Internal Server Error')) {
+        userFriendlyError = '服务端错误，请稍后重试或联系服务提供商。';
+      } else if (errorMsg.includes('CERT') || errorMsg.includes('certificate')) {
+        userFriendlyError = 'SSL 证书验证失败，请检查服务器证书配置。';
+      } else if (errorMsg) {
+        userFriendlyError = errorMsg;
+      }
+
+      dispatch({
+        type: 'UPDATE_CHANNEL',
+        payload: { key, updates: { testStatus: 'error', testError: userFriendlyError } },
+      });
       return false;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      updateChannelConfig(key, { testStatus: 'error', testError: message });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // 解析异常类型
+      let userFriendlyError = message;
+      if (message.includes('network') || message.includes('Network')) {
+        userFriendlyError = '网络错误，请检查网络连接后重试。';
+      }
+      dispatch({
+        type: 'UPDATE_CHANNEL',
+        payload: { key, updates: { testStatus: 'error', testError: userFriendlyError } },
+      });
       return false;
     }
-  }, [updateChannelConfig]);
+  }, []);
 
-  /**
-   * 保存所有已启用渠道的配置到持久化存储。
-   */
+  // ========================================================================
+  // 保存渠道配置
+  // ========================================================================
   const saveChannelConfigs = React.useCallback(async () => {
     // 构建渠道绑定映射：仅保存已启用的渠道及其字段值
     const channelBindings: Record<string, { enabled: boolean; token?: string; fieldValues?: Record<string, string> }> = {};
@@ -1015,10 +993,9 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     await persistPartialState({ channelBindings });
   }, [channelConfigs, persistPartialState]);
 
-  /**
-   * 批量添加已启用渠道到 OpenClaw 系统。
-   * 仅对已启用且所有必填字段已填写的渠道执行 CLI 添加。
-   */
+  // ========================================================================
+  // 批量添加已启用渠道
+  // ========================================================================
   const addEnabledChannels = React.useCallback(async (): Promise<ChannelAddResult[]> => {
     // 筛选合格渠道：已启用且所有必填字段已填写
     const eligibleChannels = channelConfigs.filter((ch) => {
@@ -1060,7 +1037,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
 
-    setChannelAddResults(results);
+    dispatch({ type: 'SET_CHANNEL_ADD_RESULTS', payload: results });
 
     // 将成功添加的渠道保存到 setupSettings
     const addedChannels = results
@@ -1073,77 +1050,117 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return results;
   }, [channelConfigs, persistPartialState]);
 
+  // ========================================================================
+  // 设置已创建的 Agent
+  // ========================================================================
+  const setCreatedAgent = React.useCallback((agent: { id: string; name: string } | null) => {
+    dispatch({ type: 'SET_CREATED_AGENT', payload: agent });
+  }, []);
+
+  // ========================================================================
+  // 引导初始化 Effect
+  // ========================================================================
   React.useEffect(() => {
     const bootstrap = async () => {
-      setIsBootstrapping(true);
+      dispatch({ type: 'SET_BOOTSTRAPPING', payload: true });
 
       try {
+        // 从持久化存储读取设置
         const result = typeof window.electronAPI?.settingsGet === 'function'
           ? await window.electronAPI.settingsGet<SetupSettings>()
           : null;
         const normalizedSettings = normalizeSettings(result);
-        setSetupSettings(normalizedSettings);
-        setMode(normalizedSettings.setupMode || null);
-        if (normalizedSettings.detectedPlatform || normalizedSettings.detectedPlatformLabel) {
-          // 用已持久化的平台信息更新环境检测状态，保留其余字段
-          setEnvironmentCheck((prev) => ({
-            ...prev,
-            platform: normalizedSettings.detectedPlatform || prev?.platform || 'unknown',
-            platformLabel: normalizedSettings.detectedPlatformLabel || prev?.platformLabel || '未知系统',
-            openclawRootDir: normalizedSettings.openclawRootDir || prev?.openclawRootDir || '',
-          }));
+        dispatch({ type: 'SET_SETTINGS', payload: normalizedSettings });
+        latestSettingsRef.current = normalizedSettings;
+
+        // 恢复安装模式
+        if (normalizedSettings.setupMode) {
+          dispatch({ type: 'SET_MODE', payload: normalizedSettings.setupMode });
         }
-        setRemoteDraft({
-          host: normalizedSettings.remoteHost || '',
-          port: normalizedSettings.remotePort ? String(normalizedSettings.remotePort) : defaultRemoteDraft.port,
-          protocol: normalizedSettings.remoteProtocol || defaultRemoteDraft.protocol,
-          token: normalizedSettings.remoteToken || '',
+
+        // 用已持久化的平台信息更新环境检测状态
+        if (normalizedSettings.detectedPlatform || normalizedSettings.detectedPlatformLabel) {
+          const currentCheck = selectEnvironmentCheck(state);
+          if (currentCheck.status === 'fallback' || currentCheck.status === 'success') {
+            const updatedData = {
+              ...currentCheck.data,
+              platform: normalizedSettings.detectedPlatform || currentCheck.data.platform,
+              platformLabel: normalizedSettings.detectedPlatformLabel || currentCheck.data.platformLabel,
+              openclawRootDir: normalizedSettings.openclawRootDir || currentCheck.data.openclawRootDir,
+            };
+            dispatch({
+              type: 'SET_ENVIRONMENT_CHECK',
+              payload: { ...currentCheck, data: updatedData } as EnvironmentCheckResult,
+            });
+          }
+        }
+
+        // 恢复远程连接草稿
+        dispatch({
+          type: 'SET_REMOTE_DRAFT',
+          payload: {
+            host: normalizedSettings.remoteHost || '',
+            port: normalizedSettings.remotePort ? String(normalizedSettings.remotePort) : '3000',
+            protocol: normalizedSettings.remoteProtocol || 'http',
+            token: normalizedSettings.remoteToken || '',
+          },
         });
+
+        // 恢复本地检测结果
         if (normalizedSettings.openclawPath || normalizedSettings.openclawRootDir) {
-          setLocalCheckResult({
-            ...defaultLocalCheckResult,
-            commandDetected: Boolean(normalizedSettings.openclawPath),
-            commandPath: normalizedSettings.openclawPath || '',
-            rootDirDetected: Boolean(normalizedSettings.openclawRootDir),
-            rootDir: normalizedSettings.openclawRootDir || '',
+          dispatch({
+            type: 'SET_LOCAL_CHECK',
+            payload: {
+              ...defaultLocalCheckResult,
+              commandDetected: Boolean(normalizedSettings.openclawPath),
+              commandPath: normalizedSettings.openclawPath || '',
+              rootDirDetected: Boolean(normalizedSettings.openclawRootDir),
+              rootDir: normalizedSettings.openclawRootDir || '',
+            },
           });
         }
 
+        // 执行环境检测
         if (typeof window.electronAPI?.setupEnvironmentCheck === 'function') {
-          const setupEnvironmentResult = await window.electronAPI.setupEnvironmentCheck();
-          setEnvironmentCheck({
-            ...setupEnvironmentResult,
-            source: 'ipc',
-            runtimeMode: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).runtimeMode || 'missing',
-            bundledRuntimeAvailable: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).bundledRuntimeAvailable || false,
-            bundledNodeAvailable: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).bundledNodeAvailable || false,
-            bundledOpenClawAvailable: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).bundledOpenClawAvailable || false,
-            runtimeTier: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).runtimeTier || 'missing',
-            fixableIssues: (setupEnvironmentResult as Partial<SetupEnvironmentCheck>).fixableIssues || [],
-          });
+          const raw = await window.electronAPI.setupEnvironmentCheck();
+          const newResult = mapIpcResultToEnvironmentCheckResult(raw);
+          dispatch({ type: 'SET_ENVIRONMENT_CHECK', payload: newResult });
         }
 
         // 调用 resolveRuntime 获取运行时解析结果
         if (typeof window.electronAPI?.resolveRuntime === 'function') {
           try {
             const resolution = await window.electronAPI.resolveRuntime();
-            setRuntimeResolution(resolution);
+            // resolveRuntime 返回 LegacyRuntimeResolution，直接存储到 state
+            // 通过 context value 映射时会转为 LegacyRuntimeResolution 类型
+            dispatch({ type: 'SET_RUNTIME_RESOLUTION', payload: resolution as any });
           } catch {
             // 运行时解析失败不阻断引导流程，保持 null 状态
           }
         }
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : String(error));
+      } catch (err) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: createSetupError(
+            'UNKNOWN',
+            err instanceof Error ? err.message : String(err),
+            '请重试或重启应用',
+          ),
+        });
       } finally {
-        setIsBootstrapping(false);
+        dispatch({ type: 'SET_BOOTSTRAPPING', payload: false });
       }
     };
 
     void bootstrap();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ========================================================================
+  // 路由同步 Effect
+  // ========================================================================
   React.useEffect(() => {
-    if (isBootstrapping) {
+    if (state.ui.isBootstrapping) {
       return;
     }
 
@@ -1158,7 +1175,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     if (!hasCompletedSetup && location.pathname.startsWith('/setup')) {
-      if (setupSettings.setupCurrentStep === currentStep) {
+      if (state.settings.setupCurrentStep === currentStep) {
         return;
       }
 
@@ -1169,43 +1186,49 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [
     currentStep,
     hasCompletedSetup,
-    isBootstrapping,
+    state.ui.isBootstrapping,
     location.pathname,
     navigate,
     persistPartialState,
-    setupSettings.setupCurrentStep,
+    state.settings.setupCurrentStep,
   ]);
 
+  // ========================================================================
+  // Context Value 组装
+  // ========================================================================
   const value = React.useMemo<SetupFlowContextValue>(() => ({
     completeSetup,
     currentStep,
     environmentCheck,
+    environmentCheckResult,
+    error,
     errorMessage,
+    dispatch,
     goBackStep,
     hasCompletedSetup,
-    isBootstrapping,
+    isBootstrapping: state.ui.isBootstrapping,
     isBusy,
-    localCheckResult,
-    mode,
+    localCheckResult: state.local.checkResult,
+    mode: state.mode,
     persistPartialState,
     refreshEnvironmentCheck,
     refreshLocalCheck,
-    remoteDraft,
-    remoteVerification,
+    remoteDraft: state.remote.draft,
+    remoteVerification: state.remote.verification,
     saveLocalConfiguration,
     saveRemoteDraft,
     selectMode,
     setErrorMessage,
-    setupInstallResult,
-    setupSettings,
+    setupInstallResult: state.local.installResult,
+    setupSettings: state.settings,
     installOpenClawForSetup,
     verifyLocalSetup,
     verifyRemoteSetup,
-    // 运行时解析
-    runtimeResolution,
+    // 运行时解析（向后兼容：映射为 LegacyRuntimeResolution）
+    runtimeResolution: state.environment.runtimeResolution as LegacyRuntimeResolution | null,
     // 环境修复
     fixEnvironment,
-    fixProgress,
+    fixProgress: state.environment.fixProgress,
     // 渠道绑定
     channelConfigs,
     updateChannelConfig,
@@ -1213,39 +1236,43 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     saveChannelConfigs,
     // 渠道 CLI 添加
     addEnabledChannels,
-    channelAddResults,
+    channelAddResults: state.channels.addResults,
     // 创建的 Agent
-    createdAgent,
+    createdAgent: state.agent.created,
     setCreatedAgent,
   }), [
     completeSetup,
     currentStep,
     environmentCheck,
+    environmentCheckResult,
+    error,
     errorMessage,
+    dispatch,
     goBackStep,
     hasCompletedSetup,
-    isBootstrapping,
+    state.ui.isBootstrapping,
     isBusy,
-    localCheckResult,
-    mode,
+    state.local.checkResult,
+    state.mode,
     persistPartialState,
     refreshEnvironmentCheck,
     refreshLocalCheck,
-    remoteDraft,
-    remoteVerification,
+    state.remote.draft,
+    state.remote.verification,
     saveLocalConfiguration,
     saveRemoteDraft,
     selectMode,
-    setupInstallResult,
-    setupSettings,
+    setErrorMessage,
+    state.local.installResult,
+    state.settings,
     installOpenClawForSetup,
     verifyLocalSetup,
     verifyRemoteSetup,
     // 运行时解析
-    runtimeResolution,
+    state.environment.runtimeResolution,
     // 环境修复
     fixEnvironment,
-    fixProgress,
+    state.environment.fixProgress,
     // 渠道绑定
     channelConfigs,
     updateChannelConfig,
@@ -1253,9 +1280,9 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     saveChannelConfigs,
     // 渠道 CLI 添加
     addEnabledChannels,
-    channelAddResults,
+    state.channels.addResults,
     // 创建的 Agent
-    createdAgent,
+    state.agent.created,
     setCreatedAgent,
   ]);
 
@@ -1265,6 +1292,10 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     </SetupFlowContext.Provider>
   );
 };
+
+// ============================================================================
+// Hook 导出
+// ============================================================================
 
 export const useSetupFlow = () => {
   const context = React.useContext(SetupFlowContext);

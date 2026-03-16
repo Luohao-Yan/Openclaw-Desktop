@@ -644,7 +644,7 @@ export interface ElectronAPI {
   onFixProgress: (callback: (data: { action: string; status: string; message: string }) => void) => () => void;
 
   /** 解析运行时环境（三级回退策略） */
-  resolveRuntime: () => Promise<import('./setup').RuntimeResolution>;
+  resolveRuntime: () => Promise<import('./setup').LegacyRuntimeResolution>;
 
   // Approvals 类型
   approvalsGet: (target: ApprovalsTarget) => Promise<ApprovalsGetResult>;

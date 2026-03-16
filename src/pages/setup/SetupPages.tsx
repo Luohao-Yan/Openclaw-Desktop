@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Bot, CheckCircle2, ChevronRight, ExternalLink, Laptop, Link2, Loader2, MessageSquare, RefreshCw, Server, Settings2, Shield, ShieldCheck, Stethoscope, Wrench, XCircle } from 'lucide-react';
+import SetupSkeleton from '../../components/setup/SetupSkeleton';
 import AppButton from '../../components/AppButton';
 import SetupLayout from '../../components/setup/SetupLayout';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
@@ -525,99 +526,92 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
       description="正在检测当前设备的运行环境，确认满足要求后继续。"
       stepLabel="步骤 2 / 6"
     >
-      {/* 检测耗时超过 5 秒的加载指示器 */}
-      {isBusy && showLoadingHint && (
-        <div
-          className="mb-4 flex items-center gap-3 rounded-2xl border p-4"
-          style={{
-            backgroundColor: 'var(--app-bg)',
-            borderColor: 'var(--app-border)',
-          }}
-        >
-          <Loader2 size={18} className="animate-spin" style={{ color: 'var(--app-active-text)' }} />
-          <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-            正在检测环境，请稍候…
-          </span>
-        </div>
-      )}
-
-      {/* 内置运行环境就绪横幅 */}
-      {bundled && (
-        <div
-          className="mb-4 flex items-center gap-3 rounded-2xl border p-4"
-          style={{
-            backgroundColor: 'rgba(34,197,94,0.08)',
-            borderColor: 'rgba(34,197,94,0.35)',
-          }}
-        >
-          <Shield size={20} style={{ color: '#22c55e', flexShrink: 0 }} />
-          <div>
-            <div className="text-sm font-semibold" style={{ color: '#22c55e' }}>
-              内置运行环境就绪
+      {/* 加载中：显示骨架屏 */}
+      {isBusy ? (
+        <SetupSkeleton
+          variant="environment-check"
+          activeLabel={showLoadingHint ? '环境检测' : undefined}
+          estimatedRemaining={showLoadingHint ? 5 : undefined}
+        />
+      ) : (
+        <>
+          {/* 内置运行环境就绪横幅 */}
+          {bundled && (
+            <div
+              className="mb-4 flex items-center gap-3 rounded-2xl border p-4"
+              style={{
+                backgroundColor: 'rgba(34,197,94,0.08)',
+                borderColor: 'rgba(34,197,94,0.35)',
+              }}
+            >
+              <Shield size={20} style={{ color: '#22c55e', flexShrink: 0 }} />
+              <div>
+                <div className="text-sm font-semibold" style={{ color: '#22c55e' }}>
+                  内置运行环境就绪
+                </div>
+                <div className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  应用已完全自包含，无需任何外部依赖，可直接使用
+                </div>
+              </div>
             </div>
-            <div className="mt-0.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              应用已完全自包含，无需任何外部依赖，可直接使用
-            </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* 平台信息 */}
-      <div
-        className="rounded-2xl border p-4"
-        style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
-      >
-        <div className="flex items-center gap-2">
-          <Laptop size={16} style={{ color: 'var(--app-text-muted)' }} />
-          <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>当前平台</span>
-        </div>
-        <div className="mt-1 text-xl font-semibold">{platformLabel}</div>
-      </div>
-
-      {/* 分组检测项 */}
-      {checkGroups.map((group) => (
-        <div key={group.title} className="mt-5">
+          {/* 平台信息 */}
           <div
-            className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]"
-            style={{ color: 'var(--app-text-muted)' }}
+            className="rounded-2xl border p-4"
+            style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
           >
-            {group.title}
+            <div className="flex items-center gap-2">
+              <Laptop size={16} style={{ color: 'var(--app-text-muted)' }} />
+              <span className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>当前平台</span>
+            </div>
+            <div className="mt-1 text-xl font-semibold">{platformLabel}</div>
           </div>
-          <div className="space-y-3">
-            {group.items.map(renderCheckItem)}
-          </div>
-        </div>
-      ))}
 
-      {/* PATH 修复按钮（独立显示） */}
-      {hasPathIssue && (
-        <div className="mt-4">
-          <AppButton
-            size="sm"
-            variant="secondary"
-            onClick={() => handleFix('fixPath')}
-            disabled={isBusy || isFixing}
-            icon={<Wrench size={14} />}
-          >
-            修复 PATH 配置
-          </AppButton>
-        </div>
-      )}
+          {/* 分组检测项 */}
+          {checkGroups.map((group) => (
+            <div key={group.title} className="mt-5">
+              <div
+                className="mb-2 text-xs font-semibold uppercase tracking-[0.12em]"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                {group.title}
+              </div>
+              <div className="space-y-3">
+                {group.items.map(renderCheckItem)}
+              </div>
+            </div>
+          ))}
 
-      {/* 修复进度显示 */}
-      {(fixProgress.status === 'running' || fixProgress.status === 'done' || fixProgress.status === 'error') && fixProgress.message && (
-        <div
-          className="mt-4 flex items-center gap-3 rounded-2xl border p-4 text-sm"
-          style={{
-            backgroundColor: fixProgress.status === 'error'
-              ? 'rgba(239,68,68,0.06)'
-              : fixProgress.status === 'done'
-                ? 'rgba(34,197,94,0.06)'
-                : 'var(--app-bg)',
-            borderColor: fixProgress.status === 'error'
-              ? 'rgba(239,68,68,0.28)'
-              : fixProgress.status === 'done'
-                ? 'rgba(34,197,94,0.28)'
+          {/* PATH 修复按钮（独立显示） */}
+          {hasPathIssue && (
+            <div className="mt-4">
+              <AppButton
+                size="sm"
+                variant="secondary"
+                onClick={() => handleFix('fixPath')}
+                disabled={isBusy || isFixing}
+                icon={<Wrench size={14} />}
+              >
+                修复 PATH 配置
+              </AppButton>
+            </div>
+          )}
+
+          {/* 修复进度显示 */}
+          {(fixProgress.status === 'running' || fixProgress.status === 'done' || fixProgress.status === 'error') && fixProgress.message && (
+            <div
+              className="mt-4 flex items-center gap-3 rounded-2xl border p-4 text-sm"
+              style={{
+                backgroundColor: fixProgress.status === 'error'
+                  ? 'rgba(239,68,68,0.06)'
+                  : fixProgress.status === 'done'
+                    ? 'rgba(34,197,94,0.06)'
+                    : 'var(--app-bg)',
+                borderColor: fixProgress.status === 'error'
+                  ? 'rgba(239,68,68,0.28)'
+                  : fixProgress.status === 'done'
+                    ? 'rgba(34,197,94,0.28)'
                 : 'var(--app-border)',
           }}
         >
@@ -671,6 +665,8 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
             </a>
           </div>
         </div>
+      )}
+        </>
       )}
 
       <SetupActionBar>

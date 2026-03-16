@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronRight, Loader2, SkipForward, Terminal, XCircle, Zap } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import SetupLayout from '../../components/setup/SetupLayout';
+import VirtualChannelList from '../../components/setup/VirtualChannelList';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
 import type { ChannelAddResult, ChannelConfig } from '../../types/setup';
 
@@ -257,10 +258,6 @@ export const SetupChannelsPage: React.FC = () => {
   /** 按钮禁用状态：上下文忙碌或正在添加渠道时禁用 */
   const buttonsDisabled = isBusy || isAdding;
 
-  /** 根据 channelKey 查找对应的添加结果 */
-  const getAddResult = (key: string) =>
-    channelAddResults.find((r) => r.channelKey === key);
-
   /** 跳过渠道配置，仅保存配置到 electron-store 并导航到创建 Agent 页 */
   const handleSkip = async () => {
     await saveChannelConfigs();
@@ -288,33 +285,40 @@ export const SetupChannelsPage: React.FC = () => {
       description="配置消息渠道连接，让 OpenClaw 能够接收和发送消息。你可以稍后在设置中修改。"
       stepLabel="渠道配置"
     >
-      {/* 渠道列表 — 双栏网格，固定最大高度，超出可滚动 */}
-      <div
-        className="overflow-y-auto -mx-1 px-1"
-        style={{ maxHeight: 'calc(100vh - 380px)' }}
-      >
-        <div className="grid grid-cols-2 gap-3">
-          {channelConfigs.map((config) => (
-            <ChannelCard
-              key={config.key}
-              config={config}
-              addResult={getAddResult(config.key)}
-              onToggle={(enabled) => updateChannelConfig(config.key, {
-                enabled,
-                // 关闭时重置测试状态
-                ...(!enabled ? { testStatus: 'idle' as const, testError: undefined } : {}),
-              })}
-              onFieldChange={(fieldId, value) => updateChannelConfig(config.key, {
-                fieldValues: { ...config.fieldValues, [fieldId]: value },
-                // 修改字段时重置测试状态
-                testStatus: 'idle',
-                testError: undefined,
-              })}
-              onTest={() => void testChannelConnection(config.key)}
-            />
-          ))}
-        </div>
-      </div>
+      {/* 渠道列表 — 虚拟滚动，仅渲染视口内可见的卡片 */}
+      <VirtualChannelList
+        configs={channelConfigs}
+        addResults={channelAddResults}
+        height={Math.max(300, typeof window !== 'undefined' ? window.innerHeight - 380 : 500)}
+        itemHeight={64}
+        bufferSize={2}
+        onToggle={(key, enabled) => updateChannelConfig(key, {
+          enabled,
+          ...(!enabled ? { testStatus: 'idle' as const, testError: undefined } : {}),
+        })}
+        onFieldChange={(key, fieldId, value) => updateChannelConfig(key, {
+          fieldValues: { ...channelConfigs.find((c) => c.key === key)?.fieldValues, [fieldId]: value },
+          testStatus: 'idle',
+          testError: undefined,
+        })}
+        onTest={(key) => void testChannelConnection(key)}
+        renderItem={(config, addResult) => (
+          <ChannelCard
+            config={config}
+            addResult={addResult}
+            onToggle={(enabled) => updateChannelConfig(config.key, {
+              enabled,
+              ...(!enabled ? { testStatus: 'idle' as const, testError: undefined } : {}),
+            })}
+            onFieldChange={(fieldId, value) => updateChannelConfig(config.key, {
+              fieldValues: { ...config.fieldValues, [fieldId]: value },
+              testStatus: 'idle',
+              testError: undefined,
+            })}
+            onTest={() => void testChannelConnection(config.key)}
+          />
+        )}
+      />
 
       {/* 已启用渠道计数提示 */}
       {enabledCount > 0 && (

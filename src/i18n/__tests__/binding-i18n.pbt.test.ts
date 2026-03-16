@@ -30,6 +30,9 @@ const BINDING_KEYS = [
   'binding.accountIdLabel',
   'binding.bindingRules',
   'binding.accountConfig',
+  'binding.accountConfigEmptyHint',
+  'binding.noBindingWarning',
+  'binding.noAccountWarning',
 ] as const;
 
 describe('Property 8: i18n 键值完整性', () => {

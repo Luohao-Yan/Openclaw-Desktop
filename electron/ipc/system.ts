@@ -14,6 +14,7 @@ import {
 } from './settings.js';
 import { resolveRuntime, getBundledNodePath, getBundledOpenClawCLIPath } from './runtime.js';
 import type { RuntimeTier } from './runtimeLogic.js';
+import { buildModelTestUrl } from './modelTestLogic.js';
 
 /** 可自动修复的环境问题 */
 interface FixableIssue {
@@ -1074,31 +1075,9 @@ async function testModelConnection(params: {
     ? (providerPrefix === 'ollama' ? 'http://localhost:11434' : 'http://localhost:8000')
     : undefined);
 
-  // 构建请求 URL 和 headers
-  let url: string;
+  // 构建请求 URL（使用提取的纯函数，修复了自定义 Base URL 的 /v1 拼接 Bug）
+  const url = buildModelTestUrl({ effectiveBaseUrl, providerPrefix });
   let headers: Record<string, string> = { 'Content-Type': 'application/json' };
-
-  if (effectiveBaseUrl) {
-    const base = effectiveBaseUrl.replace(/\/$/, '');
-    // if baseUrl already ends with /v1, append only /chat/completions
-    url = /\/v1$/.test(base) ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
-  } else {
-    // 根据 provider 推断 API endpoint
-    const endpointMap: Record<string, string> = {
-      openai: 'https://api.openai.com/v1/chat/completions',
-      anthropic: 'https://api.anthropic.com/v1/messages',
-      google: 'https://generativelanguage.googleapis.com/v1beta/chat/completions',
-      moonshot: 'https://api.moonshot.cn/v1/chat/completions',
-      deepseek: 'https://api.deepseek.com/v1/chat/completions',
-      qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-      glm: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-      groq: 'https://api.groq.com/openai/v1/chat/completions',
-      mistral: 'https://api.mistral.ai/v1/chat/completions',
-      xai: 'https://api.x.ai/v1/chat/completions',
-      openrouter: 'https://openrouter.ai/api/v1/chat/completions',
-    };
-    url = endpointMap[providerPrefix] ?? `https://api.${providerPrefix}.com/v1/chat/completions`;
-  }
 
   if (apiKey) {
     headers['Authorization'] = `Bearer ${apiKey}`;

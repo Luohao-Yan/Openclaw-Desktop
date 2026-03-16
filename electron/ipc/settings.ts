@@ -285,7 +285,21 @@ export function getVersionManagerPaths(): string[] {
 
 // 通过 login shell 获取用户完整 PATH（解决 Electron 启动时不加载 .zshrc/.bashrc 的问题）
 let _resolvedShellPath: string | null = null;
-async function getShellPath(): Promise<string> {
+
+/**
+ * 重置 shell PATH 缓存
+ * 将 _resolvedShellPath 置为 null，使下次调用 getShellPath() 重新解析。
+ * 供 environmentFixer.ts 在升级完成后清除缓存使用。
+ */
+export function resetShellPathCache(): void {
+  _resolvedShellPath = null;
+}
+
+/**
+ * 通过 login shell 解析用户完整 PATH（包含版本管理器路径）
+ * 结果会被缓存，可通过 resetShellPathCache() 清除。
+ */
+export async function getShellPath(): Promise<string> {
   if (_resolvedShellPath) return _resolvedShellPath;
 
   // 基础常见路径
