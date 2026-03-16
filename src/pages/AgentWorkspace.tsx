@@ -823,14 +823,11 @@ const AgentWorkspace: React.FC = () => {
         ? [...configResult.config.bindings]
         : [];
 
-      // 构造新的绑定记录
+      // 构造新的绑定记录（展开 bindingData 后覆盖关键字段，确保不被意外替换）
       const newBinding = {
-        agentId,
-        match: { channel, accountId },
         enabled: true,
         ...bindingData,
-        // 确保关键字段正确
-        agentId: agentId,
+        agentId,
         match: { channel, accountId },
       };
       bindings.push(newBinding);
