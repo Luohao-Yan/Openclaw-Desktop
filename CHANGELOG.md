@@ -6,6 +6,29 @@
 
 ---
 
+## [0.3.13-preview-2] - 2026-03-16
+
+### ✨ 新增功能 (Features)
+
+#### Setup 引导流程补全
+- **渠道 CLI 添加**：Setup 渠道配置步骤新增 CLI 自动添加功能，点击"继续"时自动执行 `openclaw channels add` 命令
+- **创建 Agent 步骤**：新增 `SetupCreateAgentPage`，引导用户在 Setup 流程中创建第一个智能体
+- **完成页增强**：完成页新增初始化摘要卡片（运行模式、已添加渠道、已创建 Agent）和后续操作引导卡片
+- **渠道 IPC 扩展**：新增 `channels:add` IPC Handler，支持通过 CLI 添加渠道
+- **纯函数工具**：新增 `fieldIdToCliFlag`、`buildChannelAddArgs` 纯函数，用于构建 CLI 参数
+
+### 🐛 问题修复 (Bug Fixes)
+
+- **AgentWorkspace 重复键修复**：修复 `AgentWorkspace.tsx` 中对象字面量 `agentId` 和 `match` 重复键导致的 Vite 编译警告
+
+### 🔧 技术改进 (Technical)
+
+- **SetupFlowContext 扩展**：新增 `addEnabledChannels`、`channelAddResults`、`createdAgent` 状态管理
+- **属性测试**：新增 5 个属性测试覆盖渠道过滤、结果映射、步骤回退、完成页摘要等逻辑
+- **路由注册**：新增 `/setup/local/create-agent` 路由
+
+---
+
 ## [0.3.13-preview-1] - 2026-03-16
 
 ### ✨ 新增功能 (Features)
