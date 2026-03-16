@@ -134,15 +134,14 @@ export function setupChannelsIPC() {
 
   /**
    * channels:diagnose - 诊断指定渠道的连接状态
-   * 执行 `openclaw channels status --channel <channelType>`，返回诊断信息
+   * 执行 `openclaw channels status`，然后从输出中过滤指定渠道的信息
    */
   ipcMain.handle('channels:diagnose', async (_, channelType: string) => {
     try {
+      // openclaw channels status 不支持 --channel 过滤，执行全量查询后在输出中匹配
       const result = await runOpenClawCommand([
         'channels',
         'status',
-        '--channel',
-        channelType,
       ]);
 
       if (!result.success) {
@@ -152,9 +151,17 @@ export function setupChannelsIPC() {
         };
       }
 
+      // 从完整输出中提取目标渠道相关行
+      const lines = (result.output || '').split('\n');
+      const channelLines = lines.filter(
+        (line) => line.toLowerCase().includes(channelType.toLowerCase())
+      );
+
       return {
         success: true,
-        output: result.output,
+        output: channelLines.length > 0
+          ? channelLines.join('\n')
+          : result.output,
       };
     } catch (err: any) {
       return {
@@ -259,13 +266,14 @@ export function setupChannelsIPC() {
 
   /**
    * channels:reconnect - 重新连接指定渠道
-   * 执行 `openclaw channels reconnect --channel <channelType>`，尝试重新建立连接
+   * 执行 `openclaw channels login --channel <channelType>`，尝试重新建立连接
+   * 注意：openclaw channels reconnect 不存在，使用 login 代替
    */
   ipcMain.handle('channels:reconnect', async (_, channelType: string) => {
     try {
       const result = await runOpenClawCommand([
         'channels',
-        'reconnect',
+        'login',
         '--channel',
         channelType,
       ]);
@@ -286,6 +294,34 @@ export function setupChannelsIPC() {
         success: false,
         error: err.message || 'Unknown error',
       };
+    }
+  });
+
+  /**
+   * channels:add - 添加渠道到 OpenClaw 系统
+   * 根据渠道类型和字段值构建 CLI 参数，执行 openclaw channels add 命令
+   */
+  ipcMain.handle('channels:add', async (
+    _,
+    channelType: string,
+    fieldValues: Record<string, string>
+  ): Promise<{ success: boolean; output?: string; error?: string }> => {
+    try {
+      // 构建基础参数
+      const args = ['channels', 'add', '--channel', channelType];
+
+      // 遍历字段值，将 camelCase 字段 ID 转换为 --kebab-case CLI flag
+      for (const [fieldId, value] of Object.entries(fieldValues)) {
+        if (value && value.trim()) {
+          const flag = '--' + fieldId.replace(/([A-Z])/g, '-$1').toLowerCase();
+          args.push(flag, value.trim());
+        }
+      }
+
+      const result = await runOpenClawCommand(args);
+      return result;
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Unknown error' };
     }
   });
 }

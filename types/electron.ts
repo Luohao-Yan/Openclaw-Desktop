@@ -81,6 +81,43 @@ export interface InstallOutputEvent {
   isError: boolean;
 }
 
+/** 运行时层级：内置 > 系统 > 在线安装 > 缺失 */
+export type RuntimeTier = 'bundled' | 'system' | 'online' | 'missing';
+
+/** 运行时解析结果，描述当前生效的运行时来源与状态 */
+export interface RuntimeResolution {
+  /** 当前生效的运行时层级 */
+  tier: RuntimeTier;
+  /** Node.js 可执行文件路径，未找到时为 null */
+  nodePath: string | null;
+  /** OpenClaw CLI 可执行文件路径，未找到时为 null */
+  openclawPath: string | null;
+  /** 内置 Node.js 是否可用 */
+  bundledNodeAvailable: boolean;
+  /** 内置 OpenClaw CLI 是否可用 */
+  bundledOpenClawAvailable: boolean;
+  /** 系统 Node.js 版本号，未检测到时为 null */
+  systemNodeVersion: string | null;
+  /** 系统 Node.js 版本是否满足最低要求（>= 22） */
+  systemNodeSatisfies: boolean;
+  /** 系统是否已安装 OpenClaw CLI */
+  systemOpenClawInstalled: boolean;
+  /** 解析过程中的错误信息 */
+  error?: string;
+}
+
+/** 环境修复操作的执行结果 */
+export interface FixResult {
+  /** 修复是否成功 */
+  success: boolean;
+  /** 结果描述信息 */
+  message: string;
+  /** 执行的修复动作描述 */
+  action: string;
+  /** 失败时的错误信息 */
+  error?: string;
+}
+
 export type TailscaleStatus = {
   installed: boolean;
   running: boolean;
@@ -115,6 +152,15 @@ export interface RuntimeActions {
   onInstallProgress?(callback: (event: InstallProgressEvent) => void): () => void;
   onInstallOutput?(callback: (event: InstallOutputEvent) => void): () => void;
   testModelConnection?(params: { provider: string; model: string; apiKey?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+
+  /** 修复环境问题（安装/升级/修复PATH） */
+  fixEnvironment(action: 'install' | 'upgrade' | 'fixPath', ...args: any[]): Promise<FixResult>;
+
+  /** 监听环境修复进度事件，返回取消订阅函数 */
+  onFixProgress(callback: (data: { action: string; status: string; message: string }) => void): () => void;
+
+  /** 解析运行时环境（三级回退策略） */
+  resolveRuntime(): Promise<RuntimeResolution>;
 }
 
 export interface TailscaleActions {
@@ -296,9 +342,9 @@ export interface ChannelsActions {
   channelsStatus(): Promise<ChannelsCommandResult>;
   /** 查询渠道列表（执行 openclaw channels list） */
   channelsList(): Promise<ChannelsCommandResult>;
-  /** 诊断指定渠道连接状态（执行 openclaw channels status --channel <channelType>） */
+  /** 诊断指定渠道连接状态（执行 openclaw channels status 并过滤指定渠道） */
   channelsDiagnose(channelType: string): Promise<ChannelsCommandResult>;
-  /** 重新连接指定渠道（执行 openclaw channels reconnect --channel <channelType>） */
+  /** 重新连接指定渠道（执行 openclaw channels login --channel <channelType>） */
   channelsReconnect(channelType: string): Promise<ChannelsCommandResult>;
   /** 查询指定渠道的待审批 DM 配对请求（读取配对 JSON 文件） */
   pairingList(channel: string): Promise<{
@@ -308,6 +354,8 @@ export interface ChannelsActions {
   }>;
   /** 审批指定渠道的 DM 配对请求（执行 openclaw pairing approve <channel> <code>） */
   pairingApprove(channel: string, code: string): Promise<ChannelsCommandResult>;
+  /** 添加渠道到 OpenClaw 系统（执行 openclaw channels add） */
+  channelsAdd(channelType: string, fieldValues: Record<string, string>): Promise<ChannelsCommandResult>;
 }
 
 /** 模型配置相关操作接口 */

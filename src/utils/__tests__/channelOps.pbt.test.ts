@@ -16,6 +16,8 @@ import {
   computeChannelSummary,
   getChannelBindingCount,
   isAccountIdDuplicate,
+  fieldIdToCliFlag,
+  buildChannelAddArgs,
 } from '../channelOps';
 import type { OpenClawConfig } from '../bindingOps';
 
@@ -1443,6 +1445,101 @@ describe('Property 20: 正则表达式验证正确性', () => {
         expect(result.valid).toBe(false);
         expect(typeof result.error).toBe('string');
         expect(result.error!.length).toBeGreaterThan(0);
+      }),
+      { numRuns: 100 },
+    );
+  });
+});
+
+
+// ============================================================
+// Property: 字段 ID 到 CLI Flag 的转换保持一致性
+// Feature: setup-guided-completion, Property 2: 字段 ID 到 CLI Flag 的转换保持一致性
+// ============================================================
+
+describe('Feature: setup-guided-completion, Property 2: 字段 ID 到 CLI Flag 的转换保持一致性', () => {
+  /**
+   * Validates: Requirements 1.2
+   *
+   * 对于任意由 ASCII 字母组成的 camelCase 字段 ID，fieldIdToCliFlag 应产生
+   * 以 '--' 开头的 kebab-case 字符串，且转换结果中不包含大写字母。
+   * 对于任意渠道类型和非空字段值映射，buildChannelAddArgs 的输出应以
+   * ['channels', 'add', '--channel', channelType] 开头，且每个非空字段值
+   * 都应作为 --flag value 对出现在结果数组中。
+   */
+
+  /** 生成 camelCase 风格的字段 ID（至少一个小写字母开头，可含大写字母段） */
+  const camelCaseIdArb = () =>
+    fc.tuple(
+      fc.stringMatching(/^[a-z]{1,5}$/),
+      fc.array(
+        fc.tuple(
+          fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')),
+          fc.stringMatching(/^[a-z]{1,5}$/),
+        ),
+        { minLength: 0, maxLength: 3 },
+      ),
+    ).map(([prefix, parts]) => prefix + parts.map(([upper, rest]) => upper + rest).join(''));
+
+  test('fieldIdToCliFlag 对任意 camelCase 字段 ID 产生以 "--" 开头的无大写 kebab-case 字符串', () => {
+    fc.assert(
+      fc.property(camelCaseIdArb(), (fieldId) => {
+        const flag = fieldIdToCliFlag(fieldId);
+
+        // 结果应以 '--' 开头
+        expect(flag.startsWith('--')).toBe(true);
+
+        // 结果中不应包含大写字母
+        expect(flag).toBe(flag.toLowerCase());
+
+        // '--' 之后的部分应为 kebab-case（仅含小写字母和连字符）
+        const body = flag.slice(2);
+        expect(body).toMatch(/^[a-z][a-z-]*$/);
+
+        // 不应出现连续的连字符
+        expect(body).not.toMatch(/--/);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('buildChannelAddArgs 输出以固定前缀开头，且每个非空字段值作为 --flag value 对出现', () => {
+    /** 生成非空非纯空白的字段值 */
+    const nonEmptyValueArb = fc.string({ minLength: 1 }).filter((s) => s.trim().length > 0);
+
+    /** 生成渠道类型字符串 */
+    const channelTypeArb = fc.stringMatching(/^[a-z]{1,10}$/);
+
+    /** 生成非空字段值映射（至少一个条目） */
+    const fieldValuesArb = fc.dictionary(camelCaseIdArb(), nonEmptyValueArb, { minKeys: 1, maxKeys: 5 });
+
+    fc.assert(
+      fc.property(channelTypeArb, fieldValuesArb, (channelType, fieldValues) => {
+        const args = buildChannelAddArgs(channelType, fieldValues);
+
+        // 输出应以 ['channels', 'add', '--channel', channelType] 开头
+        expect(args[0]).toBe('channels');
+        expect(args[1]).toBe('add');
+        expect(args[2]).toBe('--channel');
+        expect(args[3]).toBe(channelType);
+
+        // 每个非空字段值应作为 --flag value 对出现在结果数组中
+        for (const [fieldId, value] of Object.entries(fieldValues)) {
+          if (value && value.trim()) {
+            const expectedFlag = fieldIdToCliFlag(fieldId);
+            const flagIndex = args.indexOf(expectedFlag, 4);
+
+            // flag 应存在于前缀之后
+            expect(flagIndex).toBeGreaterThanOrEqual(4);
+
+            // flag 后面紧跟的应是 trim 后的值
+            expect(args[flagIndex + 1]).toBe(value.trim());
+          }
+        }
+
+        // 前缀之后的元素数量应为非空字段数 × 2（每个字段一个 flag 一个 value）
+        const nonEmptyCount = Object.values(fieldValues).filter((v) => v && v.trim()).length;
+        expect(args.length).toBe(4 + nonEmptyCount * 2);
       }),
       { numRuns: 100 },
     );

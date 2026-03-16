@@ -807,3 +807,35 @@ export function validateRegexPattern(
     return { valid: false, error: e.message || '正则表达式格式无效' };
   }
 }
+
+// ============================================================
+// CLI 参数构建函数
+// ============================================================
+
+/**
+ * 将 camelCase 字段 ID 转换为 kebab-case CLI flag
+ * 例如：appSecret → --app-secret，botToken → --bot-token
+ * 纯函数，无副作用
+ */
+export function fieldIdToCliFlag(fieldId: string): string {
+  return '--' + fieldId.replace(/([A-Z])/g, '-$1').toLowerCase();
+}
+
+/**
+ * 根据渠道类型和字段值构建 CLI 参数数组
+ * 基础参数为 ['channels', 'add', '--channel', channelType]
+ * 遍历 fieldValues，将非空值转换为 --kebab-case flag value 对追加到参数列表
+ * 纯函数，无副作用
+ */
+export function buildChannelAddArgs(
+  channelType: string,
+  fieldValues: Record<string, string>,
+): string[] {
+  const args = ['channels', 'add', '--channel', channelType];
+  for (const [fieldId, value] of Object.entries(fieldValues)) {
+    if (value && value.trim()) {
+      args.push(fieldIdToCliFlag(fieldId), value.trim());
+    }
+  }
+  return args;
+}

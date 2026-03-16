@@ -33,8 +33,9 @@ const SetupLayout: React.FC<SetupLayoutProps> = ({
       }}
     >
       <TitleBar />
-      <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6 lg:px-10">
-        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-center">
+      {/* 外层容器 — flex 垂直居中，内容少时卡片居中，内容多时可整体滚动 */}
+      <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center px-4 py-4 md:px-8 md:py-6 lg:px-10">
+        <div className="w-full max-w-4xl">
           <div
             className="rounded-3xl border p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:p-6"
             style={{
@@ -42,6 +43,7 @@ const SetupLayout: React.FC<SetupLayoutProps> = ({
               borderColor: 'var(--app-border)',
             }}
           >
+            {/* 头部：步骤标签 + 标题 + 描述 + 返回按钮 */}
             <div className="flex items-start justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--app-border)' }}>
               <div>
                 {stepLabel ? (
@@ -63,6 +65,7 @@ const SetupLayout: React.FC<SetupLayoutProps> = ({
               ) : null}
             </div>
 
+            {/* 错误提示 */}
             {errorMessage ? (
               <div
                 className="mt-4 rounded-xl border px-4 py-3 text-sm"
@@ -76,6 +79,7 @@ const SetupLayout: React.FC<SetupLayoutProps> = ({
               </div>
             ) : null}
 
+            {/* 内容区域 */}
             <div className="mt-5">{children}</div>
           </div>
         </div>

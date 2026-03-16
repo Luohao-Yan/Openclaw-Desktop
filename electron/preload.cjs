@@ -168,6 +168,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pairingList: (channel) => ipcRenderer.invoke('channels:pairingList', channel),
   // DM 配对审批：执行 openclaw pairing approve <channel> <code>
   pairingApprove: (channel, code) => ipcRenderer.invoke('channels:pairingApprove', channel, code),
+  // 添加渠道到 OpenClaw 系统（执行 openclaw channels add）
+  channelsAdd: (channelType, fieldValues) => ipcRenderer.invoke('channels:add', channelType, fieldValues),
 
   // Models — 模型配置管理
   modelsStatus: () => ipcRenderer.invoke('models:status'),
@@ -185,4 +187,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   modelsModelAdd: (providerId, model) => ipcRenderer.invoke('models:modelAdd', providerId, model),
   modelsModelUpdate: (providerId, modelId, updates) => ipcRenderer.invoke('models:modelUpdate', providerId, modelId, updates),
   modelsProviderConfigSave: (providerId, config) => ipcRenderer.invoke('models:providerConfigSave', providerId, config),
+
+  // 远程 OpenClaw 连接
+  remoteOpenClawTestConnection: (payload) => ipcRenderer.invoke('remote:testConnection', payload),
+  remoteOpenClawSaveConnection: (payload) => ipcRenderer.invoke('remote:saveConnection', payload),
+
+  // 环境修复
+  fixEnvironment: (action, ...args) => ipcRenderer.invoke('system:fixEnvironment', action, ...args),
+  onFixProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('fix:progress', handler);
+    return () => ipcRenderer.removeListener('fix:progress', handler);
+  },
+
+  // 运行时解析（三级回退策略）
+  resolveRuntime: () => ipcRenderer.invoke('system:resolveRuntime'),
 });

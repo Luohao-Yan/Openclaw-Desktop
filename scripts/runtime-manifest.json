@@ -1,0 +1,38 @@
+{
+  "nodeVersion": "22.16.0",
+  "openclawVersion": "3.13.0",
+  "targets": [
+    {
+      "platform": "darwin",
+      "arch": "arm64",
+      "nodeUrl": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-darwin-arm64.tar.gz",
+      "nodeSha256": "PLACEHOLDER_DARWIN_ARM64_NODE_SHA256",
+      "openclawUrl": "https://github.com/openclaw/openclaw/releases/download/v3.13.0/openclaw-darwin-arm64",
+      "openclawSha256": "PLACEHOLDER_DARWIN_ARM64_OPENCLAW_SHA256"
+    },
+    {
+      "platform": "darwin",
+      "arch": "x64",
+      "nodeUrl": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-darwin-x64.tar.gz",
+      "nodeSha256": "PLACEHOLDER_DARWIN_X64_NODE_SHA256",
+      "openclawUrl": "https://github.com/openclaw/openclaw/releases/download/v3.13.0/openclaw-darwin-x64",
+      "openclawSha256": "PLACEHOLDER_DARWIN_X64_OPENCLAW_SHA256"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64",
+      "nodeUrl": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-win-x64.zip",
+      "nodeSha256": "PLACEHOLDER_WIN32_X64_NODE_SHA256",
+      "openclawUrl": "https://github.com/openclaw/openclaw/releases/download/v3.13.0/openclaw-win32-x64.exe",
+      "openclawSha256": "PLACEHOLDER_WIN32_X64_OPENCLAW_SHA256"
+    },
+    {
+      "platform": "linux",
+      "arch": "x64",
+      "nodeUrl": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-linux-x64.tar.gz",
+      "nodeSha256": "PLACEHOLDER_LINUX_X64_NODE_SHA256",
+      "openclawUrl": "https://github.com/openclaw/openclaw/releases/download/v3.13.0/openclaw-linux-x64",
+      "openclawSha256": "PLACEHOLDER_LINUX_X64_OPENCLAW_SHA256"
+    }
+  ]
+}

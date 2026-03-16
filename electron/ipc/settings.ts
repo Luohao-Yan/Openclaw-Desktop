@@ -4,7 +4,7 @@ import Store from 'electron-store';
 import { spawn } from 'child_process';
 import os from 'os';
 import path from 'path';
-import { statSync } from 'fs';
+import { statSync, readdirSync } from 'fs';
 import fs from 'fs/promises';
 
 interface AppSettings {
@@ -191,11 +191,104 @@ export function resolveOpenClawCommand(): string {
   return resolveBundledOpenClawPathSync() || 'openclaw';
 }
 
+/**
+ * 安全扫描目录下的子目录名称列表
+ * 目录不存在或无权限时静默返回空数组
+ */
+function safeScanDir(dirPath: string): string[] {
+  try {
+    return readdirSync(dirPath, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    // 目录不存在或无权限，静默跳过
+    return [];
+  }
+}
+
+/**
+ * 获取版本管理器的常见安装路径
+ * 覆盖: nvm、volta、fnm、asdf、nodenv、n
+ * 对于包含通配符的路径，实际扫描目录获取具体路径
+ */
+export function getVersionManagerPaths(): string[] {
+  const home = os.homedir();
+  const paths: string[] = [];
+
+  // --- nvm ---
+  // 优先使用 NVM_DIR 环境变量，否则使用默认路径
+  const nvmDir = process.env.NVM_DIR || path.join(home, '.nvm');
+  const nvmVersionsDir = path.join(nvmDir, 'versions', 'node');
+  // 扫描 ~/.nvm/versions/node/ 下所有已安装版本的 bin 目录
+  for (const ver of safeScanDir(nvmVersionsDir)) {
+    paths.push(path.join(nvmVersionsDir, ver, 'bin'));
+  }
+
+  // --- volta ---
+  paths.push(path.join(home, '.volta', 'bin'));
+
+  // --- fnm ---
+  // 优先使用 FNM_DIR 环境变量，否则使用默认路径
+  const fnmDir = process.env.FNM_DIR || path.join(home, '.fnm');
+  const fnmVersionsDir = path.join(fnmDir, 'node-versions');
+  // 扫描 ~/.fnm/node-versions/ 下所有版本的 installation/bin 目录
+  for (const ver of safeScanDir(fnmVersionsDir)) {
+    paths.push(path.join(fnmVersionsDir, ver, 'installation', 'bin'));
+  }
+
+  // --- asdf ---
+  // shims 目录（统一入口）
+  paths.push(path.join(home, '.asdf', 'shims'));
+  // 扫描 ~/.asdf/installs/nodejs/ 下所有版本的 bin 目录
+  const asdfNodeDir = path.join(home, '.asdf', 'installs', 'nodejs');
+  for (const ver of safeScanDir(asdfNodeDir)) {
+    paths.push(path.join(asdfNodeDir, ver, 'bin'));
+  }
+
+  // --- nodenv ---
+  // shims 目录（统一入口）
+  paths.push(path.join(home, '.nodenv', 'shims'));
+  // 扫描 ~/.nodenv/versions/ 下所有版本的 bin 目录
+  const nodenvVersionsDir = path.join(home, '.nodenv', 'versions');
+  for (const ver of safeScanDir(nodenvVersionsDir)) {
+    paths.push(path.join(nodenvVersionsDir, ver, 'bin'));
+  }
+
+  // --- n ---
+  paths.push(path.join(home, 'n', 'bin'));
+  // 支持自定义 N_PREFIX 环境变量
+  const nPrefix = process.env.N_PREFIX;
+  if (nPrefix) {
+    paths.push(path.join(nPrefix, 'bin'));
+  }
+
+  // --- Windows 特定路径 ---
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || '';
+    const localAppData = process.env.LOCALAPPDATA || '';
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    const userProfile = process.env.USERPROFILE || home;
+
+    paths.push(
+      path.join(appData, 'nvm'),
+      path.join(localAppData, 'volta', 'bin'),
+      path.join(programFiles, 'nodejs'),
+      path.join(programFilesX86, 'nodejs'),
+      'C:\\ProgramData\\chocolatey\\bin',
+      path.join(userProfile, 'scoop', 'shims'),
+    );
+  }
+
+  return paths;
+}
+
 // 通过 login shell 获取用户完整 PATH（解决 Electron 启动时不加载 .zshrc/.bashrc 的问题）
 let _resolvedShellPath: string | null = null;
 async function getShellPath(): Promise<string> {
   if (_resolvedShellPath) return _resolvedShellPath;
 
+  // 基础常见路径
   const extraPaths = [
     '/opt/homebrew/bin',
     '/opt/homebrew/sbin',
@@ -207,6 +300,8 @@ async function getShellPath(): Promise<string> {
     `${os.homedir()}/.nvm/versions/node/current/bin`,
     `${os.homedir()}/.local/bin`,
     `${os.homedir()}/.cargo/bin`,
+    // 合并版本管理器路径（nvm、volta、fnm、asdf、nodenv、n 等）
+    ...getVersionManagerPaths(),
   ];
 
   const shellBin = process.env.SHELL && process.env.SHELL.startsWith('/') ? process.env.SHELL : '/bin/sh';
@@ -300,12 +395,17 @@ function finishWithError(
 }
 
 async function detectCommandInPath(commandName: string): Promise<string> {
-  const result = await runCommand('which', [commandName]);
+  // Windows 使用 where 命令，macOS/Linux 使用 which 命令
+  const cmd = process.platform === 'win32' ? 'where' : 'which';
+  const result = await runCommand(cmd, [commandName]);
   if (!result.success) {
     return '';
   }
 
-  return result.output.trim();
+  // where 命令可能返回多行结果（多个匹配路径），取第一行
+  const output = result.output.trim();
+  const firstLine = output.split('\n')[0]?.trim() || output;
+  return firstLine;
 }
 
 async function diagnoseOpenClawRoot(): Promise<OpenClawRootDiagnostic> {

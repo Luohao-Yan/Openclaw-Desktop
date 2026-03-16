@@ -29,6 +29,8 @@ import {
   SetupRemoteVerifyPage,
   SetupWelcomePage,
 } from './pages/setup/SetupPages';
+import { SetupChannelsPage } from './pages/setup/SetupChannelsPage';
+import { SetupCreateAgentPage } from './pages/setup/SetupCreateAgentPage';
 
 const AppLoadingScreen: React.FC = () => {
   return (
@@ -89,6 +91,10 @@ const SetupRoutes: React.FC = () => {
       <Route path="/setup/local/confirm-existing" element={<SetupLocalConfirmExistingPage />} />
       <Route path="/setup/local/install-guide" element={<SetupLocalInstallGuidePage />} />
       <Route path="/setup/local/configure" element={<SetupLocalConfigurePage />} />
+      {/* 渠道绑定步骤：位于配置确认之后、创建 Agent 之前 */}
+      <Route path="/setup/local/channels" element={<SetupChannelsPage />} />
+      {/* 创建 Agent 步骤：位于渠道配置之后、最终验证之前 */}
+      <Route path="/setup/local/create-agent" element={<SetupCreateAgentPage />} />
       <Route path="/setup/local/verify" element={<SetupLocalVerifyPage />} />
       <Route path="/setup/remote/intro" element={<SetupRemoteIntroPage />} />
       <Route path="/setup/remote/config" element={<SetupRemoteConfigPage />} />

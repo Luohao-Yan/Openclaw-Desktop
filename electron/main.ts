@@ -20,6 +20,9 @@ import { setupApprovalsIPC } from './ipc/approvals.js';
 import { setupAppConfigIPC } from './ipc/appConfig.js';
 import { setupModelsIPC } from './ipc/models.js';
 import { setupChannelsIPC } from './ipc/channels.js';
+import { setupRuntimeIPC } from './ipc/runtime.js';
+import { setupEnvironmentFixerIPC } from './ipc/environmentFixer.js';
+import { setupRemoteConnectionIPC } from './ipc/remoteConnection.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -176,6 +179,9 @@ app.whenReady().then(() => {
   setupAppConfigIPC();
   setupModelsIPC();
   setupChannelsIPC();
+  setupRuntimeIPC(); // 注册运行时解析 IPC（三级回退策略）
+  setupEnvironmentFixerIPC(); // 注册环境自动修复 IPC（扫描、修复 PATH、安装、升级）
+  setupRemoteConnectionIPC(); // 注册远程 OpenClaw 连接 IPC（连接测试、连接保存）
   setupShellIPC();
   setupWindowIPC();
   createWindow();

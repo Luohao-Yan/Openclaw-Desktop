@@ -2,6 +2,9 @@ node_modules
 dist
 dist-electron
 release-artifacts
+resources/node
+resources/bin
+resources/.tmp
 coverage
 .vite
 .cache

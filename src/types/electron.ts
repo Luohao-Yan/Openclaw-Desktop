@@ -637,6 +637,15 @@ export interface ElectronAPI {
   skillsStats: () => Promise<any>;
   skillsSearch: (query: string) => Promise<any>;
 
+  /** 修复环境问题（安装/升级/修复PATH） */
+  fixEnvironment: (action: 'install' | 'upgrade' | 'fixPath', ...args: any[]) => Promise<import('./setup').FixResult>;
+
+  /** 监听环境修复进度事件，返回取消订阅函数 */
+  onFixProgress: (callback: (data: { action: string; status: string; message: string }) => void) => () => void;
+
+  /** 解析运行时环境（三级回退策略） */
+  resolveRuntime: () => Promise<import('./setup').RuntimeResolution>;
+
   // Approvals 类型
   approvalsGet: (target: ApprovalsTarget) => Promise<ApprovalsGetResult>;
   approvalsAllowlistAdd: (pattern: string, agent: string, target: ApprovalsTarget) => Promise<BasicSuccessResult>;
@@ -655,9 +664,9 @@ export interface ElectronAPI {
   channelsStatus: () => Promise<{ success: boolean; output?: string; error?: string }>;
   /** 查询渠道列表（执行 openclaw channels list） */
   channelsList: () => Promise<{ success: boolean; output?: string; error?: string }>;
-  /** 诊断指定渠道连接状态（执行 openclaw channels status --channel <channelType>） */
+  /** 诊断指定渠道连接状态（执行 openclaw channels status 并过滤指定渠道） */
   channelsDiagnose: (channelType: string) => Promise<{ success: boolean; output?: string; error?: string }>;
-  /** 重新连接指定渠道（执行 openclaw channels reconnect --channel <channelType>） */
+  /** 重新连接指定渠道（执行 openclaw channels login --channel <channelType>） */
   channelsReconnect: (channelType: string) => Promise<{ success: boolean; output?: string; error?: string }>;
   /** 查询指定渠道的待审批 DM 配对请求（读取配对 JSON 文件） */
   pairingList: (channel: string) => Promise<{
@@ -667,6 +676,8 @@ export interface ElectronAPI {
   }>;
   /** 审批指定渠道的 DM 配对请求（执行 openclaw pairing approve <channel> <code>） */
   pairingApprove: (channel: string, code: string) => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 添加渠道到 OpenClaw 系统（执行 openclaw channels add） */
+  channelsAdd: (channelType: string, fieldValues: Record<string, string>) => Promise<{ success: boolean; output?: string; error?: string }>;
   /** 按过滤条件查询日志（执行 openclaw logs --filter <filter>） */
   logsFilter: (filter: string) => Promise<{ success: boolean; logs?: any[]; error?: string }>;
   /** 在系统终端启动 openclaw onboard 交互式向导 */

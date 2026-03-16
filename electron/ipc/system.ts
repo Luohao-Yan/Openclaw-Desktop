@@ -10,7 +10,22 @@ import {
   getOpenClawRootDir,
   resolveOpenClawCommand,
   resolveNpmGlobalBin,
+  getVersionManagerPaths,
 } from './settings.js';
+import { resolveRuntime, getBundledNodePath, getBundledOpenClawCLIPath } from './runtime.js';
+import type { RuntimeTier } from './runtimeLogic.js';
+
+/** 可自动修复的环境问题 */
+interface FixableIssue {
+  /** 问题唯一标识 */
+  id: string;
+  /** 问题描述标签 */
+  label: string;
+  /** 修复动作类型：安装 / 升级 / 修复 PATH */
+  action: 'install' | 'upgrade' | 'fixPath';
+  /** 严重程度：必要 / 可选 */
+  severity: 'required' | 'optional';
+}
 
 interface SystemStats {
   cpu: number; // CPU使用率百分比
@@ -384,6 +399,18 @@ interface SetupEnvironmentCheckResult {
   recommendedInstallCommand: string;
   recommendedInstallLabel: string;
   notes: string[];
+  /** 内置 Node.js 是否可用 */
+  bundledNodeAvailable: boolean;
+  /** 内置 Node.js 路径 */
+  bundledNodePath?: string;
+  /** 内置 OpenClaw CLI 是否可用 */
+  bundledOpenClawAvailable: boolean;
+  /** 内置 OpenClaw CLI 路径 */
+  bundledOpenClawPath?: string;
+  /** 当前生效的运行时层级 */
+  runtimeTier: RuntimeTier;
+  /** 可自动修复的问题列表 */
+  fixableIssues: FixableIssue[];
 }
 
 interface SetupInstallResult {
@@ -394,7 +421,7 @@ interface SetupInstallResult {
   error?: string;
 }
 
-const DESKTOP_APP_VERSION = '0.3.13-preview-1';
+const DESKTOP_APP_VERSION = '0.3.13-preview-2';
 const OPENCLAW_COMPAT_TAIL = 8;
 const DESKTOP_RUNTIME_VERSION = 'desktop-runtime-0.5.8';
 const DESKTOP_PRELOAD_VERSION = 'desktop-preload-0.5.8';
@@ -423,6 +450,7 @@ let _resolvedShellPath: string | null = null;
 async function getShellPath(): Promise<string> {
   if (_resolvedShellPath && _resolvedShellPath.length > 0) return _resolvedShellPath;
 
+  // 基础常见路径
   const extraPaths = [
     '/opt/homebrew/bin',
     '/opt/homebrew/sbin',
@@ -434,6 +462,8 @@ async function getShellPath(): Promise<string> {
     `${os.homedir()}/.nvm/versions/node/current/bin`,
     `${os.homedir()}/.local/bin`,
     `${os.homedir()}/.cargo/bin`,
+    // 合并版本管理器路径（nvm、volta、fnm、asdf、nodenv、n 等），与 settings.ts 保持一致
+    ...getVersionManagerPaths(),
   ];
 
   // 用绝对路径避免 ENOENT，不依赖当前 PATH
@@ -613,18 +643,78 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
   const platformLabel = getPlatformLabel(platform);
   const openclawRootDir = getOpenClawRootDir();
   const configPath = path.join(openclawRootDir, 'openclaw.json');
-  const bundledCommand = getBundledOpenClawPath();
   const resolvedCommand = resolveOpenClawCommand();
-  const hasBundledRuntime = Boolean(bundledCommand);
+  const notes: string[] = [];
+  const fixableIssues: FixableIssue[] = [];
+
+  // ── 第一步：调用 Runtime Resolver 获取三级运行时解析结果 ──────────────────
+  const runtime = await resolveRuntime();
+
+  // 获取内置运行时路径信息
+  const bundledNodePath = getBundledNodePath();
+  const bundledOpenClawPath = getBundledOpenClawCLIPath();
+
   const recommendedInstallCommand = platform === 'win32'
     ? 'iwr -useb https://openclaw.ai/install.ps1 | iex'
     : 'curl -fsSL https://openclaw.ai/install.sh | bash';
-  const recommendedInstallLabel = hasBundledRuntime
+  const recommendedInstallLabel = runtime.tier === 'bundled'
     ? '应用内置运行时（推荐）'
     : platform === 'win32'
       ? 'PowerShell 安装脚本（Windows / WSL）'
       : 'Shell 安装脚本（macOS / Linux）';
-  const notes: string[] = [];
+
+  // ── 第二步：当 bundled 完整可用时，跳过系统 Node.js/npm 检测 ──────────────
+  if (runtime.tier === 'bundled') {
+    // 内置运行时完整可用，仅检测 OpenClaw CLI 版本和配置文件
+    const [openclawResult, configAccessResult] = await Promise.all([
+      runCommand(runtime.openclawPath || resolvedCommand, ['--version']),
+      fs.access(configPath).then(() => true).catch(() => false),
+    ]);
+
+    const openclawVersion = openclawResult.success ? openclawResult.output.trim() : undefined;
+
+    notes.push('已使用应用内置 Node.js 运行时和内置 OpenClaw CLI，无需任何外部依赖。');
+
+    if (configAccessResult) {
+      notes.push('检测到现有 OpenClaw 配置，后续可选择直接复用当前安装。');
+    } else {
+      notes.push('尚未检测到 openclaw.json，首次安装完成后会自动生成配置。');
+    }
+
+    if (platform === 'win32') {
+      notes.push('官方建议在 Windows 上通过 WSL2 使用 OpenClaw CLI。');
+    }
+
+    return {
+      platform,
+      platformLabel,
+      runtimeMode: 'bundled',
+      runtimeCommand: runtime.openclawPath || resolvedCommand,
+      bundledRuntimeAvailable: true,
+      nodeInstalled: true,
+      nodeVersion: 'bundled',
+      nodeVersionSatisfies: true,
+      npmInstalled: true,
+      npmVersion: 'bundled',
+      openclawInstalled: openclawResult.success,
+      openclawVersion,
+      openclawCommand: runtime.openclawPath || undefined,
+      openclawConfigExists: configAccessResult,
+      openclawRootDir,
+      recommendedInstallCommand,
+      recommendedInstallLabel,
+      notes,
+      // 新增字段：Runtime Resolver 结果
+      bundledNodeAvailable: runtime.bundledNodeAvailable,
+      bundledNodePath: bundledNodePath || undefined,
+      bundledOpenClawAvailable: runtime.bundledOpenClawAvailable,
+      bundledOpenClawPath: bundledOpenClawPath || undefined,
+      runtimeTier: runtime.tier,
+      fixableIssues, // bundled 模式下无需修复
+    };
+  }
+
+  // ── 第三步：非 bundled 模式，执行完整的系统环境检测 ────────────────────────
 
   // 先用完整路径扫描找到真实的 openclaw 可执行文件
   const detectedInstallation = await detectOpenClawInstallation();
@@ -633,51 +723,61 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     : resolvedCommand;
 
   const [nodeResult, npmResult, openclawResult, configAccessResult] = await Promise.all([
-    hasBundledRuntime
-      ? Promise.resolve({ success: true, output: 'bundled-with-openclaw' })
-      : runCommand('node', ['-v']),
-    hasBundledRuntime
-      ? Promise.resolve({ success: true, output: 'bundled-with-openclaw' })
-      : runCommand('npm', ['-v']),
+    runCommand('node', ['-v']),
+    runCommand('npm', ['-v']),
     runCommand(effectiveOpenClawCommand, ['--version']),
-    fs.access(configPath)
-      .then(() => true)
-      .catch(() => false),
+    fs.access(configPath).then(() => true).catch(() => false),
   ]);
 
   const nodeVersion = nodeResult.success ? nodeResult.output.trim() : undefined;
   const nodeMajorVersion = parseMajorVersion(nodeVersion);
-  const nodeVersionSatisfies = hasBundledRuntime
-    ? true
-    : nodeMajorVersion !== null && nodeMajorVersion >= 22;
+  const nodeVersionSatisfies = nodeMajorVersion !== null && nodeMajorVersion >= 22;
   const npmVersion = npmResult.success ? npmResult.output.trim() : undefined;
   const openclawVersion = openclawResult.success ? openclawResult.output.trim() : undefined;
   const openclawConfigExists = configAccessResult;
-  const runtimeMode = openclawResult.success
-    ? hasBundledRuntime
-      ? 'bundled'
-      : 'system'
-    : 'missing';
+  const runtimeMode = openclawResult.success ? 'system' : 'missing';
 
-  if (hasBundledRuntime) {
-    notes.push('已检测到应用内置 OpenClaw 运行时，无需用户预装 Node.js、npm 或 CLI。');
-  } else if (!nodeResult.success) {
+  // ── 第四步：生成 fixableIssues 列表 ───────────────────────────────────────
+
+  if (!nodeResult.success) {
+    // Node.js 未安装 → 添加 install 修复动作
+    fixableIssues.push({
+      id: 'node-not-installed',
+      label: '未检测到 Node.js，需要安装 Node.js 22 或更高版本',
+      action: 'install',
+      severity: 'required',
+    });
     notes.push('未检测到 Node.js，请先安装 Node.js 22 或更高版本。');
   } else if (!nodeVersionSatisfies) {
+    // Node.js 版本过低 → 添加 upgrade 修复动作
+    fixableIssues.push({
+      id: 'node-version-low',
+      label: `当前 Node.js 版本 ${nodeVersion || '未知'} 低于最低要求 22`,
+      action: 'upgrade',
+      severity: 'required',
+    });
     notes.push(`当前 Node 版本为 ${nodeVersion || '未知'}，OpenClaw 官方要求 Node >= 22。`);
   }
 
-  if (!hasBundledRuntime && !npmResult.success) {
+  // 检测 Node.js 是否已安装但 PATH 未正确配置（Runtime Resolver 检测到系统版本但 runCommand 未找到）
+  if (!nodeResult.success && runtime.systemNodeVersion) {
+    // Runtime Resolver 通过版本管理器路径找到了 Node.js，但当前 PATH 中未检测到
+    fixableIssues.push({
+      id: 'node-path-missing',
+      label: '已安装 Node.js 但 PATH 环境变量未正确配置',
+      action: 'fixPath',
+      severity: 'required',
+    });
+    notes.push('检测到已安装的 Node.js 但 PATH 未正确配置，可尝试修复 PATH。');
+  }
+
+  if (!npmResult.success) {
     notes.push('未检测到 npm，请确认 Node.js 安装完整。');
   }
 
   if (!openclawResult.success) {
-    notes.push(
-      hasBundledRuntime
-        ? '已发现内置运行时资源，但当前内置 openclaw 无法执行，请检查打包资源或文件权限。'
-        : '当前未检测到 openclaw 命令，建议先完成 CLI 安装。',
-    );
-  } else if (!hasBundledRuntime) {
+    notes.push('当前未检测到 openclaw 命令，建议先完成 CLI 安装。');
+  } else {
     notes.push('当前使用系统中的 OpenClaw CLI。若要实现真正开箱即用，请在打包时附带内置运行时。');
   }
 
@@ -696,7 +796,7 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     platformLabel,
     runtimeMode,
     runtimeCommand: resolvedCommand,
-    bundledRuntimeAvailable: hasBundledRuntime,
+    bundledRuntimeAvailable: runtime.bundledNodeAvailable && runtime.bundledOpenClawAvailable,
     nodeInstalled: nodeResult.success,
     nodeVersion,
     nodeVersionSatisfies,
@@ -710,6 +810,13 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     recommendedInstallCommand,
     recommendedInstallLabel,
     notes,
+    // 新增字段：Runtime Resolver 结果
+    bundledNodeAvailable: runtime.bundledNodeAvailable,
+    bundledNodePath: bundledNodePath || undefined,
+    bundledOpenClawAvailable: runtime.bundledOpenClawAvailable,
+    bundledOpenClawPath: bundledOpenClawPath || undefined,
+    runtimeTier: runtime.tier,
+    fixableIssues,
   };
 }
 
