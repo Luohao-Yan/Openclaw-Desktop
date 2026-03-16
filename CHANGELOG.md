@@ -6,6 +6,27 @@
 
 ---
 
+## [0.3.13-preview-3] - 2026-03-17
+
+### 🔧 重构 (Refactor)
+
+- **引导流程状态管理**：提取 setupReducer/setupActions/setupNavigationGraph/setupFallback/setupSelectors 为独立模块
+- **引导流程组件**：新增 SetupSkeleton/VirtualChannelList 组件，优化 SetupLayout
+- **渠道字段配置**：新增 channelFieldDefinitions 渠道字段定义
+- **IPC 逻辑拆分**：新增 agentCreateLogic/modelTestLogic/environmentFixerLogic
+
+### 🐛 修复 (Fixes)
+
+- **实例管理**：修正实例定义，仅展示真正的运行时进程（Gateway/LaunchAgent），移除错误的 workspace 目录扫描
+- **类型修复**：修复 setupIntegration 测试中 EnvironmentCheckResult 判别联合类型错误
+
+### 🧪 测试 (Tests)
+
+- 新增 setupReducer/setupNavigation/setupFallback/setupErrors/setupChannelConfig/setupIpcResult 属性测试
+- 新增 setupIntegration 集成属性测试
+
+---
+
 ## [0.3.13-preview-2] - 2026-03-16
 
 ### ✨ 新增功能 (Features)
