@@ -10,5 +10,6 @@
     "noEmit": false,
     "outDir": "./dist-electron"
   },
-  "include": ["electron/**/*", "electron/config/**/*.json"]
+  "include": ["electron/**/*", "electron/config/**/*.json"],
+  "exclude": ["electron/**/__tests__/**"]
 }
