@@ -6,6 +6,40 @@
 
 ---
 
+## [0.3.13-preview-4] - 2026-03-18
+
+### ✨ 新增 (Features)
+
+- **远程连接增强**：支持自签名证书检测与跳过验证选项（skipCertVerification）
+- **网关健康检查**：gateway IPC 新增健康检查、自动重连与修复逻辑
+- **运行时管理增强**：runtime IPC 新增环境诊断与版本检测能力
+- **渠道管理**：channels IPC 新增渠道操作接口
+- **设置扩展**：settings IPC 新增配置项支持
+
+### 🔧 重构 (Refactor)
+
+- **远程连接逻辑拆分**：将网络错误映射、证书检测、版本解析等提取到 remoteConnectionLogic 纯函数模块
+- **运行时逻辑拆分**：新增 runtimeLogic 纯函数模块
+- **验证链逻辑**：新增 verifyChainLogic/verifyLogic 验证链纯函数模块
+- **诊断逻辑**：新增 doctorLogic 环境诊断纯函数模块
+- **进程管理**：新增 spawnHelper/spawnHelperLogic 子进程管理模块
+- **状态转换**：新增 stateTransitionLogic 引导流程状态转换纯函数模块
+- **引导流程**：优化 SetupFlowContext 与 setupReducer 状态管理
+- **实例管理页面**：优化 Instances 页面布局，修复顶部卡片吸顶问题
+
+### 🐛 修复 (Fixes)
+
+- **ESM 模块解析**：修复 remoteConnection.ts 中 import 缺少 .js 扩展名导致的 ERR_MODULE_NOT_FOUND 错误
+
+### 🧪 测试 (Tests)
+
+- 新增 remoteConnection/pathResolver 属性测试
+- 新增 doctorLogic 单元测试与 doctorOutput 属性测试
+- 新增 networkError/regressionDetect/runtimeTier/spawnHelper/verifyChain/zodErrorParse 属性测试
+- 新增 setupWizardValidationFixes/stateTransition 属性测试
+
+---
+
 ## [0.3.13-preview-3] - 2026-03-17
 
 ### 🔧 重构 (Refactor)

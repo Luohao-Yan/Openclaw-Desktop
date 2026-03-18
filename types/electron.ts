@@ -397,6 +397,8 @@ export interface RemoteOpenClawConnectionPayload {
   port?: number;
   protocol: 'http' | 'https';
   token?: string;
+  /** 是否跳过 SSL 证书验证（自签名证书场景） */
+  skipCertVerification?: boolean;
 }
 
 export interface RemoteOpenClawTestResult {
@@ -406,6 +408,8 @@ export interface RemoteOpenClawTestResult {
   host?: string;
   port?: number;
   authenticated?: boolean;
+  /** 是否为自签名证书错误 */
+  isSelfSignedCertError?: boolean;
 }
 
 export interface TaskItem {
@@ -999,6 +1003,8 @@ export interface MainActions {
   // 应用配置管理
   appConfigReset(): Promise<{ success: boolean; error?: string }>;
   appConfigReinstallOpenclaw(): Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 执行 openclaw doctor --fix 自动修复配置文件 */
+  doctorFix(): Promise<{ success: boolean; output?: string; error?: string }>;
 }
 
 export interface ElectronAPI extends 

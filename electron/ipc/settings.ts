@@ -296,13 +296,77 @@ export function resetShellPathCache(): void {
 }
 
 /**
+ * 清除 Shell PATH 缓存，强制下次调用 getShellPath() 重新解析
+ *
+ * 统一命名的别名，与 resetShellPathCache() 功能相同。
+ * 供外部模块调用以强制刷新 PATH 缓存（如用户安装或切换了版本管理器版本后）。
+ *
+ * @see resetShellPathCache
+ */
+export const clearPathCache = resetShellPathCache;
+
+/**
+ * 获取 Windows 平台的完整 PATH
+ *
+ * 使用 cmd.exe /c echo %PATH% 获取系统完整 PATH，
+ * 失败时回退到 process.env.PATH。
+ * 合并版本管理器路径，使用 `;` 作为 PATH 分隔符（Windows 约定）。
+ *
+ * @returns 合并后的 Windows PATH 字符串
+ */
+async function getWindowsShellPath(): Promise<string> {
+  // Windows 版本管理器路径
+  const versionManagerPaths = getVersionManagerPaths();
+
+  try {
+    // 通过 cmd.exe 获取 Windows 完整 PATH
+    const result = await new Promise<string>((resolve) => {
+      const child = spawn('cmd.exe', ['/c', 'echo', '%PATH%'], {
+        env: process.env,
+      });
+      let out = '';
+      child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+      child.on('close', () => resolve(out.trim()));
+      child.on('error', () => resolve(''));
+      // 3 秒超时保护
+      setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 3000);
+    });
+
+    if (result) {
+      // 使用 `;` 分隔符合并 PATH（Windows 约定）
+      const combined = Array.from(
+        new Set(result.split(';').concat(versionManagerPaths)),
+      ).join(';');
+      return combined;
+    }
+  } catch {
+    // cmd.exe 执行失败，使用 process.env.PATH 兜底
+  }
+
+  // 回退：使用 process.env.PATH 合并版本管理器路径
+  const fallback = Array.from(
+    new Set((process.env.PATH || '').split(';').concat(versionManagerPaths)),
+  ).join(';');
+  return fallback;
+}
+
+/**
  * 通过 login shell 解析用户完整 PATH（包含版本管理器路径）
  * 结果会被缓存，可通过 resetShellPathCache() 清除。
+ *
+ * Windows 平台使用 cmd.exe 获取 PATH，macOS/Linux 使用 login shell。
  */
 export async function getShellPath(): Promise<string> {
   if (_resolvedShellPath) return _resolvedShellPath;
 
-  // 基础常见路径
+  // Windows 平台分发到专用实现
+  if (process.platform === 'win32') {
+    const winPath = await getWindowsShellPath();
+    _resolvedShellPath = winPath;
+    return winPath;
+  }
+
+  // macOS/Linux：基础常见路径
   const extraPaths = [
     '/opt/homebrew/bin',
     '/opt/homebrew/sbin',

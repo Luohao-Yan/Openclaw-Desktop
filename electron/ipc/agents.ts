@@ -13,8 +13,28 @@ import {
   writeFileSync,
 } from 'fs';
 import { basename, dirname, extname, join, relative, resolve } from 'path';
-import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
+import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand } from './settings.js';
 import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError } from './agentCreateLogic.js';
+
+/**
+ * 构建 doctor --fix 命令的环境变量（纯函数）
+ * 注入完整 shell PATH 以确保版本管理器路径可用，
+ * 同时保留 NO_COLOR 和 FORCE_COLOR 设置
+ * @param processEnv 当前进程环境变量
+ * @param shellPath 完整的 shell PATH（包含版本管理器路径）
+ * @returns 包含完整 PATH 的环境变量对象
+ */
+export function buildDoctorFixEnv(
+  processEnv: Record<string, string | undefined>,
+  shellPath: string,
+): Record<string, string | undefined> {
+  return {
+    ...processEnv,
+    PATH: shellPath,
+    NO_COLOR: '1',
+    FORCE_COLOR: '0',
+  };
+}
 
 const WORKSPACE_TRASH_DIRNAME = '.recycle-bin';
 const WORKSPACE_TRASH_MANIFEST = 'manifest.json';
@@ -343,10 +363,12 @@ async function runAgentCreateCommand(payload: { name: string; workspace: string;
 
   // 修复 Bug 3: 先执行 openclaw doctor --fix 自动修复配置文件中的 schema 不兼容问题
   const openclawCmd = resolveOpenClawCommand();
+  // 获取完整 shell PATH，确保版本管理器路径可用
+  const shellPath = await getShellPath();
   try {
     await new Promise<void>((resolve) => {
       const doctorChild = spawn(openclawCmd, ['--no-color', 'doctor', '--fix'], {
-        env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+        env: buildDoctorFixEnv(process.env, shellPath),
       });
       doctorChild.on('close', () => resolve());
       doctorChild.on('error', () => resolve());
@@ -362,11 +384,7 @@ async function runAgentCreateCommand(payload: { name: string; workspace: string;
 
   return new Promise<{ success: boolean; output: string; error?: string }>((resolvePromise) => {
     const child = spawn(openclawCmd, ['--no-color', ...args], {
-      env: {
-        ...process.env,
-        NO_COLOR: '1',
-        FORCE_COLOR: '0',
-      },
+      env: buildDoctorFixEnv(process.env, shellPath),
     });
 
     let output = '';

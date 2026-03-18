@@ -313,6 +313,7 @@ const setupStateArb = (): fc.Arbitrary<SetupState> =>
       error: fc.oneof(fc.constant(null), setupErrorArb()),
     }),
     settings: setupSettingsArb(),
+    changeLogs: fc.constant([]),
   });
 
 // ============================================================

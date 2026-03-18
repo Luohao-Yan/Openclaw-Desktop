@@ -18,6 +18,7 @@ import type {
   SetupSettings,
 } from '../types/setup';
 import type { FixProgressState, SetupAction } from './setupActions';
+import { isValidTransition, type StateChangeLog } from './stateTransitionLogic';
 
 // ============================================================================
 // SetupState 接口定义
@@ -85,6 +86,9 @@ export interface SetupState {
 
   /** 持久化设置 */
   settings: SetupSettings;
+
+  /** 状态变更日志（用于崩溃恢复诊断） */
+  changeLogs: StateChangeLog[];
 }
 
 // ============================================================================
@@ -177,6 +181,8 @@ export const initialSetupState: SetupState = {
   },
 
   settings: {},
+
+  changeLogs: [],
 };
 
 // ============================================================================
@@ -240,6 +246,15 @@ export function createIPCUnavailableError(methodName: string): SetupError {
  * @see 需求 1.5 — reducer 处理后的状态保持不可变性（原状态不被修改）
  */
 export function setupReducer(state: SetupState, action: SetupAction): SetupState {
+  // 状态转换合法性校验（防御性编程：仅警告不阻断）
+  const validation = isValidTransition(state, action);
+  if (!validation.valid) {
+    console.warn(`[SetupReducer] 不合法的状态转换: ${action.type} — ${validation.reason}`);
+  }
+
+  // 执行状态变更，将结果存入 newState
+  let newState: SetupState;
+
   switch (action.type) {
     // ========================================================================
     // 模式设置
@@ -247,10 +262,11 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_MODE':
       // 设置安装模式：本机安装 / 远程连接
-      return {
+      newState = {
         ...state,
         mode: action.payload,
       };
+      break;
 
     // ========================================================================
     // UI 状态
@@ -258,33 +274,36 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_BUSY':
       // 设置忙碌状态（加载中）
-      return {
+      newState = {
         ...state,
         ui: {
           ...state.ui,
           isBusy: action.payload,
         },
       };
+      break;
 
     case 'SET_BOOTSTRAPPING':
       // 设置引导初始化状态
-      return {
+      newState = {
         ...state,
         ui: {
           ...state.ui,
           isBootstrapping: action.payload,
         },
       };
+      break;
 
     case 'SET_ERROR':
       // 设置结构化错误对象，null 表示清除错误
-      return {
+      newState = {
         ...state,
         ui: {
           ...state.ui,
           error: action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // 环境检测相关
@@ -292,33 +311,36 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_ENVIRONMENT_CHECK':
       // 设置环境检测结果（判别联合：success / failed / fallback）
-      return {
+      newState = {
         ...state,
         environment: {
           ...state.environment,
           check: action.payload,
         },
       };
+      break;
 
     case 'SET_RUNTIME_RESOLUTION':
       // 设置运行时解析结果，null 表示未解析
-      return {
+      newState = {
         ...state,
         environment: {
           ...state.environment,
           runtimeResolution: action.payload,
         },
       };
+      break;
 
     case 'SET_FIX_PROGRESS':
       // 设置环境修复进度状态
-      return {
+      newState = {
         ...state,
         environment: {
           ...state.environment,
           fixProgress: action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // 本机安装相关
@@ -326,23 +348,25 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_LOCAL_CHECK':
       // 设置本地安装检测结果，null 表示重置
-      return {
+      newState = {
         ...state,
         local: {
           ...state.local,
           checkResult: action.payload,
         },
       };
+      break;
 
     case 'SET_INSTALL_RESULT':
       // 设置安装结果
-      return {
+      newState = {
         ...state,
         local: {
           ...state.local,
           installResult: action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // 远程连接相关
@@ -350,23 +374,25 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_REMOTE_DRAFT':
       // 设置远程连接草稿
-      return {
+      newState = {
         ...state,
         remote: {
           ...state.remote,
           draft: action.payload,
         },
       };
+      break;
 
     case 'SET_REMOTE_VERIFICATION':
       // 设置远程连接验证结果，null 表示重置
-      return {
+      newState = {
         ...state,
         remote: {
           ...state.remote,
           verification: action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // 渠道配置相关
@@ -374,18 +400,19 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_CHANNEL_CONFIGS':
       // 整体替换渠道配置列表
-      return {
+      newState = {
         ...state,
         channels: {
           ...state.channels,
           configs: action.payload,
         },
       };
+      break;
 
     case 'UPDATE_CHANNEL': {
       // 更新单个渠道的部分配置
       const { key, updates } = action.payload;
-      return {
+      newState = {
         ...state,
         channels: {
           ...state.channels,
@@ -394,17 +421,19 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
           ),
         },
       };
+      break;
     }
 
     case 'SET_CHANNEL_ADD_RESULTS':
       // 设置渠道批量添加结果
-      return {
+      newState = {
         ...state,
         channels: {
           ...state.channels,
           addResults: action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // Agent 创建相关
@@ -412,13 +441,14 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_CREATED_AGENT':
       // 设置引导流程中创建的 Agent 信息，null 表示清除
-      return {
+      newState = {
         ...state,
         agent: {
           ...state.agent,
           created: action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // 设置相关
@@ -426,20 +456,22 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
 
     case 'SET_SETTINGS':
       // 整体替换设置
-      return {
+      newState = {
         ...state,
         settings: action.payload,
       };
+      break;
 
     case 'MERGE_SETTINGS':
       // 合并部分设置（浅合并）
-      return {
+      newState = {
         ...state,
         settings: {
           ...state.settings,
           ...action.payload,
         },
       };
+      break;
 
     // ========================================================================
     // 默认情况
@@ -449,4 +481,15 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
       // 未知 action 类型，返回原状态不变
       return state;
   }
+
+  // 记录状态变更日志（保留最近 50 条，防止内存增长）
+  const logEntry: StateChangeLog = {
+    actionType: action.type,
+    timestamp: Date.now(),
+  };
+
+  return {
+    ...newState,
+    changeLogs: [...state.changeLogs, logEntry].slice(-50),
+  };
 }

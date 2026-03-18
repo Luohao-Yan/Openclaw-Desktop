@@ -73,6 +73,55 @@ export function mapNetworkError(err: { code?: string; cause?: { code?: string };
   return `网络错误: ${message}`;
 }
 
+// ─── 纯函数：判断自签名证书错误 ──────────────────────────────────────────────
+
+/** 自签名证书相关的错误码集合 */
+const SELF_SIGNED_CERT_CODES = new Set([
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+]);
+
+/**
+ * 判断错误是否为自签名证书错误
+ *
+ * 检查 err.code 或 err.cause.code 是否为
+ * DEPTH_ZERO_SELF_SIGNED_CERT 或 SELF_SIGNED_CERT_IN_CHAIN。
+ *
+ * @param err 原始错误对象
+ * @returns 当错误码匹配自签名证书错误时返回 true
+ */
+export function isSelfSignedCertError(err: {
+  code?: string;
+  cause?: { code?: string };
+}): boolean {
+  const code = err.code || err.cause?.code || '';
+  return SELF_SIGNED_CERT_CODES.has(code);
+}
+
+// ─── 纯函数：构建证书错误消息 ──────────────────────────────────────────────
+
+/**
+ * 构建包含证书提示的错误消息
+ *
+ * 根据错误码生成用户友好的中文错误描述，并附带"跳过证书验证"的操作提示。
+ *
+ * @param err 原始错误对象
+ * @returns 包含证书诊断信息和操作提示的错误消息
+ */
+export function buildCertErrorMessage(err: {
+  code?: string;
+  cause?: { code?: string };
+}): string {
+  const code = err.code || err.cause?.code || '';
+
+  if (SELF_SIGNED_CERT_CODES.has(code)) {
+    return '服务器使用了自签名证书，可在连接设置中启用"跳过证书验证"选项以继续连接';
+  }
+
+  // 其他证书相关错误（如过期、无法验证叶证书等）
+  return `SSL 证书验证失败 (${code || '未知错误'})，如为自签名证书可尝试启用"跳过证书验证"选项`;
+}
+
 // ─── 纯函数：解析响应体中的版本号 ────────────────────────────────────────────
 
 /**

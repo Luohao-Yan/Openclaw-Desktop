@@ -16,6 +16,8 @@ import {
   mapNetworkError,
   parseVersionFromBody,
   isAuthError,
+  isSelfSignedCertError,
+  buildCertErrorMessage,
 } from '../remoteConnectionLogic';
 import type { RemoteConnectionPayload } from '../remoteConnectionLogic';
 
@@ -411,6 +413,237 @@ describe('isAuthError 认证错误判断', () => {
         },
       ),
       { numRuns: 200 },
+    );
+  });
+});
+
+// ============================================================
+// Property 13: 自签名证书错误识别
+// Feature: setup-flow-hardening
+// ============================================================
+
+describe('Feature: setup-flow-hardening, Property 13: 自签名证书错误识别', () => {
+  /**
+   * Validates: Requirements 8.1
+   *
+   * 对于任意错误对象，当 code 或 cause.code 为
+   * DEPTH_ZERO_SELF_SIGNED_CERT 或 SELF_SIGNED_CERT_IN_CHAIN 时，
+   * isSelfSignedCertError 应返回 true；对于其他错误码应返回 false。
+   * 且 buildCertErrorMessage 的输出应包含"跳过证书验证"的提示文本。
+   */
+
+  /** 生成自签名证书错误码 */
+  const selfSignedCodeArb = (): fc.Arbitrary<string> =>
+    fc.constantFrom('DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN');
+
+  /** 生成非自签名证书的错误码（排除两个自签名错误码） */
+  const nonSelfSignedCodeArb = (): fc.Arbitrary<string> =>
+    fc.string({ minLength: 1, maxLength: 30, unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ_'.split('')) })
+      .filter((s) => s !== 'DEPTH_ZERO_SELF_SIGNED_CERT' && s !== 'SELF_SIGNED_CERT_IN_CHAIN');
+
+  test('自签名证书错误码在 err.code 中时，isSelfSignedCertError 返回 true', () => {
+    fc.assert(
+      fc.property(selfSignedCodeArb(), (code) => {
+        // 错误码直接在 err.code 中
+        expect(isSelfSignedCertError({ code })).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('自签名证书错误码在 err.cause.code 中时，isSelfSignedCertError 返回 true', () => {
+    fc.assert(
+      fc.property(selfSignedCodeArb(), (code) => {
+        // 错误码在 cause.code 中（某些 Node.js 版本的行为）
+        expect(isSelfSignedCertError({ cause: { code } })).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('非自签名证书错误码时，isSelfSignedCertError 返回 false', () => {
+    fc.assert(
+      fc.property(nonSelfSignedCodeArb(), (code) => {
+        // 非自签名证书错误码应返回 false
+        expect(isSelfSignedCertError({ code })).toBe(false);
+        expect(isSelfSignedCertError({ cause: { code } })).toBe(false);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('空错误对象时，isSelfSignedCertError 返回 false', () => {
+    // 无 code 和 cause 的空对象
+    expect(isSelfSignedCertError({})).toBe(false);
+    expect(isSelfSignedCertError({ cause: {} })).toBe(false);
+  });
+
+  test('自签名证书错误时，buildCertErrorMessage 输出包含"跳过证书验证"', () => {
+    fc.assert(
+      fc.property(selfSignedCodeArb(), (code) => {
+        // 自签名证书错误消息应包含"跳过证书验证"提示
+        const msgFromCode = buildCertErrorMessage({ code });
+        expect(msgFromCode).toContain('跳过证书验证');
+
+        // cause.code 中的错误码同样应包含提示
+        const msgFromCause = buildCertErrorMessage({ cause: { code } });
+        expect(msgFromCause).toContain('跳过证书验证');
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('非自签名证书错误时，buildCertErrorMessage 仍包含"跳过证书验证"提示', () => {
+    fc.assert(
+      fc.property(nonSelfSignedCodeArb(), (code) => {
+        // 即使非自签名错误，消息也应包含"跳过证书验证"作为兜底建议
+        const msg = buildCertErrorMessage({ code });
+        expect(msg).toContain('跳过证书验证');
+      }),
+      { numRuns: 100 },
+    );
+  });
+});
+
+// ============================================================
+// Property 14: HTTP 认证错误判断
+// Feature: setup-flow-hardening
+// ============================================================
+
+describe('Feature: setup-flow-hardening, Property 14: HTTP 认证错误判断', () => {
+  /**
+   * Validates: Requirements 8.4
+   *
+   * 对于任意 HTTP 状态码（0-599），isAuthError 应返回 true
+   * 当且仅当状态码为 401 或 403。
+   */
+
+  test('对于任意 HTTP 状态码，isAuthError 返回 true 当且仅当状态码为 401 或 403', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: 599 }),
+        (statusCode) => {
+          const result = isAuthError(statusCode);
+          const expected = statusCode === 401 || statusCode === 403;
+          // 双向验证：返回值与预期完全一致
+          expect(result).toBe(expected);
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
+
+  test('401 和 403 始终返回 true（确定性验证）', () => {
+    // 确定性验证两个认证错误状态码
+    expect(isAuthError(401)).toBe(true);
+    expect(isAuthError(403)).toBe(true);
+  });
+
+  test('常见非认证状态码始终返回 false', () => {
+    // 验证常见的非认证状态码
+    const nonAuthCodes = [200, 201, 204, 301, 302, 400, 404, 405, 500, 502, 503];
+    for (const code of nonAuthCodes) {
+      expect(isAuthError(code)).toBe(false);
+    }
+  });
+});
+
+// ============================================================
+// Property 15: 响应体版本号提取
+// Feature: setup-flow-hardening
+// ============================================================
+
+describe('Feature: setup-flow-hardening, Property 15: 响应体版本号提取', () => {
+  /**
+   * Validates: Requirements 8.5
+   *
+   * 对于任意响应体对象，parseVersionFromBody 应按优先级提取
+   * body.version > body.v > body.data.version，
+   * 均不存在时返回 'unknown'。对于 null 或非对象输入，应返回 'unknown'。
+   */
+
+  /** 生成非空版本号字符串 */
+  const versionStrArb = (): fc.Arbitrary<string> =>
+    fc.tuple(
+      fc.integer({ min: 0, max: 99 }),
+      fc.integer({ min: 0, max: 99 }),
+      fc.integer({ min: 0, max: 99 }),
+    ).map(([a, b, c]) => `${a}.${b}.${c}`);
+
+  test('body.version 存在时，优先返回 body.version（最高优先级）', () => {
+    fc.assert(
+      fc.property(
+        versionStrArb(),
+        versionStrArb(),
+        versionStrArb(),
+        (version, v, dataVersion) => {
+          // 三个字段同时存在时，应返回 body.version
+          const body = { version, v, data: { version: dataVersion } };
+          expect(parseVersionFromBody(body)).toBe(version);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  test('body.version 不存在但 body.v 存在时，返回 body.v（第二优先级）', () => {
+    fc.assert(
+      fc.property(
+        versionStrArb(),
+        versionStrArb(),
+        (v, dataVersion) => {
+          // 无 version 字段，有 v 和 data.version 时应返回 v
+          const body = { v, data: { version: dataVersion } };
+          expect(parseVersionFromBody(body)).toBe(v);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  test('仅 body.data.version 存在时，返回 body.data.version（第三优先级）', () => {
+    fc.assert(
+      fc.property(
+        versionStrArb(),
+        (dataVersion) => {
+          // 仅有 data.version 时应返回该值
+          const body = { data: { version: dataVersion } };
+          expect(parseVersionFromBody(body)).toBe(dataVersion);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  test('所有版本字段均不存在时，返回 "unknown"', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          fc.constant({}),
+          fc.constant({ data: {} }),
+          fc.constant({ other: 'field' }),
+          fc.constant(null),
+          fc.constant(undefined),
+        ),
+        (body) => {
+          // 无任何版本字段时应返回 'unknown'
+          expect(parseVersionFromBody(body)).toBe('unknown');
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  test('非对象输入（数字、字符串、布尔值）始终返回 "unknown"', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(fc.integer(), fc.string(), fc.boolean()),
+        (body) => {
+          // 非对象类型应安全返回 'unknown'
+          expect(parseVersionFromBody(body)).toBe('unknown');
+        },
+      ),
+      { numRuns: 100 },
     );
   });
 });

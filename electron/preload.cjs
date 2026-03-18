@@ -130,6 +130,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   testModelConnection: (params) => ipcRenderer.invoke('system:testModelConnection', params),
 
+  // 执行 openclaw doctor --fix 自动修复配置
+  doctorFix: () => ipcRenderer.invoke('system:doctorFix'),
+
   // Instances
   instancesGetAll: () => ipcRenderer.invoke('instances:getAll'),
   instancesStart: (instanceId) => ipcRenderer.invoke('instances:start', instanceId),

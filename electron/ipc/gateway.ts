@@ -4,7 +4,10 @@ import { spawn } from 'child_process';
 import { readFile, stat, writeFile } from 'fs/promises';
 import net from 'net';
 import path from 'path';
-import { getOpenClawRootDir, resolveOpenClawCommand, runCommand } from './settings.js';
+import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand, runCommand } from './settings.js';
+import { spawnWithShellPath } from './spawnHelper.js';
+import { parseDoctorOutput, shouldEscalateToRepair, detectRegression } from './doctorLogic.js';
+import type { EnvironmentSnapshot } from './doctorLogic.js';
 
 export interface GatewayStatus {
   status: 'running' | 'stopped' | 'error';
@@ -21,6 +24,28 @@ export interface GatewayCompatibilityRepairResult {
   message: string;
   steps: string[];
   status: GatewayStatus;
+}
+
+/** 服务安装状态检测结果 */
+export interface ServiceInstallStatus {
+  /** 服务是否已安装 */
+  installed: boolean;
+  /** 服务是否已加载/启用 */
+  loaded: boolean;
+  /** 当前平台标识 */
+  platform: 'macos' | 'linux' | 'windows' | 'unknown';
+  /** 修复建议 */
+  suggestion?: string;
+}
+
+/** Gateway 自动修复启动结果 */
+export interface GatewayAutoRepairResult {
+  /** 是否成功启动 */
+  success: boolean;
+  /** 结果描述 */
+  message: string;
+  /** 是否尝试了自动修复 */
+  repairAttempted: boolean;
 }
 
 type OpenClawGatewayTarget = {
@@ -85,6 +110,52 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
   }
 }
 
+/**
+ * 捕获当前环境快照，用于修复前后的回归检测
+ * 通过执行基本命令检测 Node.js、OpenClaw CLI 和 Gateway 的可用性
+ */
+async function captureEnvironmentSnapshot(command: string): Promise<EnvironmentSnapshot> {
+  const issues: string[] = [];
+
+  // 检测 Node.js 是否可用
+  let nodeAvailable = false;
+  try {
+    const nodeResult = await runCommand('node', ['--version']);
+    nodeAvailable = nodeResult.success;
+    if (!nodeResult.success) {
+      issues.push('Node.js 不可用');
+    }
+  } catch {
+    issues.push('Node.js 不可用');
+  }
+
+  // 检测 OpenClaw CLI 是否可用
+  let clawAvailable = false;
+  try {
+    const clawResult = await runCommand(command, ['--version']);
+    clawAvailable = clawResult.success;
+    if (!clawResult.success) {
+      issues.push('OpenClaw CLI 不可用');
+    }
+  } catch {
+    issues.push('OpenClaw CLI 不可用');
+  }
+
+  // 检测 Gateway 是否运行中
+  let gatewayRunning = false;
+  try {
+    const gwStatus = await gatewayStatus();
+    gatewayRunning = gwStatus.status === 'running';
+    if (!gatewayRunning) {
+      issues.push('Gateway 未运行');
+    }
+  } catch {
+    issues.push('Gateway 状态检测失败');
+  }
+
+  return { nodeAvailable, clawAvailable, gatewayRunning, issues };
+}
+
 export async function gatewayRepairCompatibility(): Promise<GatewayCompatibilityRepairResult> {
   const steps: string[] = [];
   const command = resolveOpenClawCommand();
@@ -92,21 +163,33 @@ export async function gatewayRepairCompatibility(): Promise<GatewayCompatibility
   const configPath = path.join(rootDir, 'openclaw.json');
 
   try {
-    let doctorResult = await runCommand(command, ['doctor', '--repair']);
-    if (!doctorResult.success) {
-      const doctorFallbackResult = await runCommand(command, ['doctor', '--fix']);
-      if (doctorFallbackResult.success) {
-        doctorResult = doctorFallbackResult;
-        steps.push('已执行兼容回退修复：openclaw doctor --fix');
-      }
+    // 记录修复前的环境快照，用于后续回归检测
+    const beforeSnapshot = await captureEnvironmentSnapshot(command);
+
+    // 第一步：优先尝试 --fix（轻量级配置修复）
+    let fixRetryCount = 0;
+    let fixResult = await runCommand(command, ['doctor', '--fix']);
+    let parsedFix = parseDoctorOutput(fixResult.output || '');
+    steps.push(`已执行 openclaw doctor --fix（修复 ${parsedFix.fixedIssues.length} 项，残留 ${parsedFix.remainingIssues.length} 项）`);
+
+    // 使用 shouldEscalateToRepair 判断是否需要升级到 --repair
+    if (shouldEscalateToRepair(parsedFix, fixRetryCount)) {
+      const repairResult = await runCommand(command, ['doctor', '--repair']);
+      const parsedRepair = parseDoctorOutput(repairResult.output || '');
+      steps.push(`已升级执行 openclaw doctor --repair（修复 ${parsedRepair.fixedIssues.length} 项，残留 ${parsedRepair.remainingIssues.length} 项）`);
+      // 用 repair 结果覆盖
+      parsedFix = parsedRepair;
+      fixResult = repairResult;
+    } else if (!fixResult.success && !parsedFix.success) {
+      // --fix 失败且不需要升级，记录异常
+      steps.push(`官方修复返回异常：${fixResult.error || fixResult.output || 'unknown error'}`);
     }
 
-    if (doctorResult.success) {
-      if (!steps.length) {
-        steps.push('已执行官方修复：openclaw doctor --repair');
-      }
-    } else {
-      steps.push(`官方修复返回异常：${doctorResult.error || doctorResult.output || 'unknown error'}`);
+    // 修复完成后，检测回归
+    const afterSnapshot = await captureEnvironmentSnapshot(command);
+    const regressionResult = detectRegression(beforeSnapshot, afterSnapshot);
+    if (regressionResult.regressionDetected) {
+      steps.push(`⚠ 检测到修复回归：${regressionResult.newIssues.join('；')}`);
     }
 
     let status = await gatewayStatus();
@@ -346,7 +429,7 @@ async function resolveGatewayTarget(): Promise<OpenClawGatewayTarget> {
   };
 }
 
-async function probeGatewayPort(host: string, port: number, timeoutMs = 1500): Promise<boolean> {
+async function probeGatewayPort(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const socket = new net.Socket();
@@ -439,7 +522,7 @@ async function hasGatewayStateArtifacts(): Promise<boolean> {
   return false;
 }
 
-async function waitForGatewayReady(maxAttempts: number = 8, delayMs: number = 1500): Promise<GatewayStatus> {
+async function waitForGatewayReady(maxAttempts: number = 16, delayMs: number = 1500): Promise<GatewayStatus> {
   let lastStatus: GatewayStatus = {
     status: 'error',
     error: 'Gateway warm-up timed out',
@@ -656,10 +739,12 @@ export async function gatewayStart(): Promise<{ success: boolean; message: strin
       }
     }
 
-    // 真实启动 gateway（后台运行）
+    // 真实启动 gateway（后台运行），注入完整 PATH 确保子进程能找到所有依赖
+    const shellPath = await getShellPath();
     const child = spawn(command, ['gateway', 'start'], {
       detached: true,
       stdio: 'ignore',
+      env: { ...process.env, PATH: shellPath },
     });
 
     const spawnResult = await new Promise<{ success: boolean; error?: string }>((resolve) => {
@@ -771,6 +856,177 @@ function extractVersion(output: string): string {
   return match ? match[1].trim() : '';
 }
 
+// ─── 服务安装状态检测 ─────────────────────────────────────────────────────
+
+/**
+ * 检测当前平台的 Gateway 服务安装状态
+ *
+ * 根据操作系统平台执行不同的检测命令：
+ * - macOS: 通过 launchctl list 检查 openclaw LaunchAgent 加载状态
+ * - Linux: 通过 systemctl --user status 检查 systemd user service 状态
+ * - Windows: 基础检测，返回 unknown 平台标识
+ *
+ * @returns 服务安装状态，包含安装、加载状态和修复建议
+ */
+export async function checkServiceInstallStatus(): Promise<ServiceInstallStatus> {
+  const platform = process.platform;
+
+  if (platform === 'darwin') {
+    // macOS: 使用 launchctl list 检查 openclaw LaunchAgent
+    try {
+      const result = await spawnWithShellPath('launchctl', ['list'], { timeoutMs: 10_000 });
+      const output = result.output || '';
+      const hasOpenclaw = output.toLowerCase().includes('openclaw');
+
+      if (hasOpenclaw) {
+        return {
+          installed: true,
+          loaded: true,
+          platform: 'macos',
+        };
+      }
+
+      // LaunchAgent 未加载，检查 plist 文件是否存在
+      const homeDir = process.env.HOME || '';
+      const plistPath = path.join(homeDir, 'Library', 'LaunchAgents');
+      const plistCheck = await spawnWithShellPath('ls', [plistPath], { timeoutMs: 5_000 });
+      const plistOutput = (plistCheck.output || '').toLowerCase();
+      const plistExists = plistOutput.includes('openclaw');
+
+      return {
+        installed: plistExists,
+        loaded: false,
+        platform: 'macos',
+        suggestion: plistExists
+          ? '服务已安装但未加载。请执行 launchctl load ~/Library/LaunchAgents/com.openclaw.gateway.plist 或运行 openclaw gateway install 重新安装。'
+          : '服务尚未安装。请执行 openclaw gateway install 安装 Gateway 服务。',
+      };
+    } catch {
+      return {
+        installed: false,
+        loaded: false,
+        platform: 'macos',
+        suggestion: '无法检测服务状态。请执行 openclaw gateway install 安装 Gateway 服务。',
+      };
+    }
+  }
+
+  if (platform === 'linux') {
+    // Linux: 使用 systemctl --user status 检查 systemd user service
+    try {
+      const result = await spawnWithShellPath(
+        'systemctl',
+        ['--user', 'status', 'openclaw-gateway'],
+        { timeoutMs: 10_000 },
+      );
+      const output = `${result.output || ''}\n${result.error || ''}`.toLowerCase();
+
+      // systemctl status 退出码: 0=active, 3=inactive/dead, 4=not found
+      const isActive = output.includes('active (running)');
+      const isLoaded = output.includes('loaded');
+      const notFound = output.includes('could not be found') || output.includes('unit not found');
+
+      if (notFound) {
+        return {
+          installed: false,
+          loaded: false,
+          platform: 'linux',
+          suggestion: '服务尚未安装。请执行 openclaw gateway install 安装 Gateway 服务，然后执行 systemctl --user enable openclaw-gateway 启用自动启动。',
+        };
+      }
+
+      return {
+        installed: isLoaded,
+        loaded: isActive,
+        platform: 'linux',
+        suggestion: isActive
+          ? undefined
+          : '服务已安装但未运行。请执行 systemctl --user start openclaw-gateway 启动服务，或执行 systemctl --user enable openclaw-gateway 启用自动启动。',
+      };
+    } catch {
+      return {
+        installed: false,
+        loaded: false,
+        platform: 'linux',
+        suggestion: '无法检测服务状态。请执行 openclaw gateway install 安装 Gateway 服务。',
+      };
+    }
+  }
+
+  // Windows 或其他平台：返回 unknown
+  return {
+    installed: false,
+    loaded: false,
+    platform: platform === 'win32' ? 'windows' : 'unknown',
+    suggestion: '当前平台暂不支持自动检测服务安装状态。请手动确认 Gateway 服务是否已安装。',
+  };
+}
+
+// ─── Gateway 自动修复启动 ────────────────────────────────────────────────────
+
+/**
+ * 启动 Gateway，失败时自动调用 repairCompatibility 修复后重试
+ *
+ * 执行流程：
+ * 1. 调用 gatewayStart() 尝试启动
+ * 2. 如果启动成功，直接返回
+ * 3. 如果启动失败，调用 gatewayRepairCompatibility() 进行自动修复
+ * 4. 修复后再次调用 gatewayStart() 重试
+ * 5. 返回最终结果，包含是否尝试了修复
+ *
+ * @returns 启动结果，包含成功状态、消息和是否尝试了修复
+ */
+export async function gatewayStartWithAutoRepair(): Promise<GatewayAutoRepairResult> {
+  // 第一次尝试启动
+  const firstAttempt = await gatewayStart();
+  if (firstAttempt.success) {
+    return {
+      success: true,
+      message: firstAttempt.message,
+      repairAttempted: false,
+    };
+  }
+
+  // 启动失败，尝试自动修复
+  console.log('Gateway 首次启动失败，尝试自动修复...', firstAttempt.message);
+
+  try {
+    const repairResult = await gatewayRepairCompatibility();
+
+    // 如果修复过程中 Gateway 已经恢复运行
+    if (repairResult.success && repairResult.status.status === 'running') {
+      return {
+        success: true,
+        message: `自动修复成功：${repairResult.message}`,
+        repairAttempted: true,
+      };
+    }
+
+    // 修复完成但 Gateway 未运行，再次尝试启动
+    const retryAttempt = await gatewayStart();
+    if (retryAttempt.success) {
+      return {
+        success: true,
+        message: `自动修复后重试启动成功`,
+        repairAttempted: true,
+      };
+    }
+
+    // 修复后重试仍然失败
+    return {
+      success: false,
+      message: `自动修复后重试仍然失败：${retryAttempt.message}（修复结果：${repairResult.message}）`,
+      repairAttempted: true,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: `自动修复过程异常：${error.message}`,
+      repairAttempted: true,
+    };
+  }
+}
+
 // IPC 设置函数
 export function setupGatewayIPC() {
   ipcMain.handle('gateway:status', gatewayStatus);
@@ -778,4 +1034,6 @@ export function setupGatewayIPC() {
   ipcMain.handle('gateway:stop', gatewayStop);
   ipcMain.handle('gateway:restart', gatewayRestart);
   ipcMain.handle('gateway:repairCompatibility', gatewayRepairCompatibility);
+  ipcMain.handle('gateway:checkServiceInstallStatus', checkServiceInstallStatus);
+  ipcMain.handle('gateway:startWithAutoRepair', gatewayStartWithAutoRepair);
 }

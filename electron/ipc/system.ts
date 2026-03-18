@@ -15,6 +15,8 @@ import {
 import { resolveRuntime, getBundledNodePath, getBundledOpenClawCLIPath } from './runtime.js';
 import type { RuntimeTier } from './runtimeLogic.js';
 import { buildModelTestUrl } from './modelTestLogic.js';
+// 统一命令执行入口（供后续迁移使用）
+import { spawnWithShellPath } from './spawnHelper.js';
 
 /** 可自动修复的环境问题 */
 interface FixableIssue {
@@ -422,7 +424,7 @@ interface SetupInstallResult {
   error?: string;
 }
 
-const DESKTOP_APP_VERSION = '0.3.13-preview-3';
+const DESKTOP_APP_VERSION = '0.3.13-preview-4';
 const OPENCLAW_COMPAT_TAIL = 8;
 const DESKTOP_RUNTIME_VERSION = 'desktop-runtime-0.5.8';
 const DESKTOP_PRELOAD_VERSION = 'desktop-preload-0.5.8';
@@ -964,7 +966,8 @@ async function getGatewayUptime(): Promise<number> {
       }
     }
 
-    const statusResult = await runCommand('openclaw', ['gateway', 'status']);
+    // 使用 resolveOpenClawCommand() 动态解析命令路径，避免硬编码 'openclaw'（需求 1.6）
+    const statusResult = await runCommand(resolveOpenClawCommand(), ['gateway', 'status']);
     if (statusResult.success) {
       const elapsed = extractElapsedTime(statusResult.output);
       if (elapsed) {
@@ -1133,4 +1136,23 @@ export function setupSystemIPC() {
   ipcMain.handle('system:testModelConnection', (_event, params) => testModelConnection(params));
   ipcMain.handle('runtime:info', getRuntimeInfo);
   ipcMain.handle('runtime:capabilities', getRuntimeCapabilities);
+
+  /**
+   * system:doctorFix - 执行 openclaw doctor --fix 自动修复配置
+   * 使用 resolveOpenClawCommand() 解析命令路径，注入 getShellPath() 返回的完整 PATH
+   * 返回 { success: boolean; output?: string; error?: string }
+   */
+  ipcMain.handle('system:doctorFix', async () => {
+    try {
+      const openclawCmd = resolveOpenClawCommand();
+      const result = await runCommand(openclawCmd, ['doctor', '--fix']);
+      return {
+        success: result.success,
+        output: result.output,
+        error: result.error,
+      };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'doctor --fix 执行失败' };
+    }
+  });
 }

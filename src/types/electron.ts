@@ -44,6 +44,8 @@ export interface RemoteOpenClawConnectionPayload {
   port?: number;
   protocol: 'http' | 'https';
   token?: string;
+  /** 是否跳过 SSL 证书验证（自签名证书场景） */
+  skipCertVerification?: boolean;
 }
 
 export interface RemoteOpenClawTestResult {
@@ -53,6 +55,8 @@ export interface RemoteOpenClawTestResult {
   host?: string;
   port?: number;
   authenticated?: boolean;
+  /** 是否为自签名证书错误 */
+  isSelfSignedCertError?: boolean;
 }
 
 export interface GatewayStatusResult {
@@ -654,6 +658,9 @@ export interface ElectronAPI {
   // 应用配置管理
   appConfigReset: () => Promise<BasicSuccessResult>;
   appConfigReinstallOpenclaw: () => Promise<{ success: boolean; output?: string; error?: string }>;
+
+  /** 执行 openclaw doctor --fix 自动修复配置文件 */
+  doctorFix: () => Promise<{ success: boolean; output?: string; error?: string }>;
 
   // ── 模型配置管理 ──────────────────────────────────────────────────────────
   /** 获取所有提供商的认证状态 */

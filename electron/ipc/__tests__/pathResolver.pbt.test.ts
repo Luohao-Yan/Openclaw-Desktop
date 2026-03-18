@@ -264,3 +264,93 @@ describe('Feature: setup-flow-optimization, Property 2: 版本管理器路径完
     );
   });
 });
+
+// ============================================================
+// Property 18: Windows 版本管理器路径覆盖
+// Feature: setup-flow-hardening
+// ============================================================
+
+describe('Feature: setup-flow-hardening, Property 18: Windows 版本管理器路径覆盖', () => {
+  /**
+   * Validates: Requirements 10.5
+   *
+   * 对于任意 Windows 环境参数（homedir、appData、localAppData、programFiles、userProfile），
+   * getVersionManagerPathsPure({ platform: 'win32', ... }) 返回的路径列表应包含：
+   * - nvm-windows（APPDATA/nvm）
+   * - volta（LOCALAPPDATA/volta/bin）
+   * - nodejs 官方安装（ProgramFiles/nodejs）
+   * - chocolatey（ProgramData/chocolatey/bin）
+   * - scoop（USERPROFILE/scoop/shims）
+   */
+
+  test('路径列表包含 nvm-windows 路径（APPDATA/nvm）', () => {
+    fc.assert(
+      fc.property(winParamsArb(), (params) => {
+        const paths = getVersionManagerPathsPure(params);
+        // nvm-windows 路径应位于 APPDATA 下的 nvm 目录
+        const effectiveAppData = params.appData || '';
+        const hasNvmWindows = paths.some(
+          (p) => p.includes(effectiveAppData) && p.includes('nvm'),
+        );
+        expect(hasNvmWindows).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('路径列表包含 volta 路径（LOCALAPPDATA/volta/bin）', () => {
+    fc.assert(
+      fc.property(winParamsArb(), (params) => {
+        const paths = getVersionManagerPathsPure(params);
+        // volta 路径应位于 LOCALAPPDATA 下的 volta/bin 目录
+        const effectiveLocalAppData = params.localAppData || '';
+        const hasVolta = paths.some(
+          (p) => p.includes(effectiveLocalAppData) && p.includes('volta'),
+        );
+        expect(hasVolta).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('路径列表包含 nodejs 官方安装路径（ProgramFiles/nodejs）', () => {
+    fc.assert(
+      fc.property(winParamsArb(), (params) => {
+        const paths = getVersionManagerPathsPure(params);
+        // nodejs 路径应位于 ProgramFiles 下的 nodejs 目录
+        const effectiveProgramFiles = params.programFiles || 'C:\\Program Files';
+        const hasNodejs = paths.some(
+          (p) => p.includes(effectiveProgramFiles) && p.includes('nodejs'),
+        );
+        expect(hasNodejs).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('路径列表包含 chocolatey 路径（ProgramData/chocolatey/bin）', () => {
+    fc.assert(
+      fc.property(winParamsArb(), (params) => {
+        const paths = getVersionManagerPathsPure(params);
+        // chocolatey 路径应包含 'chocolatey' 关键字
+        expect(hasPathContaining(paths, 'chocolatey')).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  test('路径列表包含 scoop 路径（USERPROFILE/scoop/shims）', () => {
+    fc.assert(
+      fc.property(winParamsArb(), (params) => {
+        const paths = getVersionManagerPathsPure(params);
+        // scoop 路径应位于 USERPROFILE 下的 scoop/shims 目录
+        const effectiveUserProfile = params.userProfile || params.homedir;
+        const hasScoop = paths.some(
+          (p) => p.includes(effectiveUserProfile) && p.includes('scoop'),
+        );
+        expect(hasScoop).toBe(true);
+      }),
+      { numRuns: 100 },
+    );
+  });
+});

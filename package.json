@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.3.13-preview-3",
+  "version": "0.3.13-preview-4",
   "description": "OpenClaw Desktop Electron Application",
   "main": "dist-electron/electron/main.js",
   "scripts": {

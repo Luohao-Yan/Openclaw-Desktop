@@ -324,7 +324,7 @@ const Instances: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
+    <div className="h-full overflow-y-auto p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
       <div className="max-w-7xl mx-auto">
         {/* 顶部渐变标题卡片 */}
         <GlassCard
@@ -336,6 +336,7 @@ const Instances: React.FC = () => {
             border: 'none',
           }}
         >
+          {/* 装饰性光晕 */}
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(20, 184, 166, 0.18)' }} />
           <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(6, 182, 212, 0.14)' }} />
 
@@ -356,24 +357,17 @@ const Instances: React.FC = () => {
               </p>
             </div>
 
+            {/* 操作按钮 */}
             <div className="flex items-center space-x-3 shrink-0">
               <button
                 onClick={loadInstances}
                 disabled={loading}
                 className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
-                style={{ 
-                  backgroundColor: 'var(--app-bg-elevated)', 
-                  border: '1px solid var(--app-border)', 
+                style={{
+                  backgroundColor: 'var(--app-bg-elevated)',
+                  border: '1px solid var(--app-border)',
                   color: 'var(--app-text)',
                   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--app-hover)';
-                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--app-bg-elevated)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                 }}
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -387,14 +381,6 @@ const Instances: React.FC = () => {
                   color: 'white',
                   boxShadow: '0 4px 12px rgba(0, 180, 255, 0.3)',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 180, 255, 0.4)';
-                  e.currentTarget.style.transform = 'scale(1.05) translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 180, 255, 0.3)';
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 {t('instances.createNew')}
@@ -403,7 +389,7 @@ const Instances: React.FC = () => {
           </div>
         </GlassCard>
 
-        {/* Stats Cards */}
+        {/* 统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <GlassCard className="p-6">
             <div className="flex items-center justify-between">
@@ -416,7 +402,7 @@ const Instances: React.FC = () => {
               </div>
             </div>
           </GlassCard>
-          
+
           <GlassCard className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -430,7 +416,7 @@ const Instances: React.FC = () => {
               </div>
             </div>
           </GlassCard>
-          
+
           <GlassCard className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -444,7 +430,7 @@ const Instances: React.FC = () => {
               </div>
             </div>
           </GlassCard>
-          
+
           <GlassCard className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -460,7 +446,7 @@ const Instances: React.FC = () => {
           </GlassCard>
         </div>
 
-        {/* Error Message */}
+        {/* 错误提示 */}
         {error && (
           <div className="mb-6 p-4 border rounded-lg" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)' }}>
             <div className="flex items-center">
@@ -498,7 +484,7 @@ const Instances: React.FC = () => {
           </GlassCard>
         )}
 
-        {/* Info Footer */}
+        {/* 页脚信息 */}
         <div className="mt-8 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
           <p>
             {t('instances.footerInfo')}

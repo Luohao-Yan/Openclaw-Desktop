@@ -47,6 +47,8 @@ import {
 import { getPreviousStep } from './setupNavigationGraph';
 import { createFallbackEnvironmentCheck } from './setupFallback';
 import { createLazyChannelConfigs } from '../config/channelFieldDefinitions';
+import { classifyVerifyError } from '../../electron/ipc/verifyLogic';
+import { parseDoctorOutput, shouldEscalateToRepair } from '../../electron/ipc/doctorLogic';
 
 // ============================================================================
 // Context Value 接口定义
@@ -625,6 +627,30 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
+      // 前置 doctor --fix：尝试自动修复配置文件中的 schema 不兼容问题
+      // 使用 parseDoctorOutput 解析修复结果，shouldEscalateToRepair 决定是否升级
+      if (typeof window.electronAPI?.doctorFix === 'function') {
+        try {
+          const doctorFixResult = await window.electronAPI.doctorFix();
+          // 解析 doctor --fix 输出，提取修复详情
+          const parsed = parseDoctorOutput(doctorFixResult.output || '');
+
+          // 如果仍有残留问题，使用 shouldEscalateToRepair 判断是否升级到 --repair
+          if (shouldEscalateToRepair(parsed, 0)) {
+            // 升级到 --repair（通过 repairCompatibility IPC 执行深度修复）
+            if (typeof window.electronAPI?.gatewayRepairCompatibility === 'function') {
+              try {
+                await window.electronAPI.gatewayRepairCompatibility();
+              } catch {
+                // --repair 失败不阻塞验证流程
+              }
+            }
+          }
+        } catch {
+          // doctor --fix 失败不阻塞验证流程
+        }
+      }
+
       const commandResult = typeof window.electronAPI?.testOpenClawCommand === 'function'
         ? await window.electronAPI.testOpenClawCommand()
         : null;
@@ -663,13 +689,15 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
       return true;
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorInfo = classifyVerifyError(errorMsg);
       dispatch({
         type: 'SET_ERROR',
         payload: createSetupError(
           'VERIFY_FAILED',
-          '验证未能完成，请确认 OpenClaw 已正确安装后重试。',
-          '请检查 OpenClaw CLI 和网关状态',
-          err instanceof Error ? err.message : String(err),
+          errorInfo.message,
+          errorInfo.suggestion,
+          errorMsg,
         ),
       });
       return false;

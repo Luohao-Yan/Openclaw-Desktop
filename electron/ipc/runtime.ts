@@ -14,12 +14,12 @@ import { spawn } from 'child_process';
 import { statSync } from 'fs';
 import dns from 'dns';
 import { getBundledOpenClawPath, runCommand } from './settings.js';
-import { parseMajorVersion } from './runtimeLogic.js';
-import type { RuntimeTier } from './runtimeLogic.js';
+import { parseMajorVersion, determineRuntimeTierWithReason } from './runtimeLogic.js';
+import type { RuntimeTier, RuntimeScenario } from './runtimeLogic.js';
 
 // 重新导出纯逻辑模块的公共 API，便于外部统一引用
-export { determineRuntimeTier, parseMajorVersion } from './runtimeLogic.js';
-export type { RuntimeScenario, RuntimeTier } from './runtimeLogic.js';
+export { determineRuntimeTier, determineRuntimeTierWithReason, parseMajorVersion } from './runtimeLogic.js';
+export type { RuntimeScenario, RuntimeTier, RuntimeTierResult } from './runtimeLogic.js';
 
 // ─── 类型定义（与 src/types/setup.ts 中的 RuntimeResolution 保持一致）────────
 
@@ -41,6 +41,8 @@ interface RuntimeResolution {
   systemNodeSatisfies: boolean;
   /** 系统是否已安装 OpenClaw CLI */
   systemOpenClawInstalled: boolean;
+  /** 降级原因描述（仅在非 bundled 层级时有值） */
+  degradeReason?: string;
   /** 解析过程中的错误信息 */
   error?: string;
 }
@@ -143,6 +145,18 @@ export async function resolveRuntime(): Promise<RuntimeResolution> {
     systemOpenClawInstalled: false,
   };
 
+  // ── 收集运行时场景数据，用于纯函数层级决策 ──────────────────────────────
+  const scenario: RuntimeScenario = {
+    bundledNodeAvailable: false,
+    bundledNodeExecutable: false,
+    bundledClawAvailable: false,
+    bundledClawExecutable: false,
+    systemNodeAvailable: false,
+    systemNodeVersion: 0,
+    systemClawAvailable: false,
+    networkAvailable: false,
+  };
+
   // ── 第一级：检测内置运行时 ──────────────────────────────────────────────
 
   const bundledNode = getBundledNodePath();
@@ -150,15 +164,24 @@ export async function resolveRuntime(): Promise<RuntimeResolution> {
 
   result.bundledNodeAvailable = bundledNode !== null;
   result.bundledOpenClawAvailable = bundledClaw !== null;
+  scenario.bundledNodeAvailable = bundledNode !== null;
+  scenario.bundledClawAvailable = bundledClaw !== null;
 
   if (bundledNode && bundledClaw) {
     // 验证内置 Node.js 是否可执行
     const nodeCheck = await verifyExecutable(bundledNode, ['--version']);
+    scenario.bundledNodeExecutable = nodeCheck.success;
+
     if (nodeCheck.success) {
       // 验证内置 OpenClaw CLI 是否可执行（通过内置 Node.js 运行）
       const clawCheck = await runBundledOpenClaw(['--version']);
+      scenario.bundledClawExecutable = clawCheck.success;
+
       if (clawCheck.success) {
-        result.tier = 'bundled';
+        // 内置 Node.js + 内置 CLI 均可执行，使用纯函数确认层级
+        const tierResult = determineRuntimeTierWithReason(scenario);
+        result.tier = tierResult.tier;
+        result.degradeReason = tierResult.degradeReason;
         result.nodePath = bundledNode;
         result.openclawPath = bundledClaw;
         return result;
@@ -167,10 +190,14 @@ export async function resolveRuntime(): Promise<RuntimeResolution> {
       console.error('[runtime] 内置 OpenClaw CLI 不可执行，尝试系统 CLI:', clawCheck.error);
       const systemClawResult = await runCommand('openclaw', ['--version']);
       if (systemClawResult.success) {
-        result.tier = 'bundled';
+        scenario.systemClawAvailable = true;
+        result.systemOpenClawInstalled = true;
+        // 内置 Node.js + 系统 CLI 组合，使用纯函数确认层级
+        const tierResult = determineRuntimeTierWithReason(scenario);
+        result.tier = tierResult.tier;
+        result.degradeReason = tierResult.degradeReason;
         result.nodePath = bundledNode;
         result.openclawPath = 'openclaw'; // 使用系统 CLI
-        result.systemOpenClawInstalled = true;
         return result;
       }
     } else {
@@ -186,6 +213,8 @@ export async function resolveRuntime(): Promise<RuntimeResolution> {
     const version = sysNodeResult.output.trim();
     result.systemNodeVersion = version;
     const major = parseMajorVersion(version);
+    scenario.systemNodeAvailable = true;
+    scenario.systemNodeVersion = major ?? 0;
     result.systemNodeSatisfies = major !== null && major >= 22;
 
     if (result.systemNodeSatisfies) {
@@ -194,14 +223,15 @@ export async function resolveRuntime(): Promise<RuntimeResolution> {
       // 检测系统 OpenClaw CLI
       const sysClawResult = await runCommand('openclaw', ['--version']);
       if (sysClawResult.success) {
-        result.tier = 'system';
+        scenario.systemClawAvailable = true;
         result.openclawPath = 'openclaw';
         result.systemOpenClawInstalled = true;
-        return result;
       }
 
-      // 系统 Node.js 可用但 CLI 未安装，仍标记为 system 层级
-      result.tier = 'system';
+      // 使用纯函数确认层级和降级原因
+      const tierResult = determineRuntimeTierWithReason(scenario);
+      result.tier = tierResult.tier;
+      result.degradeReason = tierResult.degradeReason;
       return result;
     }
   }
@@ -209,7 +239,12 @@ export async function resolveRuntime(): Promise<RuntimeResolution> {
   // ── 第三级：检测网络可用性 ──────────────────────────────────────────────
 
   const online = await checkNetworkAvailable();
-  result.tier = online ? 'online' : 'missing';
+  scenario.networkAvailable = online;
+
+  // 使用纯函数确认最终层级和降级原因
+  const tierResult = determineRuntimeTierWithReason(scenario);
+  result.tier = tierResult.tier;
+  result.degradeReason = tierResult.degradeReason;
 
   return result;
 }

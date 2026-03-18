@@ -11,9 +11,31 @@ import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
+import { resolveOpenClawCommand, getShellPath } from './settings.js';
+
+/**
+ * 构建渠道 CLI 命令的 spawn 配置（纯函数）
+ * @param args CLI 参数数组
+ * @param resolvedCommand 解析后的 openclaw 可执行文件路径
+ * @param shellPath 完整的 shell PATH（包含版本管理器路径）
+ * @returns spawn 配置对象 { command, args, env }
+ */
+export function buildChannelCommandConfig(
+  args: string[],
+  resolvedCommand: string,
+  shellPath: string,
+): { command: string; args: string[]; env: Record<string, string | undefined> } {
+  return {
+    command: resolvedCommand,
+    args,
+    env: { ...process.env, PATH: shellPath },
+  };
+}
 
 /**
  * 执行 openclaw CLI 命令
+ * 使用 resolveOpenClawCommand() 解析可执行文件路径，
+ * 并通过 getShellPath() 注入完整 PATH 环境变量
  * @param args CLI 参数数组
  * @param timeoutMs 超时时间（毫秒），默认 30 秒
  * @returns 执行结果 { success, output?, error? }
@@ -22,10 +44,15 @@ async function runOpenClawCommand(
   args: string[],
   timeoutMs = 30000
 ): Promise<{ success: boolean; output?: string; error?: string }> {
+  // 解析 openclaw 可执行文件路径和完整 shell PATH
+  const resolvedCommand = resolveOpenClawCommand();
+  const shellPath = await getShellPath();
+  const config = buildChannelCommandConfig(args, resolvedCommand, shellPath);
+
   return new Promise((resolve) => {
     try {
-      const child = spawn('openclaw', args, {
-        env: process.env,
+      const child = spawn(config.command, config.args, {
+        env: config.env,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
