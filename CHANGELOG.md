@@ -6,6 +6,32 @@
 
 ---
 
+## [0.3.13-preview-6] - 2026-03-20
+
+### ✨ 新增 (Features)
+
+- **Agent 配置加密导入/导出**：新增完整的 Agent 配置导入导出功能，支持 AES-256-GCM 加密打包（含 7 个 workspace markdown 文件 + 渠道绑定 + 技能清单），导入时自动创建 Agent、写入配置、安装依赖并绑定渠道，失败自动回滚
+- **导出对话框**（ExportAgentDialog）：支持设置加密密钥，导出为 `.ocagent` 加密文件
+- **导入对话框**（ImportAgentDialog）：支持选择文件、输入密钥解密，实时显示分步导入进度
+- **导出历史面板**（ExportHistoryPanel）：查看历史导出记录，支持复制密钥和删除记录
+- **Agent 详细统计**：Agents 页面新增每个 Agent 的会话数、消息数、Token 估算、平均响应时间统计（通过 `sessions:agentDetailedStats` IPC）
+- **全局 GlobalLoading 组件**：品牌色蓝绿渐变旋转光环 + 跳动圆点动画，支持 overlay/inline 模式和 sm/md/lg 三档尺寸，自动适配深色/浅色主题
+- **Agent 配置导入/导出 i18n**：中英文翻译条目完整覆盖导出、导入、历史面板所有文案
+
+### 🔧 重构 (Refactor)
+
+- **Agents 页面重构**：集成导出/导入/历史面板入口，移除废弃的 copyToClipboard/copyAgentPath 方法，新增 agentStats 统计展示
+- **Tasks 页面视觉优化**：顶部渐变卡片改为紫蓝色调，统计卡片改为一行四列紧凑布局，每个卡片带独立 accent 色圆形图标
+- **页面级 Loading 统一**：Skills、Agents、Instances、AgentEnhancer、SetupBindChannelsPage 5 处原生 RefreshCw/Loader2 spinner 全部替换为 GlobalLoading 组件
+- **App 初始化加载屏**：AppLoadingScreen 替换为 GlobalLoading 组件（overlay=false, size=lg）
+
+### 🧪 测试 (Tests)
+
+- 新增 agentExchangeLogic 属性测试（加密/解密/序列化/敏感字段剥离等）
+- 新增 agentExchangeLogic 单元测试（完整导入导出流程覆盖）
+
+---
+
 ## [0.3.13-preview-5] - 2026-03-19
 
 ### ✨ 新增 (Features)
