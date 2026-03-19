@@ -8,6 +8,7 @@ import {
   Plus,
   Zap,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import AppIconButton from '../components/AppIconButton';
@@ -32,6 +33,12 @@ const Agents: React.FC = () => {
   const [globalChannels, setGlobalChannels] = useState<Record<string, any>>({});
   // 可用模型列表，从 modelsGetConfig 获取，用于创建智能体时的模型下拉选择
   const [availableModels, setAvailableModels] = useState<{ label: string; value: string; description?: string }[]>([]);
+  // 删除确认对话框状态
+  const [deleteTarget, setDeleteTarget] = useState<AgentInfo | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  // 操作结果提示（自动消失）
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -121,6 +128,37 @@ const Agents: React.FC = () => {
     } catch {
       // 加载失败不影响创建流程，用户仍可手动输入
       setAvailableModels([]);
+    }
+  };
+
+  /** 显示 toast 并在 3 秒后自动消失 */
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  /** 执行删除智能体（通过 openclaw agents delete CLI） */
+  const handleDeleteAgent = async () => {
+    if (!deleteTarget) return;
+    const agentName = deleteTarget.name;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const result = await window.electronAPI.agentsDelete(deleteTarget.id);
+      if (result.success) {
+        setDeleteTarget(null);
+        showToast('success', `智能体「${agentName}」已删除`);
+        loadAgents();
+      } else {
+        setDeleteError(result.error || '删除失败');
+        showToast('error', `删除失败：${result.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      const msg = err.message || '删除失败';
+      setDeleteError(msg);
+      showToast('error', `删除失败：${msg}`);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -227,6 +265,17 @@ const Agents: React.FC = () => {
           >
             <Settings className="w-5 h-5" />
           </AppIconButton>
+          <AppIconButton
+            onClick={() => {
+              setDeleteError('');
+              setDeleteTarget(agent);
+            }}
+            tint="default"
+            title="删除智能体"
+            style={{ color: '#ef4444' }}
+          >
+            <Trash2 className="w-5 h-5" />
+          </AppIconButton>
         </div>
       </div>
 
@@ -318,6 +367,26 @@ const Agents: React.FC = () => {
 
   return (
     <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
+      {/* Toast 提示 */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[60] animate-in fade-in slide-in-from-top-2 duration-300">
+          <div
+            className="flex items-center gap-2.5 rounded-2xl border px-5 py-3 text-sm font-medium shadow-lg"
+            style={{
+              backgroundColor: toast.type === 'success' ? 'rgba(16, 185, 129, 0.14)' : 'rgba(239, 68, 68, 0.14)',
+              borderColor: toast.type === 'success' ? 'rgba(16, 185, 129, 0.28)' : 'rgba(239, 68, 68, 0.28)',
+              color: toast.type === 'success' ? '#6ee7b7' : '#fca5a5',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            {toast.type === 'success'
+              ? <CheckCircle className="w-4 h-4 shrink-0" />
+              : <AlertCircle className="w-4 h-4 shrink-0" />
+            }
+            {toast.message}
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         {/* 标签页切换 */}
         <div className="mb-8">
@@ -501,6 +570,68 @@ const Agents: React.FC = () => {
                 . Configuration files are located at <code className="font-mono px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}>~/.openclaw/agents/{"{agent-id}"}/agent/</code>.
               </p>
             </div>
+
+            {/* 删除确认对话框 */}
+            {deleteTarget && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
+                <div
+                  className="w-full max-w-md rounded-3xl border overflow-hidden"
+                  style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+                >
+                  <div className="px-6 py-5 border-b text-center" style={{ borderColor: 'var(--app-border)' }}>
+                    <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)' }}>
+                      <Trash2 className="w-6 h-6 text-red-500" />
+                    </div>
+                    <h3 className="text-xl font-semibold">删除智能体</h3>
+                    <p className="text-sm mt-2" style={{ color: 'var(--app-text-muted)' }}>
+                      确定要删除 <span className="font-mono font-semibold" style={{ color: 'var(--app-text)' }}>{deleteTarget.name}</span> 吗？
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--app-text-muted)' }}>
+                      此操作将通过 <code className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>openclaw agents delete</code> 清理配置、workspace 和状态数据，不可撤销。
+                    </p>
+                  </div>
+
+                  {/* Agent 信息摘要 */}
+                  <div className="px-6 py-4 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>ID</span>
+                      <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{deleteTarget.id}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Workspace</span>
+                      <span className="text-xs font-mono truncate max-w-[60%]" style={{ color: 'var(--app-text)' }}>{deleteTarget.workspace}</span>
+                    </div>
+                  </div>
+
+                  {/* 错误提示 */}
+                  {deleteError && (
+                    <div className="mx-6 mb-3 rounded-xl border px-4 py-2.5 text-xs" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)', color: '#fca5a5' }}>
+                      {deleteError}
+                    </div>
+                  )}
+
+                  {/* 操作按钮 */}
+                  <div className="px-6 py-4 border-t flex items-center justify-end gap-3" style={{ borderColor: 'var(--app-border)' }}>
+                    <AppButton
+                      variant="secondary"
+                      onClick={() => setDeleteTarget(null)}
+                      disabled={deleting}
+                    >
+                      取消
+                    </AppButton>
+                    <AppButton
+                      variant="primary"
+                      onClick={() => void handleDeleteAgent()}
+                      disabled={deleting}
+                      icon={deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      className="!bg-red-600 hover:!bg-red-700"
+                    >
+                      {deleting ? '删除中…' : '确认删除'}
+                    </AppButton>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* CreateAgentWizard 向导组件 */}
             <CreateAgentWizard

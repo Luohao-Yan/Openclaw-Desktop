@@ -324,11 +324,13 @@ export function getResetFieldsForStep(
       };
 
     case 'channels':
+      // 重置渠道配置
       return {
         ...baseReset,
         channels: {
           configs: [],
           addResults: [],
+          accounts: {},
         },
       };
 
@@ -337,6 +339,7 @@ export function getResetFieldsForStep(
         ...baseReset,
         agent: {
           created: null,
+          bindings: [],
         },
       };
 

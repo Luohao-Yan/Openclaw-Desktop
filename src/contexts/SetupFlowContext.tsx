@@ -125,6 +125,8 @@ interface SetupFlowContextValue {
   createdAgent: { id: string; name: string } | null;
   /** 设置已创建的 Agent */
   setCreatedAgent: (agent: { id: string; name: string } | null) => void;
+  /** 渠道账户实例映射：provider → ChannelAccountInstance[]，供页面组件使用 */
+  channelAccounts: Record<string, import('./setupActions').ChannelAccountInstance[]>;
 }
 
 const SetupFlowContext = React.createContext<SetupFlowContextValue | undefined>(undefined);
@@ -159,6 +161,7 @@ const setupRoutePatterns = [
   '/setup/local/configure',
   '/setup/local/channels',
   '/setup/local/create-agent',
+  '/setup/local/bind-channels',
   '/setup/local/verify',
   '/setup/remote/intro',
   '/setup/remote/config',
@@ -302,6 +305,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     channels: {
       ...initialSetupState.channels,
       configs: createLazyChannelConfigs(),
+      accounts: {},
     },
   });
 
@@ -1025,43 +1029,164 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // 批量添加已启用渠道
   // ========================================================================
   const addEnabledChannels = React.useCallback(async (): Promise<ChannelAddResult[]> => {
-    // 筛选合格渠道：已启用且所有必填字段已填写
-    const eligibleChannels = channelConfigs.filter((ch) => {
-      if (!ch.enabled) return false;
-      const requiredFields = ch.fields.filter((f) => f.required);
-      return requiredFields.every((f) => (ch.fieldValues[f.id] || '').trim() !== '');
-    });
+    /**
+     * 过滤 CLI 输出中的 config warning 噪音
+     */
+    const filterConfigWarnings = (text: string | undefined): string | undefined => {
+      if (!text) return text;
+      const lines = text.split('\n').filter((line) => {
+        const trimmed = line.trim().toLowerCase();
+        if (trimmed.startsWith('config warning')) return false;
+        if (trimmed.startsWith('- plugins.entries')) return false;
+        if (trimmed.includes('stale config entry ignored')) return false;
+        if (trimmed.includes('plugin not found')) return false;
+        return true;
+      });
+      const filtered = lines.join('\n').trim();
+      return filtered || undefined;
+    };
 
     const results: ChannelAddResult[] = [];
+    const accounts = state.channels.accounts;
 
-    for (const ch of eligibleChannels) {
-      try {
-        // 降级处理：IPC 不可用时跳过 CLI 添加
-        if (typeof window.electronAPI?.channelsAdd !== 'function') {
+    // 如果有按账户维度的配置，按 account 维度逐个调用 CLI
+    const hasAccountConfigs = Object.keys(accounts).length > 0 &&
+      Object.values(accounts).some((list) => list.length > 0);
+
+    if (hasAccountConfigs) {
+      // 按账户维度添加：仅遍历已启用 provider 的 account
+      // 构建已启用 provider 的集合，过滤掉用户已禁用的渠道
+      const enabledProviders = new Set(channelConfigs.filter((c) => c.enabled).map((c) => c.key));
+      for (const [provider, accountList] of Object.entries(accounts)) {
+        // 跳过未启用的 provider，避免对已禁用渠道发起无效 CLI 调用
+        if (!enabledProviders.has(provider)) continue;
+        for (const account of accountList) {
+          try {
+            if (typeof window.electronAPI?.channelsAdd !== 'function') {
+              results.push({
+                channelKey: provider,
+                channelLabel: provider,
+                success: false,
+                error: 'channelsAdd IPC 不可用',
+                accountId: account.accountId,
+              });
+              continue;
+            }
+
+            // CLI channels add 不传 --account，让 CLI 使用默认的 default account
+            // 用户自定义的 accountId 通过 coreConfigWriteChannel 写入 openclaw.json
+            const cliFieldValues: Record<string, string> = {};
+
+            // 查找对应的渠道配置以获取 label
+            const channelConfig = channelConfigs.find((c) => c.key === provider);
+            const channelLabel = channelConfig?.label || provider;
+
+            const result = await window.electronAPI.channelsAdd(provider, cliFieldValues);
+
+            if (!result.success) {
+              results.push({
+                channelKey: provider,
+                channelLabel,
+                success: false,
+                output: result.output,
+                error: filterConfigWarnings(result.error) || result.error,
+                accountId: account.accountId,
+              });
+              continue;
+            }
+
+            // CLI 添加成功后，将账户专有字段写入 openclaw.json
+            // CLI 默认创建 default account，这里用用户自定义的 accountId 覆盖
+            if (typeof window.electronAPI?.coreConfigWriteChannel === 'function') {
+              const { buildFeishuAccountConfig, buildDefaultAccountConfig, normalizeChannelKey } = await import('../config/channelAccountFields');
+              const normalizedKey = normalizeChannelKey(provider);
+              const accountConfig = normalizedKey === 'feishu'
+                ? buildFeishuAccountConfig(account.fieldValues)
+                : buildDefaultAccountConfig(normalizedKey, account.fieldValues);
+
+              // 构建 accounts 对象：写入用户自定义的 accountId
+              const accountsPayload: Record<string, unknown> = {
+                [account.accountId]: accountConfig,
+              };
+
+              // 如果用户的 accountId 不是 default，删除 CLI 创建的 default account
+              // writeChannelToConfig 支持 null 值删除
+              if (account.accountId !== 'default') {
+                accountsPayload['default'] = null;
+              }
+
+              await window.electronAPI.coreConfigWriteChannel(provider, {
+                accounts: accountsPayload,
+              });
+            }
+
+            results.push({
+              channelKey: provider,
+              channelLabel,
+              success: true,
+              output: result.output,
+              error: filterConfigWarnings(result.error),
+              accountId: account.accountId,
+            });
+          } catch (err: any) {
+            results.push({
+              channelKey: provider,
+              channelLabel: provider,
+              success: false,
+              error: err.message || '未知错误',
+              accountId: account.accountId,
+            });
+          }
+        }
+      }
+    } else {
+      // 向后兼容：无账户配置时按旧逻辑（provider 维度）添加
+      const eligibleChannels = channelConfigs.filter((ch) => {
+        if (!ch.enabled) return false;
+        const requiredFields = ch.fields.filter((f) => f.required);
+        return requiredFields.every((f) => (ch.fieldValues[f.id] || '').trim() !== '');
+      });
+
+      for (const ch of eligibleChannels) {
+        try {
+          if (typeof window.electronAPI?.channelsAdd !== 'function') {
+            results.push({
+              channelKey: ch.key,
+              channelLabel: ch.label,
+              success: false,
+              error: 'channelsAdd IPC 不可用',
+            });
+            continue;
+          }
+
+          const result = await window.electronAPI.channelsAdd(ch.key, ch.fieldValues);
+
+          if (!result.success) {
+            results.push({
+              channelKey: ch.key,
+              channelLabel: ch.label,
+              success: false,
+              output: result.output,
+              error: filterConfigWarnings(result.error) || result.error,
+            });
+            continue;
+          }
+
+          results.push({
+            channelKey: ch.key,
+            channelLabel: ch.label,
+            success: true,
+            output: result.output,
+            error: filterConfigWarnings(result.error),
+          });
+        } catch (err: any) {
           results.push({
             channelKey: ch.key,
             channelLabel: ch.label,
             success: false,
-            error: 'channelsAdd IPC 不可用',
+            error: err.message || '未知错误',
           });
-          continue;
         }
-
-        const result = await window.electronAPI.channelsAdd(ch.key, ch.fieldValues);
-        results.push({
-          channelKey: ch.key,
-          channelLabel: ch.label,
-          success: result.success,
-          output: result.output,
-          error: result.error,
-        });
-      } catch (err: any) {
-        results.push({
-          channelKey: ch.key,
-          channelLabel: ch.label,
-          success: false,
-          error: err.message || '未知错误',
-        });
       }
     }
 
@@ -1076,7 +1201,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     return results;
-  }, [channelConfigs, persistPartialState]);
+  }, [channelConfigs, state.channels.accounts, persistPartialState]);
 
   // ========================================================================
   // 设置已创建的 Agent
@@ -1084,6 +1209,10 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const setCreatedAgent = React.useCallback((agent: { id: string; name: string } | null) => {
     dispatch({ type: 'SET_CREATED_AGENT', payload: agent });
   }, []);
+
+  // ========================================================================
+  // 渠道账户配置
+  // ========================================================================
 
   // ========================================================================
   // 引导初始化 Effect
@@ -1121,6 +1250,29 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               payload: { ...currentCheck, data: updatedData } as EnvironmentCheckResult,
             });
           }
+        }
+
+        // 从 electron-store 恢复 channelAddResults，确保跨页面导航后数据不丢失
+        // addedChannels 仅包含成功添加的渠道（{ key, label }），需转换为 ChannelAddResult[] 格式
+        if (normalizedSettings.addedChannels && normalizedSettings.addedChannels.length > 0) {
+          const restoredResults: ChannelAddResult[] = normalizedSettings.addedChannels.map((ch) => ({
+            channelKey: ch.key,
+            channelLabel: ch.label,
+            success: true,
+          }));
+          dispatch({ type: 'SET_CHANNEL_ADD_RESULTS', payload: restoredResults });
+        }
+
+        // 从 electron-store 恢复已创建的 Agent 信息
+        // 确保页面刷新后 bind-channels 页面能正确识别已创建的 agent
+        if (normalizedSettings.createdAgentId && normalizedSettings.createdAgentName) {
+          dispatch({
+            type: 'SET_CREATED_AGENT',
+            payload: {
+              id: normalizedSettings.createdAgentId,
+              name: normalizedSettings.createdAgentName,
+            },
+          });
         }
 
         // 恢复远程连接草稿
@@ -1268,6 +1420,8 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // 创建的 Agent
     createdAgent: state.agent.created,
     setCreatedAgent,
+    // 渠道账户实例映射
+    channelAccounts: state.channels.accounts,
   }), [
     completeSetup,
     currentStep,
@@ -1312,6 +1466,8 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // 创建的 Agent
     state.agent.created,
     setCreatedAgent,
+    // 渠道账户实例映射
+    state.channels.accounts,
   ]);
 
   return (

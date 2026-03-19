@@ -19,6 +19,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   nodeConfigSet: (config) => ipcRenderer.invoke('nodeConfig:set', config),
   coreConfigGetOverview: () => ipcRenderer.invoke('coreConfig:getOverview'),
   coreConfigSaveOverview: (payload) => ipcRenderer.invoke('coreConfig:saveOverview', payload),
+  // 配置持久化：将 channel 配置写入 openclaw.json
+  coreConfigWriteChannel: (channelKey, channelConfig) => ipcRenderer.invoke('coreConfig:writeChannel', channelKey, channelConfig),
+  // 配置持久化：验证 agent 是否存在于 openclaw.json
+  coreConfigVerifyAgent: (agentId) => ipcRenderer.invoke('coreConfig:verifyAgent', agentId),
+  // 配置持久化：将 agent-channel 绑定写入 openclaw.json
+  coreConfigWriteBinding: (agentId, channelKey, accountId) => ipcRenderer.invoke('coreConfig:writeBinding', agentId, channelKey, accountId),
+  // 查询 agent 的绑定信息和系统可用渠道（用于引导流程 bind-channels 步骤）
+  coreConfigGetAgentBindableInfo: (agentId) => ipcRenderer.invoke('coreConfig:getAgentBindableInfo', agentId),
 
   // Tasks
   tasksGet: () => ipcRenderer.invoke('tasks:get'),
@@ -59,6 +67,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Agents
   agentsGetAll: () => ipcRenderer.invoke('agents:getAll'),
   agentsCreate: (payload) => ipcRenderer.invoke('agents:create', payload),
+  agentsDelete: (agentId) => ipcRenderer.invoke('agents:delete', agentId),
   agentsGetAgentConfigPath: (agentId) => ipcRenderer.invoke('agents:getAgentConfigPath', agentId),
   agentsGetWorkspaceDetails: (agentId) => ipcRenderer.invoke('agents:getWorkspaceDetails', agentId),
   agentsReadWorkspaceFile: (agentId, fileName) => ipcRenderer.invoke('agents:readWorkspaceFile', agentId, fileName),

@@ -6,6 +6,38 @@
 
 ---
 
+## [0.3.13-preview-5] - 2026-03-19
+
+### ✨ 新增 (Features)
+
+- **渠道多账户支持**：SetupChannelsPage 重构为多账户版，同一 provider 下可添加多个账户实例，每个账户有独立的 accountId 和凭证字段
+- **渠道账户字段定义**：新增 `channelAccountFields.ts`，定义每种渠道的账户配置字段和平台配置指导信息
+- **渠道-Agent 绑定页面**：新增 `SetupBindChannelsPage`，引导用户在创建 Agent 后绑定渠道账户
+- **智能体删除功能**：Agents 页面新增删除智能体功能，通过 `agents:delete` IPC 调用 CLI 正式删除
+- **操作结果 Toast 提示**：Agents 页面新增 toast 提示组件，操作成功/失败自动消失
+
+### 🔧 重构 (Refactor)
+
+- **bindings.match Schema 迁移**：coreConfig 新增 `migrateBindingsSchema` 纯函数，读写配置时自动移除废弃字段（dmScope/guildId/teamId）和空 peer
+- **Agent 目录自动修复**：agents IPC 创建流程新增 `needsAgentDirRepair`/`planAgentDirRepair` 防御性检查，CLI 未创建 agentDir 时自动补建
+- **渠道添加逻辑优化**：SetupFlowContext 中 `addEnabledChannels` 重构为按账户维度逐个调用 CLI，新增 config warning 噪音过滤
+- **SetupPages 精简**：移除冗余 SetupActionBar 组件，优化远程配置表单
+- **SetupLayout 优化**：调整引导流程布局组件样式与结构
+
+### 🐛 修复 (Fixes)
+
+- **渠道账户状态管理**：SetupFlowContext 新增 `channelAccounts` 状态，修复多账户场景下状态丢失问题
+- **导航图扩展**：setupNavigationGraph 新增 `/setup/local/bind-channels` 路由节点
+
+### 🧪 测试 (Tests)
+
+- 新增 channelAccountBindingFix/channelAccountBindingPreservation/channelAccountFlow 属性测试
+- 新增 migrateBindingsSchema 单元测试
+- 新增 setupConfigPersistence 属性测试
+- 新增 channelAccountFlow 前端属性测试
+
+---
+
 ## [0.3.13-preview-4] - 2026-03-18
 
 ### ✨ 新增 (Features)

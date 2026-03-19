@@ -22,6 +22,19 @@ import type {
 // ============================================================================
 
 /**
+ * 渠道账户实例数据
+ * 表示同一渠道供应商下的一个具体账户配置
+ */
+export interface ChannelAccountInstance {
+  /** 内部稳定标识，创建时生成，永不改变，用作 React key 防止输入框失焦 */
+  _stableKey: string;
+  /** 用户自定义的账户 ID（如 "content-strategist"） */
+  accountId: string;
+  /** 账户各字段的值映射（如 { appId: "xxx", appSecret: "yyy" }） */
+  fieldValues: Record<string, string>;
+}
+
+/**
  * 环境修复进度状态
  * 表示环境修复操作的当前执行状态
  */
@@ -82,4 +95,12 @@ export type SetupAction =
   /** 设置渠道批量添加结果 */
   | { type: 'SET_CHANNEL_ADD_RESULTS'; payload: ChannelAddResult[] }
   /** 设置引导流程中创建的 Agent 信息，null 表示清除 */
-  | { type: 'SET_CREATED_AGENT'; payload: { id: string; name: string } | null };
+  | { type: 'SET_CREATED_AGENT'; payload: { id: string; name: string } | null }
+  /** 设置 Agent-Channel 绑定关系列表，用于引导流程中的渠道绑定步骤 */
+  | { type: 'SET_AGENT_CHANNEL_BINDINGS'; payload: Array<{ agentId: string; channelKey: string; accountId: string }> }
+  /** 添加渠道账户实例 */
+  | { type: 'ADD_CHANNEL_ACCOUNT'; payload: { provider: string; account: ChannelAccountInstance } }
+  /** 更新渠道账户实例 */
+  | { type: 'UPDATE_CHANNEL_ACCOUNT'; payload: { provider: string; accountId: string; updates: Partial<ChannelAccountInstance> } }
+  /** 删除渠道账户实例（至少保留一个） */
+  | { type: 'REMOVE_CHANNEL_ACCOUNT'; payload: { provider: string; accountId: string } };

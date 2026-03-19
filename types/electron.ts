@@ -602,6 +602,8 @@ export interface AgentWorkspaceDetails {
 export interface AgentsActions {
   agentsGetAll(): Promise<{ success: boolean; agents?: AgentInfo[]; error?: string }>;
   agentsCreate(payload: { name: string; workspace: string; model?: string }): Promise<{ success: boolean; agent?: AgentInfo; error?: string }>;
+  /** 删除智能体（调用 openclaw agents delete） */
+  agentsDelete(agentId: string): Promise<{ success: boolean; output?: string; error?: string }>;
   agentsGetAgentConfigPath(agentId: string): Promise<{ success: boolean; path?: string; error?: string }>;
   agentsGetWorkspaceDetails(agentId: string): Promise<{ success: boolean; details?: AgentWorkspaceDetails; error?: string }>;
   agentsReadWorkspaceFile(agentId: string, fileName: AgentWorkspaceFileName): Promise<{ success: boolean; file?: AgentWorkspaceFileDetail; error?: string }>;
@@ -632,6 +634,23 @@ export interface ConfigActions {
   coreConfigSaveOverview(
     payload: { values: Record<string, unknown> },
   ): Promise<CoreConfigSaveResult>;
+  /** 将 channel 配置写入 openclaw.json 的 channels 节点 */
+  coreConfigWriteChannel(channelKey: string, channelConfig: Record<string, unknown>): Promise<{ success: boolean; error?: string }>;
+  /** 验证 agent 是否存在于 openclaw.json 的 agents.list 中 */
+  coreConfigVerifyAgent(agentId: string): Promise<{ success: boolean; exists?: boolean; agent?: Record<string, unknown>; error?: string }>;
+  /** 将 agent-channel 绑定写入 openclaw.json 的 bindings 数组 */
+  coreConfigWriteBinding(agentId: string, channelKey: string, accountId: string): Promise<{ success: boolean; error?: string }>;
+  /** 查询 agent 的绑定信息和系统可用渠道（用于引导流程 bind-channels 步骤） */
+  coreConfigGetAgentBindableInfo(agentId: string): Promise<{
+    success: boolean;
+    existingBindings: Array<{ channel: string; accountId?: string }>;
+    availableChannels: string[];
+    /** 每个渠道下的账户列表（channel key → accountId 数组） */
+    channelAccounts: Record<string, string[]>;
+    /** 所有渠道-账户的绑定映射（"channelKey/accountId" → agentId） */
+    accountBindings: Record<string, string>;
+    error?: string;
+  }>;
 }
 
 export interface SystemStats {

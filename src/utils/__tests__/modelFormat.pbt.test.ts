@@ -30,9 +30,9 @@ describe('Property 4: provider/model 格式校验', () => {
           // 不包含 /
           fc.string().filter(s => !s.includes('/')),
           // / 前为空
-          fc.string({ minLength: 1 }).map(s => `/${s}`),
-          // / 后为空
-          fc.string({ minLength: 1 }).map(s => `${s}/`),
+          fc.string({ minLength: 1 }).filter(s => !s.includes('/')).map(s => `/${s}`),
+          // / 后为空（确保 provider 部分不含 /，避免意外形成合法格式）
+          fc.string({ minLength: 1 }).filter(s => !s.includes('/')).map(s => `${s}/`),
           // 纯空白
           fc.constant('  '),
           fc.constant(''),

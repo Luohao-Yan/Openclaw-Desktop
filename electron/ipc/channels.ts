@@ -337,8 +337,16 @@ export function setupChannelsIPC() {
       // 构建基础参数
       const args = ['channels', 'add', '--channel', channelType];
 
-      // 遍历字段值，将 camelCase 字段 ID 转换为 --kebab-case CLI flag
+      // accountId 单独处理为 --account flag（OpenClaw CLI 使用 --account 而非 --account-id）
+      // 不经过通用 camelCase→kebab-case 转换
+      const accountId = fieldValues.accountId;
+      if (accountId && accountId.trim()) {
+        args.push('--account', accountId.trim());
+      }
+
+      // 遍历剩余字段（排除 accountId），将 camelCase 字段 ID 转换为 --kebab-case CLI flag
       for (const [fieldId, value] of Object.entries(fieldValues)) {
+        if (fieldId === 'accountId') continue; // 已单独处理
         if (value && value.trim()) {
           const flag = '--' + fieldId.replace(/([A-Z])/g, '-$1').toLowerCase();
           args.push(flag, value.trim());

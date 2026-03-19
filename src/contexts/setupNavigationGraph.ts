@@ -39,7 +39,7 @@ export interface NavigationNode {
  * 导航分支说明：
  * - 本地路径: welcome → local/intro → local/environment → local/check →
  *            (confirm-existing OR install-guide) → local/configure →
- *            local/channels → local/create-agent → local/verify → complete
+ *            local/channels → local/create-agent → local/bind-channels → local/verify → complete
  * - 远程路径: welcome → remote/intro → remote/config → remote/verify → complete
  *
  * @see 需求 4.1 — Navigation_Graph 使用声明式配置定义所有步骤及其前进/后退关系
@@ -121,14 +121,35 @@ export const NAVIGATION_GRAPH: NavigationNode[] = [
   },
   {
     path: '/setup/local/create-agent',
-    next: '/setup/local/verify',
+    next: '/setup/local/bind-channels',
     prev: () => '/setup/local/channels',
     label: '创建 Agent',
   },
   {
+    path: '/setup/local/bind-channels',
+    next: '/setup/local/verify',
+    prev: () => '/setup/local/create-agent',
+    // 跳过条件：没有已创建 agent 时跳过（无 agent 可绑定）
+    // 注意：不再检查 channelAddResults，绑定页面会通过 IPC 查询系统中可用渠道
+    skip: (state) => {
+      const hasCreatedAgent = state.agent.created !== null;
+      return !hasCreatedAgent;
+    },
+    label: '绑定渠道',
+  },
+  {
     path: '/setup/local/verify',
     next: '/setup/complete',
-    prev: () => '/setup/local/create-agent',
+    // 条件导航：根据 bind-channels 是否被跳过决定回退目标
+    // 与 bind-channels 的 skip 条件保持一致：只检查有没有创建 agent
+    prev: (state) => {
+      const hasCreatedAgent = state.agent.created !== null;
+      // 如果 bind-channels 会被跳过（没创建 agent），直接回退到 create-agent
+      if (!hasCreatedAgent) {
+        return '/setup/local/create-agent';
+      }
+      return '/setup/local/bind-channels';
+    },
     label: '验证',
   },
 

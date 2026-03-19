@@ -7,14 +7,6 @@ import SetupLayout from '../../components/setup/SetupLayout';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
 import type { FixableIssue, SetupMode, SetupRemoteDraft } from '../../types/setup';
 
-const SetupActionBar: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <div className="mt-6 flex flex-wrap items-center gap-3">
-      {children}
-    </div>
-  );
-};
-
 const SetupModeCard: React.FC<{
   title: string;
   description: string;
@@ -79,7 +71,6 @@ const SetupRemoteForm: React.FC<{
 }> = ({ defaultValue }) => {
   const [draft, setDraft] = React.useState<SetupRemoteDraft>(defaultValue);
   const {
-    isBusy,
     saveRemoteDraft,
   } = useSetupFlow();
   const navigate = useNavigate();
@@ -102,7 +93,7 @@ const SetupRemoteForm: React.FC<{
   };
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
+    <form className="space-y-5" id="remote-config-form" onSubmit={handleSubmit}>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-[0.8fr_0.2fr]">
         <div>
           <label className="mb-2 block text-sm font-medium">服务器地址</label>
@@ -172,11 +163,6 @@ const SetupRemoteForm: React.FC<{
           placeholder="如官方文档要求，可在此填写 token"
         />
       </div>
-      <SetupActionBar>
-        <AppButton type="submit" variant="primary" disabled={isBusy || !draft.host.trim()}>
-          保存并验证
-        </AppButton>
-      </SetupActionBar>
     </form>
   );
 };
@@ -241,6 +227,22 @@ export const SetupLocalIntroPage: React.FC = () => {
       title="本机安装流程"
       description="这个流程会先检查你当前机器上是否已经安装 OpenClaw。如果已安装，会直接复用；如果没有安装，则按照官方步骤继续引导。"
       stepLabel="步骤 1 / 6"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="primary" onClick={handleStart}>
+            {isBundledReady ? '开始配置' : '开始环境自检'}
+          </AppButton>
+          <button
+            type="button"
+            onClick={() => navigate('/setup/local/environment')}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-70"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            <Stethoscope size={13} />
+            环境诊断
+          </button>
+        </div>
+      }
     >
       {/* 内置运行时就绪时显示快速通道提示 */}
       {isBundledReady && (
@@ -269,22 +271,6 @@ export const SetupLocalIntroPage: React.FC = () => {
         '如果已经存在可用安装，你可以直接采用当前安装，无需重复配置。',
         '如果未安装或安装损坏，将进入安装指导页，并在完成后继续验证。',
       ]} />
-      <SetupActionBar>
-        <AppButton variant="primary" onClick={handleStart}>
-          {isBundledReady ? '开始配置' : '开始环境自检'}
-        </AppButton>
-
-        {/* 环境诊断入口：无论内置运行时是否可用，始终可访问环境自检页 */}
-        <button
-          type="button"
-          onClick={() => navigate('/setup/local/environment')}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-70"
-          style={{ color: 'var(--app-text-muted)' }}
-        >
-          <Stethoscope size={13} />
-          环境诊断
-        </button>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -525,6 +511,35 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
       title="环境自检"
       description="正在检测当前设备的运行环境，确认满足要求后继续。"
       stepLabel="步骤 2 / 6"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton
+            variant="secondary"
+            onClick={() => void refreshEnvironmentCheck()}
+            disabled={isBusy || isFixing}
+            icon={<RefreshCw size={14} />}
+          >
+            重新检测
+          </AppButton>
+          {!bundled && !canContinue && (
+            <AppButton
+              variant="secondary"
+              onClick={() => navigate('/setup/local/check')}
+              disabled={isFixing}
+            >
+              跳过并继续
+            </AppButton>
+          )}
+          <AppButton
+            variant="primary"
+            disabled={(!canContinue && !bundled) || isBusy || isFixing}
+            onClick={() => navigate('/setup/local/check')}
+            icon={<ChevronRight size={15} />}
+          >
+            继续
+          </AppButton>
+        </div>
+      }
     >
       {/* 加载中：显示骨架屏 */}
       {isBusy ? (
@@ -668,39 +683,6 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
       )}
         </>
       )}
-
-      <SetupActionBar>
-        {/* 重新检测按钮 */}
-        <AppButton
-          variant="secondary"
-          onClick={() => void refreshEnvironmentCheck()}
-          disabled={isBusy || isFixing}
-          icon={<RefreshCw size={14} />}
-        >
-          重新检测
-        </AppButton>
-
-        {/* 跳过并继续按钮：仅在必要条件未满足时显示 */}
-        {!bundled && !canContinue && (
-          <AppButton
-            variant="secondary"
-            onClick={() => navigate('/setup/local/check')}
-            disabled={isFixing}
-          >
-            跳过并继续
-          </AppButton>
-        )}
-
-        {/* 继续按钮 */}
-        <AppButton
-          variant="primary"
-          disabled={(!canContinue && !bundled) || isBusy || isFixing}
-          onClick={() => navigate('/setup/local/check')}
-          icon={<ChevronRight size={15} />}
-        >
-          继续
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -724,6 +706,25 @@ export const SetupLocalCheckPage: React.FC = () => {
       title="检查本机 OpenClaw 安装"
       description="系统正在结合命令探测、CLI 诊断与根目录诊断结果，判断是否可以直接使用本机安装。"
       stepLabel="步骤 3 / 6"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton
+            variant="secondary"
+            onClick={() => void refreshLocalCheck()}
+            disabled={isBusy}
+            icon={<RefreshCw size={14} />}
+          >
+            重新检测
+          </AppButton>
+          <AppButton
+            variant="primary"
+            disabled={isBusy}
+            onClick={() => navigate(detectedAndReady ? '/setup/local/confirm-existing' : '/setup/local/install-guide')}
+          >
+            {detectedAndReady ? '使用当前安装' : '进入安装指导'}
+          </AppButton>
+        </div>
+      }
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[
@@ -768,24 +769,6 @@ export const SetupLocalCheckPage: React.FC = () => {
           {localCheckResult.error ? <div className="mt-2">诊断信息：{localCheckResult.error}</div> : null}
         </div>
       ) : null}
-
-      <SetupActionBar>
-        <AppButton
-          variant="secondary"
-          onClick={() => void refreshLocalCheck()}
-          disabled={isBusy}
-          icon={<RefreshCw size={14} />}
-        >
-          重新检测
-        </AppButton>
-        <AppButton
-          variant="primary"
-          disabled={isBusy}
-          onClick={() => navigate(detectedAndReady ? '/setup/local/confirm-existing' : '/setup/local/install-guide')}
-        >
-          {detectedAndReady ? '使用当前安装' : '进入安装指导'}
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -799,20 +782,22 @@ export const SetupLocalConfirmExistingPage: React.FC = () => {
       title="检测到可用的本机安装"
       description="你当前的机器上已经存在可用的 OpenClaw 安装。可以直接采用当前安装，也可以转到安装指导重新整理路径。"
       stepLabel="步骤 4 / 6"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="primary" onClick={() => navigate('/setup/local/configure')}>
+            使用这个安装
+          </AppButton>
+          <AppButton variant="secondary" onClick={() => navigate('/setup/local/install-guide')}>
+            重新安装或手动指定
+          </AppButton>
+        </div>
+      }
     >
       <SetupInfoList items={[
         `命令路径：${localCheckResult?.commandPath || '未检测到'}`,
         `根目录：${localCheckResult?.rootDir || '未检测到'}`,
         `版本信息：${localCheckResult?.versionOutput || '尚未返回版本号'}`,
       ]} />
-      <SetupActionBar>
-        <AppButton variant="primary" onClick={() => navigate('/setup/local/configure')}>
-          使用这个安装
-        </AppButton>
-        <AppButton variant="secondary" onClick={() => navigate('/setup/local/install-guide')}>
-          重新安装或手动指定
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -821,6 +806,9 @@ export { SetupLocalInstallGuidePage } from './SetupLocalInstallGuidePage';
 
 /** 渠道绑定页面：独立步骤，位于配置确认之后、最终验证之前 */
 export { SetupChannelsPage } from './SetupChannelsPage';
+
+/** Agent-Channel 绑定页面：位于创建 Agent 之后、最终验证之前 */
+export { SetupBindChannelsPage } from './SetupBindChannelsPage';
 
 export const SetupLocalConfigurePage: React.FC = () => {
   const navigate = useNavigate();
@@ -848,6 +836,17 @@ export const SetupLocalConfigurePage: React.FC = () => {
       title="确认安装配置"
       description="桌面端已自动识别 OpenClaw 的安装位置，确认后继续验证。"
       stepLabel="步骤 5 / 6"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton
+            variant="primary"
+            disabled={isBusy || !detectedPath}
+            onClick={() => void handleContinue()}
+          >
+            确认并继续
+          </AppButton>
+        </div>
+      }
     >
       <div className="space-y-4">
         <div
@@ -900,15 +899,6 @@ export const SetupLocalConfigurePage: React.FC = () => {
         )}
       </div>
 
-      <SetupActionBar>
-        <AppButton
-          variant="primary"
-          disabled={isBusy || !detectedPath}
-          onClick={() => void handleContinue()}
-        >
-          确认并继续
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -932,17 +922,19 @@ export const SetupLocalVerifyPage: React.FC = () => {
       title="验证本机 OpenClaw 可用性"
       description="桌面端会验证 CLI 是否可执行，以及当前网关状态是否已达到可用标准。"
       stepLabel="步骤 6 / 6"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="primary" onClick={() => void handleVerify()} disabled={isBusy} icon={<ShieldCheck size={16} />}>
+            开始验证
+          </AppButton>
+        </div>
+      }
     >
       <SetupInfoList items={[
         '先测试 OpenClaw CLI 是否可以返回有效结果。',
         '再检查 Desktop 当前连接到的网关状态，确认不是错误或检查中状态。',
         '验证成功后，初始化向导才会允许进入主应用。',
       ]} />
-      <SetupActionBar>
-        <AppButton variant="primary" onClick={() => void handleVerify()} disabled={isBusy} icon={<ShieldCheck size={16} />}>
-          开始验证
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -955,29 +947,38 @@ export const SetupRemoteIntroPage: React.FC = () => {
       title="连接远程 OpenClaw"
       description="如果你已经在服务器或其他设备上部署好了 OpenClaw，可以在这里直接连接，无需本机安装。"
       stepLabel="步骤 1 / 3"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="primary" onClick={() => navigate('/setup/remote/config')}>
+            填写连接信息
+          </AppButton>
+        </div>
+      }
     >
       <SetupInfoList items={[
         '请准备好远程服务器地址、端口以及访问令牌。',
         '如果远程服务使用 HTTPS，请确认对应证书和访问方式已经按官方文档配置。',
         '验证成功后，桌面端会将远程连接保存为当前默认初始化模式。',
       ]} />
-      <SetupActionBar>
-        <AppButton variant="primary" onClick={() => navigate('/setup/remote/config')}>
-          填写连接信息
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
 
 export const SetupRemoteConfigPage: React.FC = () => {
-  const { remoteDraft } = useSetupFlow();
+  const { remoteDraft, isBusy } = useSetupFlow();
 
   return (
     <SetupLayout
       title="填写远程连接信息"
       description="这里先保存远程连接草稿，下一步会尝试通过 Electron IPC 测试连通性。"
       stepLabel="步骤 2 / 3"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton type="submit" form="remote-config-form" variant="primary" disabled={isBusy}>
+            保存并验证
+          </AppButton>
+        </div>
+      }
     >
       <SetupRemoteForm defaultValue={remoteDraft} />
     </SetupLayout>
@@ -1004,6 +1005,13 @@ export const SetupRemoteVerifyPage: React.FC = () => {
       title="验证远程 OpenClaw 连接"
       description="如果当前桌面端尚未实现远程连接测试 IPC，这一步会明确提示；后续补齐主进程能力后即可无缝接入。"
       stepLabel="步骤 3 / 3"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="primary" onClick={() => void handleVerify()} disabled={isBusy} icon={<Link2 size={16} />}>
+            开始验证
+          </AppButton>
+        </div>
+      }
     >
       <div
         className="rounded-2xl border p-5 text-sm leading-7"
@@ -1025,11 +1033,6 @@ export const SetupRemoteVerifyPage: React.FC = () => {
           </div>
         )}
       </div>
-      <SetupActionBar>
-        <AppButton variant="primary" onClick={() => void handleVerify()} disabled={isBusy} icon={<Link2 size={16} />}>
-          开始验证
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };
@@ -1095,6 +1098,13 @@ export const SetupCompletePage: React.FC = () => {
       title="初始化已完成"
       description="当前初始化流程已经准备就绪。你可以点击下方引导卡片快速进入对应功能，或点击「进入应用」按钮进入主界面。"
       stepLabel="完成"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="primary" onClick={() => void completeSetup()} disabled={isBusy}>
+            进入应用
+          </AppButton>
+        </div>
+      }
     >
       {/* 初始化摘要卡片 */}
       <div
@@ -1167,13 +1177,6 @@ export const SetupCompletePage: React.FC = () => {
           ))}
         </div>
       </div>
-
-      {/* 主操作按钮 */}
-      <SetupActionBar>
-        <AppButton variant="primary" onClick={() => void completeSetup()} disabled={isBusy}>
-          进入应用
-        </AppButton>
-      </SetupActionBar>
     </SetupLayout>
   );
 };

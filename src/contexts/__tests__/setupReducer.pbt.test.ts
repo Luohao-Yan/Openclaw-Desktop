@@ -306,6 +306,14 @@ const setupStateArb = (): fc.Arbitrary<SetupState> =>
           name: fc.string({ minLength: 1, maxLength: 30 }),
         }),
       ),
+      bindings: fc.array(
+        fc.record({
+          agentId: fc.string({ minLength: 1, maxLength: 20 }),
+          channelKey: fc.string({ minLength: 1, maxLength: 20 }),
+          accountId: fc.string({ minLength: 1, maxLength: 20 }),
+        }),
+        { maxLength: 5 },
+      ),
     }),
     ui: fc.record({
       isBootstrapping: fc.boolean(),
@@ -402,6 +410,17 @@ const setupActionArb = (): fc.Arbitrary<SetupAction> =>
       }),
     ).map(
       (payload) => ({ type: 'SET_CREATED_AGENT' as const, payload }),
+    ),
+    // SET_AGENT_CHANNEL_BINDINGS — 设置 Agent-Channel 绑定关系
+    fc.array(
+      fc.record({
+        agentId: fc.string({ minLength: 1, maxLength: 20 }),
+        channelKey: fc.string({ minLength: 1, maxLength: 20 }),
+        accountId: fc.string({ minLength: 1, maxLength: 20 }),
+      }),
+      { maxLength: 5 },
+    ).map(
+      (payload) => ({ type: 'SET_AGENT_CHANNEL_BINDINGS' as const, payload }),
     ),
   );
 

@@ -121,3 +121,66 @@ export function formatAgentCreateError(
   // 非 schema 错误：保留原始 stderr 信息
   return stderr;
 }
+
+// ============================================================================
+// agentDir 验证与修复逻辑
+// ============================================================================
+
+/**
+ * 构建最小化的 models.json 内容
+ * 当 CLI 创建 agent 后未生成 agentDir 时，用此函数生成默认配置
+ * 内容为空 providers 对象，agent 将使用全局默认模型配置
+ *
+ * @returns models.json 的 JSON 字符串
+ */
+export function buildMinimalModelsJson(): string {
+  return JSON.stringify({ providers: {} }, null, 2);
+}
+
+/**
+ * 判断 agentDir 是否需要修复
+ * 检查 agentDir 路径是否存在且包含 models.json
+ *
+ * @param agentDir - agent 配置目录路径（如 ~/.openclaw/agents/<id>/agent）
+ * @param existsFn - 文件/目录存在性检查函数（注入以便测试）
+ * @returns 需要修复时返回 true
+ */
+export function needsAgentDirRepair(
+  agentDir: string | undefined | null,
+  existsFn: (path: string) => boolean,
+): boolean {
+  // 没有 agentDir 配置的 agent（如 main）不需要修复
+  if (!agentDir || !agentDir.trim()) return false;
+
+  // 目录不存在 → 需要修复
+  if (!existsFn(agentDir)) return true;
+
+  // 目录存在但缺少 models.json → 需要修复
+  const modelsPath = agentDir.replace(/\/$/, '') + '/models.json';
+  if (!existsFn(modelsPath)) return true;
+
+  return false;
+}
+
+/**
+ * 计算 agentDir 修复所需的文件操作列表
+ * 纯函数，不执行实际 I/O
+ *
+ * @param agentDir - agent 配置目录路径
+ * @returns 需要创建的目录和文件列表
+ */
+export function planAgentDirRepair(agentDir: string): {
+  directoryToCreate: string;
+  filesToWrite: Array<{ path: string; content: string }>;
+} {
+  const normalizedDir = agentDir.replace(/\/$/, '');
+  return {
+    directoryToCreate: normalizedDir,
+    filesToWrite: [
+      {
+        path: normalizedDir + '/models.json',
+        content: buildMinimalModelsJson(),
+      },
+    ],
+  };
+}

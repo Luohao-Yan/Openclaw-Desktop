@@ -832,7 +832,14 @@ export function buildChannelAddArgs(
   fieldValues: Record<string, string>,
 ): string[] {
   const args = ['channels', 'add', '--channel', channelType];
+  // accountId 单独处理为 --account-id flag，不经过通用 camelCase→kebab-case 转换
+  const accountId = fieldValues.accountId;
+  if (accountId && accountId.trim()) {
+    args.push('--account-id', accountId.trim());
+  }
+  // 遍历剩余字段（排除 accountId），使用通用转换逻辑
   for (const [fieldId, value] of Object.entries(fieldValues)) {
+    if (fieldId === 'accountId') continue; // 已单独处理
     if (value && value.trim()) {
       args.push(fieldIdToCliFlag(fieldId), value.trim());
     }

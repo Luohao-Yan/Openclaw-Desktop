@@ -345,6 +345,14 @@ const setupStateArb = (): fc.Arbitrary<SetupState> =>
           name: fc.string({ minLength: 1, maxLength: 30 }),
         }),
       ),
+      bindings: fc.array(
+        fc.record({
+          agentId: fc.string({ minLength: 1, maxLength: 20 }),
+          channelKey: fc.string({ minLength: 1, maxLength: 20 }),
+          accountId: fc.string({ minLength: 1, maxLength: 20 }),
+        }),
+        { maxLength: 5 },
+      ),
     }),
     ui: fc.record({
       isBootstrapping: fc.boolean(),

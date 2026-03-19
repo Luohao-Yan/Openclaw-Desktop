@@ -303,6 +303,8 @@ export interface ChannelAddResult {
   output?: string;
   /** 错误信息 */
   error?: string;
+  /** 该添加操作对应的 Account_ID，用于追溯具体账户 */
+  accountId?: string;
 }
 
 // ============================================================================
@@ -365,6 +367,10 @@ export interface SetupSettingsOptional {
   createdAgentName?: string;
   /** 引导流程中创建的 Agent ID */
   createdAgentId?: string;
+  /** 引导流程中创建的 Agent 工作区路径 */
+  createdAgentWorkspace?: string;
+  /** 引导流程中创建的 Agent 模型配置 */
+  createdAgentModel?: string;
 }
 
 /**

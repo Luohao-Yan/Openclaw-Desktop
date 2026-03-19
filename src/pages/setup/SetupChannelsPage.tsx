@@ -1,15 +1,38 @@
+// ============================================================================
+// SetupChannelsPage — 渠道配置页面（多账户版）
+// 路由: /setup/local/channels
+// 位于配置确认之后、创建 Agent 之前
+// 支持同一 provider 下添加多个账户实例，每个账户有独立的 accountId 和凭证字段
+// @see 需求 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.2, 2.3
+// ============================================================================
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, ChevronRight, Loader2, SkipForward, Terminal, XCircle, Zap } from 'lucide-react';
+import {
+  ChevronRight,
+  Loader2,
+  Plus,
+  SkipForward,
+  Trash2,
+  XCircle,
+} from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import SetupLayout from '../../components/setup/SetupLayout';
-import VirtualChannelList from '../../components/setup/VirtualChannelList';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
-import type { ChannelAddResult, ChannelConfig } from '../../types/setup';
+import type { ChannelConfig } from '../../types/setup';
+import {
+  getAccountFields,
+  getChannelGuide,
+  validateAccountId,
+} from '../../config/channelAccountFields';
+import type { ChannelAccountInstance } from '../../contexts/setupActions';
+
+// ============================================================================
+// 渠道图标颜色映射
+// ============================================================================
 
 /** 渠道图标颜色映射（key 与 SUPPORTED_CHANNEL_TYPES 一致） */
 const channelColors: Record<string, string> = {
-  // 内置渠道
   telegram: '#26A5E4',
   whatsapp: '#25D366',
   discord: '#5865F2',
@@ -20,7 +43,6 @@ const channelColors: Record<string, string> = {
   googlechat: '#00AC47',
   irc: '#8B8B8B',
   webchat: '#FF6B35',
-  // 插件渠道
   feishu: '#3370FF',
   line: '#06C755',
   matrix: '#0DBD8B',
@@ -34,6 +56,10 @@ const channelColors: Record<string, string> = {
   zalo: '#0068FF',
   zalopersonal: '#0068FF',
 };
+
+// ============================================================================
+// 子组件
+// ============================================================================
 
 /** 底部操作栏组件 */
 const SetupActionBar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -58,7 +84,6 @@ const ChannelToggle: React.FC<{
       outlineColor: enabled ? '#16a34a' : '#9ca3af',
     }}
   >
-    {/* 开/关文字标签 */}
     <span
       className="absolute text-[10px] font-semibold select-none"
       style={{
@@ -69,7 +94,6 @@ const ChannelToggle: React.FC<{
     >
       {enabled ? 'ON' : 'OFF'}
     </span>
-    {/* 滑块圆点 */}
     <span
       className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-md transition-transform duration-200"
       style={{
@@ -81,35 +105,202 @@ const ChannelToggle: React.FC<{
   </button>
 );
 
-/** 单个渠道卡片组件 — 根据 fields 定义渲染多字段表单，支持显示 CLI 添加结果 */
-const ChannelCard: React.FC<{
-  config: ChannelConfig;
-  addResult?: ChannelAddResult;
-  onToggle: (enabled: boolean) => void;
-  onFieldChange: (fieldId: string, value: string) => void;
-  onTest: () => void;
-}> = ({ config, addResult, onToggle, onFieldChange, onTest }) => {
-  const accentColor = channelColors[config.key] || 'var(--app-active-text)';
-  /** 是否有可填写的输入字段（排除 info 类型） */
-  const inputFields = config.fields.filter((f) => f.type !== 'info');
-  /** 所有必填字段是否已填写 */
-  const allRequiredFilled = config.fields
-    .filter((f) => f.required)
-    .every((f) => (config.fieldValues[f.id] || '').trim() !== '');
+// ============================================================================
+// 账户表单组件 — 单个账户实例的配置表单
+// ============================================================================
+
+/** 单个账户实例的配置表单 */
+const AccountForm: React.FC<{
+  /** 渠道 provider key */
+  provider: string;
+  /** 账户实例数据 */
+  account: ChannelAccountInstance;
+  /** 同 provider 下所有已有的 accountId（用于唯一性校验） */
+  existingIds: string[];
+  /** 是否可删除（列表长度 > 1 时可删除） */
+  canDelete: boolean;
+  /** 账户序号（从 1 开始） */
+  index: number;
+  /** 更新账户字段值 */
+  onFieldChange: (accountId: string, fieldId: string, value: string) => void;
+  /** 更新 accountId */
+  onAccountIdChange: (oldAccountId: string, newAccountId: string) => void;
+  /** 删除账户 */
+  onDelete: (accountId: string) => void;
+}> = ({ provider, account, existingIds, canDelete, index, onFieldChange, onAccountIdChange, onDelete }) => {
+  /** 获取该渠道的账户配置字段定义（排除 accountId，单独渲染） */
+  const accountFields = React.useMemo(
+    () => getAccountFields(provider).filter((f) => f.id !== 'accountId'),
+    [provider],
+  );
+
+  /** accountId 校验结果 */
+  const accountIdValidation = React.useMemo(
+    () => {
+      if (!account.accountId) return { valid: true }; // 空值不显示错误（等用户输入）
+      // 排除自身 accountId 后校验唯一性
+      const otherIds = existingIds.filter((id) => id !== account.accountId);
+      return validateAccountId(account.accountId, otherIds);
+    },
+    [account.accountId, existingIds],
+  );
+
+  /** 获取平台配置指导 */
+  const guide = React.useMemo(() => getChannelGuide(provider), [provider]);
 
   return (
     <div
-      className={`rounded-2xl border transition-all duration-200${config.enabled ? ' col-span-2' : ''}`}
+      className="rounded-xl border p-4 space-y-3"
+      style={{
+        backgroundColor: 'var(--app-bg)',
+        borderColor: 'var(--app-border)',
+      }}
+    >
+      {/* 账户标题行 */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+          账户 #{index}
+        </span>
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(account.accountId)}
+            className="flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors hover:bg-red-50"
+            style={{ color: '#ef4444' }}
+            aria-label={`删除账户 ${account.accountId || index}`}
+          >
+            <Trash2 size={12} />
+            删除
+          </button>
+        )}
+      </div>
+
+      {/* accountId 输入字段 */}
+      <div>
+        <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+          账户 ID <span style={{ color: '#ef4444' }}>*</span>
+        </label>
+        <input
+          type="text"
+          value={account.accountId}
+          onChange={(e) => onAccountIdChange(account.accountId, e.target.value)}
+          placeholder="例如 my-bot（仅允许字母、数字、连字符、下划线）"
+          className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+          style={{
+            backgroundColor: 'var(--app-bg)',
+            borderColor: accountIdValidation.valid ? 'var(--app-border)' : '#ef4444',
+            color: 'var(--app-text)',
+          }}
+        />
+        {/* accountId 校验错误提示 */}
+        {!accountIdValidation.valid && accountIdValidation.error && (
+          <p className="mt-1 text-xs" style={{ color: '#ef4444' }}>
+            {accountIdValidation.error}
+          </p>
+        )}
+      </div>
+
+      {/* 渠道凭证字段 */}
+      {accountFields.map((field) => (
+        <div key={field.id}>
+          <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+            {field.label}
+            {field.required && <span style={{ color: '#ef4444' }}> *</span>}
+            {/* 飞书 botName 推荐填写提示 */}
+            {field.id === 'botName' && (
+              <span className="ml-1 text-[10px]" style={{ color: 'var(--app-text-muted)' }}>
+                （推荐填写，用于绑定页面显示）
+              </span>
+            )}
+          </label>
+          {field.type === 'select' && field.options ? (
+            <select
+              value={account.fieldValues[field.id] || field.defaultValue || ''}
+              onChange={(e) => onFieldChange(account.accountId, field.id, e.target.value)}
+              className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+              style={{
+                backgroundColor: 'var(--app-bg)',
+                borderColor: 'var(--app-border)',
+                color: 'var(--app-text)',
+              }}
+            >
+              {field.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={field.type === 'password' ? 'password' : 'text'}
+              value={account.fieldValues[field.id] || ''}
+              onChange={(e) => onFieldChange(account.accountId, field.id, e.target.value)}
+              placeholder={field.placeholder}
+              className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+              style={{
+                backgroundColor: 'var(--app-bg)',
+                borderColor: 'var(--app-border)',
+                color: 'var(--app-text)',
+              }}
+            />
+          )}
+        </div>
+      ))}
+
+      {/* 平台配置指导链接 */}
+      {guide && (
+        <div
+          className="rounded-lg px-3 py-2 text-xs"
+          style={{ backgroundColor: 'var(--app-bg-subtle, rgba(0,0,0,0.03))', color: 'var(--app-text-muted)' }}
+        >
+          📖 {guide.url ? (
+            <a href={guide.url} target="_blank" rel="noopener noreferrer" className="underline">
+              {guide.title}
+            </a>
+          ) : guide.title}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// 渠道 Provider 卡片组件 — 包含开关 + 多账户表单
+// ============================================================================
+
+/** 单个渠道 Provider 卡片 */
+const ProviderCard: React.FC<{
+  config: ChannelConfig;
+  /** 该 provider 下的账户实例列表 */
+  accounts: ChannelAccountInstance[];
+  /** 切换 provider 启用/禁用 */
+  onToggle: (enabled: boolean) => void;
+  /** 添加新账户 */
+  onAddAccount: () => void;
+  /** 更新账户字段值 */
+  onFieldChange: (accountId: string, fieldId: string, value: string) => void;
+  /** 更新 accountId */
+  onAccountIdChange: (oldAccountId: string, newAccountId: string) => void;
+  /** 删除账户 */
+  onDeleteAccount: (accountId: string) => void;
+}> = ({ config, accounts, onToggle, onAddAccount, onFieldChange, onAccountIdChange, onDeleteAccount }) => {
+  const accentColor = channelColors[config.key] || 'var(--app-active-text)';
+  /** 所有已有的 accountId 列表（用于唯一性校验） */
+  const existingIds = React.useMemo(
+    () => accounts.map((a) => a.accountId),
+    [accounts],
+  );
+
+  return (
+    <div
+      className={`rounded-2xl border transition-all duration-200`}
       style={{
         backgroundColor: 'var(--app-bg)',
         borderColor: config.enabled ? accentColor : 'var(--app-border)',
         boxShadow: config.enabled ? `0 0 0 1px ${accentColor}22` : 'none',
       }}
     >
-      {/* 渠道标题行：名称 + 开关 */}
+      {/* Provider 标题行：名称 + 开关 */}
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
-          {/* 渠道颜色标识点 */}
           <div
             className="h-3 w-3 rounded-full"
             style={{ backgroundColor: accentColor }}
@@ -124,201 +315,299 @@ const ChannelCard: React.FC<{
           </div>
         </div>
         <ChannelToggle enabled={config.enabled} onChange={onToggle} />
-        {/* CLI 添加结果状态标记 */}
-        {addResult && (
-          addResult.success ? (
-            <CheckCircle2 size={16} style={{ color: '#22c55e' }} aria-label="添加成功" />
-          ) : (
-            <XCircle size={16} style={{ color: '#ef4444' }} aria-label="添加失败" />
-          )
-        )}
       </div>
 
-      {/* 启用后展开的凭证输入区域 — 根据 fields 动态渲染 */}
+      {/* 启用后展开的多账户配置区域 */}
       {config.enabled && (
         <div
           className="border-t px-4 pb-4 pt-3 space-y-3"
           style={{ borderColor: 'var(--app-border)' }}
         >
-          {/* CLI 命令提示 */}
-          {config.cliHint && (
-            <div
-              className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs font-mono"
-              style={{ backgroundColor: 'var(--app-bg-subtle, rgba(0,0,0,0.03))', color: 'var(--app-text-muted)' }}
-            >
-              <Terminal size={12} className="mt-0.5 shrink-0" />
-              <span className="break-all">{config.cliHint}</span>
-            </div>
-          )}
-
-          {/* 逐字段渲染 */}
-          {config.fields.map((field) => (
-            <div key={field.id}>
-              {field.type === 'info' ? (
-                /* 只读提示信息（如 WhatsApp QR 配对说明） */
-                <div
-                  className="rounded-lg px-3 py-2.5 text-xs leading-relaxed"
-                  style={{ backgroundColor: 'var(--app-bg-subtle, rgba(0,0,0,0.03))', color: 'var(--app-text-muted)' }}
-                >
-                  {field.placeholder}
-                </div>
-              ) : (
-                /* 可编辑输入字段 */
-                <>
-                  <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
-                    {field.label}
-                    {field.required && <span style={{ color: '#ef4444' }}> *</span>}
-                  </label>
-                  <input
-                    type={field.type === 'password' ? 'password' : 'text'}
-                    value={config.fieldValues[field.id] || ''}
-                    onChange={(e) => onFieldChange(field.id, e.target.value)}
-                    placeholder={field.placeholder}
-                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
-                    style={{
-                      backgroundColor: 'var(--app-bg)',
-                      borderColor: 'var(--app-border)',
-                      color: 'var(--app-text)',
-                      outlineColor: 'var(--app-active-border)',
-                    }}
-                  />
-                </>
-              )}
-            </div>
+          {/* 账户列表 */}
+          {accounts.map((account, idx) => (
+            <AccountForm
+              key={account._stableKey || `new-${idx}`}
+              provider={config.key}
+              account={account}
+              existingIds={existingIds}
+              canDelete={accounts.length > 1}
+              index={idx + 1}
+              onFieldChange={onFieldChange}
+              onAccountIdChange={onAccountIdChange}
+              onDelete={onDeleteAccount}
+            />
           ))}
 
-          {/* 测试连接按钮（仅当有可填写字段时显示） */}
-          {inputFields.length > 0 && (
-            <div className="flex items-center gap-3">
-              <AppButton
-                size="sm"
-                variant="secondary"
-                onClick={onTest}
-                disabled={!allRequiredFilled || config.testStatus === 'testing'}
-                icon={config.testStatus === 'testing'
-                  ? <Loader2 size={14} className="animate-spin" />
-                  : <Zap size={14} />
-                }
-              >
-                测试连接
-              </AppButton>
-
-              {/* 测试状态反馈 */}
-              {config.testStatus === 'ok' && (
-                <span className="flex items-center gap-1.5 text-xs" style={{ color: '#22c55e' }}>
-                  <CheckCircle2 size={13} /> 连接成功
-                </span>
-              )}
-              {config.testStatus === 'error' && (
-                <span className="flex items-center gap-1.5 text-xs" style={{ color: '#f87171' }}>
-                  <XCircle size={13} /> {config.testError || '连接测试失败'}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* CLI 添加失败时显示错误信息 */}
-          {addResult && !addResult.success && (
-            <div
-              className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
-              style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444' }}
-            >
-              <XCircle size={13} className="mt-0.5 shrink-0" />
-              <span>{addResult.error || '渠道添加失败'}</span>
-            </div>
-          )}
+          {/* 添加账户按钮 */}
+          <button
+            type="button"
+            onClick={onAddAccount}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2.5 text-xs font-medium transition-colors hover:border-solid"
+            style={{
+              borderColor: 'var(--app-border)',
+              color: 'var(--app-text-muted)',
+            }}
+          >
+            <Plus size={14} />
+            添加账户
+          </button>
         </div>
       )}
     </div>
   );
 };
 
+// ============================================================================
+// 添加结果展示组件
+// ============================================================================
+
+/** 渠道添加结果摘要 */
+const AddResultsSummary: React.FC<{
+  results: Array<{ channelKey: string; channelLabel: string; success: boolean; error?: string; accountId?: string }>;
+}> = ({ results }) => {
+  if (results.length === 0) return null;
+
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.length - successCount;
+
+  return (
+    <div className="mt-4 space-y-2">
+      {/* 总结 */}
+      <div
+        className="rounded-xl px-4 py-2.5 text-xs"
+        style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text-muted)' }}
+      >
+        添加完成：{successCount} 个成功{failCount > 0 ? `，${failCount} 个失败` : ''}
+      </div>
+
+      {/* 失败详情 */}
+      {results.filter((r) => !r.success).map((r, i) => (
+        <div
+          key={`${r.channelKey}-${r.accountId || i}`}
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
+          style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444' }}
+        >
+          <XCircle size={13} className="mt-0.5 shrink-0" />
+          <span>
+            {r.channelLabel}{r.accountId ? ` (${r.accountId})` : ''}: {r.error || '添加失败'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ============================================================================
+// 主页面组件
+// ============================================================================
+
 /**
- * 渠道绑定页面组件。
- * 路由: /setup/local/channels
- * 位于配置确认之后、创建 Agent 之前。
- * 显示所有支持的消息渠道，允许用户启用/禁用并配置凭证。
- * "继续"按钮会调用 CLI 添加已启用渠道，"跳过"仅保存配置。
+ * 渠道配置页面组件（多账户版）
+ *
+ * 功能：
+ * - 显示所有支持的渠道 provider，允许启用/禁用
+ * - 启用 provider 后自动创建一个默认账户实例
+ * - 支持为同一 provider 添加多个账户（"添加账户"按钮）
+ * - 每个账户有独立的 accountId 输入 + 凭证字段
+ * - accountId 实时校验（格式 + 同 provider 唯一性）
+ * - 支持删除账户（至少保留一个）
+ * - "继续"按钮按 account 维度调用 CLI 添加渠道
  */
 export const SetupChannelsPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     channelConfigs,
     updateChannelConfig,
-    testChannelConnection,
     saveChannelConfigs,
     addEnabledChannels,
     channelAddResults,
+    channelAccounts,
+    dispatch,
     isBusy,
   } = useSetupFlow();
 
   /** 是否正在执行 CLI 添加渠道 */
   const [isAdding, setIsAdding] = React.useState(false);
 
-  /** 按钮禁用状态：上下文忙碌或正在添加渠道时禁用 */
+  /** 按钮禁用状态 */
   const buttonsDisabled = isBusy || isAdding;
 
-  /** 跳过渠道配置，仅保存配置到 electron-store 并导航到创建 Agent 页 */
+  // ── Provider 启用/禁用切换 ──────────────────────────────────────────────
+  /** 切换 provider 启用状态，启用时自动创建默认账户 */
+  const handleToggle = React.useCallback((key: string, enabled: boolean) => {
+    updateChannelConfig(key, {
+      enabled,
+      ...(!enabled ? { testStatus: 'idle' as const, testError: undefined } : {}),
+    });
+
+    if (enabled) {
+      // 启用时：如果该 provider 还没有账户，自动创建一个默认账户
+      const existing = channelAccounts[key] || [];
+      if (existing.length === 0) {
+        dispatch({
+          type: 'ADD_CHANNEL_ACCOUNT',
+          payload: {
+            provider: key,
+            account: { _stableKey: crypto.randomUUID(), accountId: 'default', fieldValues: {} },
+          },
+        });
+      }
+    }
+  }, [updateChannelConfig, channelAccounts, dispatch]);
+
+  // ── 账户管理操作 ──────────────────────────────────────────────────────────
+  /** 添加新账户到指定 provider */
+  const handleAddAccount = React.useCallback((provider: string) => {
+    const existing = channelAccounts[provider] || [];
+    // 生成唯一的默认 accountId
+    let suffix = existing.length + 1;
+    let newId = `account-${suffix}`;
+    const existingIds = existing.map((a) => a.accountId);
+    while (existingIds.includes(newId)) {
+      suffix++;
+      newId = `account-${suffix}`;
+    }
+    dispatch({
+      type: 'ADD_CHANNEL_ACCOUNT',
+      payload: {
+        provider,
+        account: { _stableKey: crypto.randomUUID(), accountId: newId, fieldValues: {} },
+      },
+    });
+  }, [channelAccounts, dispatch]);
+
+  /** 更新账户字段值 */
+  const handleFieldChange = React.useCallback((provider: string, accountId: string, fieldId: string, value: string) => {
+    dispatch({
+      type: 'UPDATE_CHANNEL_ACCOUNT',
+      payload: {
+        provider,
+        accountId,
+        updates: {
+          fieldValues: {
+            ...(channelAccounts[provider]?.find((a) => a.accountId === accountId)?.fieldValues || {}),
+            [fieldId]: value,
+          },
+        },
+      },
+    });
+  }, [channelAccounts, dispatch]);
+
+  /** 更新 accountId（需要先删除旧的再添加新的，或直接更新） */
+  const handleAccountIdChange = React.useCallback((provider: string, oldAccountId: string, newAccountId: string) => {
+    dispatch({
+      type: 'UPDATE_CHANNEL_ACCOUNT',
+      payload: {
+        provider,
+        accountId: oldAccountId,
+        updates: { accountId: newAccountId },
+      },
+    });
+  }, [dispatch]);
+
+  /** 删除账户 */
+  const handleDeleteAccount = React.useCallback((provider: string, accountId: string) => {
+    dispatch({
+      type: 'REMOVE_CHANNEL_ACCOUNT',
+      payload: { provider, accountId },
+    });
+  }, [dispatch]);
+
+  // ── 页面操作 ──────────────────────────────────────────────────────────────
+  /** 跳过渠道配置 */
   const handleSkip = async () => {
     await saveChannelConfigs();
     navigate('/setup/local/create-agent');
   };
 
-  /** 执行 CLI 添加已启用渠道，保存配置后导航到创建 Agent 页 */
+  /** 已启用的渠道数量 */
+  const enabledCount = channelConfigs.filter((ch) => ch.enabled).length;
+  /** 总账户数量 */
+  const totalAccountCount = Object.values(channelAccounts).reduce(
+    (sum, list) => sum + list.length, 0,
+  );
+
+  /** 是否已完成渠道添加操作（用于控制"继续"按钮行为） */
+  const [addCompleted, setAddCompleted] = React.useState(false);
+
+  /** 执行 CLI 添加已启用渠道（按 account 维度） */
   const handleContinue = async () => {
+    // 如果已完成添加操作，用户查看结果后再次点击"继续"，直接导航到下一步
+    if (addCompleted) {
+      navigate('/setup/local/create-agent');
+      return;
+    }
+
+    // 没有启用任何渠道时，直接导航
+    if (enabledCount === 0) {
+      await saveChannelConfigs();
+      navigate('/setup/local/create-agent');
+      return;
+    }
+
     setIsAdding(true);
     try {
       await addEnabledChannels();
       await saveChannelConfigs();
+      // 标记添加完成，停留在当前页面展示结果摘要
+      // 用户查看 AddResultsSummary 后再次点击"继续"即可导航
+      setAddCompleted(true);
     } finally {
       setIsAdding(false);
     }
-    navigate('/setup/local/create-agent');
   };
-
-  /** 已启用的渠道数量 */
-  const enabledCount = channelConfigs.filter((ch) => ch.enabled).length;
 
   return (
     <SetupLayout
-      title="渠道绑定"
-      description="配置消息渠道连接，让 OpenClaw 能够接收和发送消息。你可以稍后在设置中修改。"
+      title="渠道配置"
+      description="配置消息渠道连接，让 OpenClaw 能够接收和发送消息。每个渠道可添加多个账户。你可以稍后在设置中修改。"
       stepLabel="渠道配置"
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton
+            variant="secondary"
+            onClick={() => void handleSkip()}
+            disabled={buttonsDisabled}
+            icon={<SkipForward size={14} />}
+          >
+            跳过
+          </AppButton>
+          <AppButton
+            variant="primary"
+            onClick={() => void handleContinue()}
+            disabled={buttonsDisabled}
+            icon={isAdding
+              ? <Loader2 size={15} className="animate-spin" />
+              : <ChevronRight size={15} />
+            }
+          >
+            {isAdding ? '添加中…' : '继续'}
+          </AppButton>
+        </div>
+      }
     >
-      {/* 渠道列表 — 虚拟滚动，仅渲染视口内可见的卡片 */}
-      <VirtualChannelList
-        configs={channelConfigs}
-        addResults={channelAddResults}
-        height={Math.max(300, typeof window !== 'undefined' ? window.innerHeight - 380 : 500)}
-        itemHeight={64}
-        bufferSize={2}
-        onToggle={(key, enabled) => updateChannelConfig(key, {
-          enabled,
-          ...(!enabled ? { testStatus: 'idle' as const, testError: undefined } : {}),
-        })}
-        onFieldChange={(key, fieldId, value) => updateChannelConfig(key, {
-          fieldValues: { ...channelConfigs.find((c) => c.key === key)?.fieldValues, [fieldId]: value },
-          testStatus: 'idle',
-          testError: undefined,
-        })}
-        onTest={(key) => void testChannelConnection(key)}
-        renderItem={(config, addResult) => (
-          <ChannelCard
+      {/* 渠道 Provider 列表 */}
+      {/* 渠道列表 — 自然高度，不限制内部滚动，由外层 SetupLayout 统一滚动 */}
+      <div className="space-y-3">
+        {channelConfigs.map((config) => (
+          <ProviderCard
+            key={config.key}
             config={config}
-            addResult={addResult}
-            onToggle={(enabled) => updateChannelConfig(config.key, {
-              enabled,
-              ...(!enabled ? { testStatus: 'idle' as const, testError: undefined } : {}),
-            })}
-            onFieldChange={(fieldId, value) => updateChannelConfig(config.key, {
-              fieldValues: { ...config.fieldValues, [fieldId]: value },
-              testStatus: 'idle',
-              testError: undefined,
-            })}
-            onTest={() => void testChannelConnection(config.key)}
+            accounts={channelAccounts[config.key] || []}
+            onToggle={(enabled) => handleToggle(config.key, enabled)}
+            onAddAccount={() => handleAddAccount(config.key)}
+            onFieldChange={(accountId, fieldId, value) =>
+              handleFieldChange(config.key, accountId, fieldId, value)
+            }
+            onAccountIdChange={(oldId, newId) =>
+              handleAccountIdChange(config.key, oldId, newId)
+            }
+            onDeleteAccount={(accountId) =>
+              handleDeleteAccount(config.key, accountId)
+            }
           />
-        )}
-      />
+        ))}
+      </div>
 
       {/* 已启用渠道计数提示 */}
       {enabledCount > 0 && (
@@ -326,32 +615,13 @@ export const SetupChannelsPage: React.FC = () => {
           className="mt-4 rounded-xl px-4 py-2.5 text-xs"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text-muted)' }}
         >
-          已启用 {enabledCount} 个渠道。凭证测试失败不会阻止你继续。
+          已启用 {enabledCount} 个渠道，共 {totalAccountCount} 个账户。
         </div>
       )}
 
-      {/* 底部操作栏：始终可见，不随渠道列表滚动 */}
-      <SetupActionBar>
-        <AppButton
-          variant="secondary"
-          onClick={() => void handleSkip()}
-          disabled={buttonsDisabled}
-          icon={<SkipForward size={14} />}
-        >
-          跳过
-        </AppButton>
-        <AppButton
-          variant="primary"
-          onClick={() => void handleContinue()}
-          disabled={buttonsDisabled}
-          icon={isAdding
-            ? <Loader2 size={15} className="animate-spin" />
-            : <ChevronRight size={15} />
-          }
-        >
-          {isAdding ? '添加中…' : '继续'}
-        </AppButton>
-      </SetupActionBar>
+      {/* CLI 添加结果摘要 */}
+      <AddResultsSummary results={channelAddResults} />
+
     </SetupLayout>
   );
 };

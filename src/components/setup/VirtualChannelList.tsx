@@ -40,21 +40,28 @@ export interface VirtualChannelListProps {
 /**
  * 计算展开状态下的渠道卡片高度。
  * 展开后高度 = 基础高度 + 字段数 * 字段行高 + 额外间距
+ *
+ * @param addResult - CLI 添加结果，有错误信息时需要额外高度
  */
-const getExpandedHeight = (config: ChannelConfig, baseHeight: number): number => {
+const getExpandedHeight = (config: ChannelConfig, baseHeight: number, addResult?: ChannelAddResult): number => {
   if (!config.enabled) return baseHeight;
-  // 每个字段约 56px（label + input），CLI 提示约 40px，测试按钮区约 44px
+  // 每个字段约 64px（label + input + 间距），CLI 提示约 48px，测试按钮区约 52px
   const fieldCount = config.fields.length;
-  const cliHintHeight = config.cliHint ? 40 : 0;
-  const testButtonHeight = config.fields.some((f) => f.type !== 'info') ? 44 : 0;
-  return baseHeight + fieldCount * 56 + cliHintHeight + testButtonHeight + 16; // 16px padding
+  const cliHintHeight = config.cliHint ? 48 : 0;
+  const testButtonHeight = config.fields.some((f) => f.type !== 'info') ? 52 : 0;
+  // CLI 添加失败时的错误信息区域约 40px
+  const addResultErrorHeight = addResult && !addResult.success ? 40 : 0;
+  return baseHeight + fieldCount * 64 + cliHintHeight + testButtonHeight + addResultErrorHeight + 24; // 24px padding
 };
 
 /**
- * 计算每个渠道卡片的实际高度（考虑展开状态）。
+ * 计算每个渠道卡片的实际高度（考虑展开状态和 CLI 添加结果）。
  */
-const getItemHeights = (configs: ChannelConfig[], baseHeight: number): number[] =>
-  configs.map((config) => getExpandedHeight(config, baseHeight));
+const getItemHeights = (configs: ChannelConfig[], baseHeight: number, addResults?: ChannelAddResult[]): number[] =>
+  configs.map((config) => {
+    const addResult = addResults?.find((r) => r.channelKey === config.key);
+    return getExpandedHeight(config, baseHeight, addResult);
+  });
 
 /**
  * 计算累积高度数组，用于快速定位。
@@ -120,10 +127,10 @@ const VirtualChannelList: React.FC<VirtualChannelListProps> = ({
     }
   }, []);
 
-  // 计算每个卡片的实际高度和累积高度
+  // 计算每个卡片的实际高度和累积高度（考虑 addResults 中的错误信息）
   const itemHeights = React.useMemo(
-    () => getItemHeights(configs, itemHeight),
-    [configs, itemHeight],
+    () => getItemHeights(configs, itemHeight, addResults),
+    [configs, itemHeight, addResults],
   );
   const cumulativeHeights = React.useMemo(
     () => getCumulativeHeights(itemHeights),

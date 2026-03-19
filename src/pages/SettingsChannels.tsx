@@ -172,6 +172,8 @@ const defaultFeishuAccountConfig: FeishuAccountConfig = {
   resolveSenderNames: true,
   footer: { elapsed: true, status: true },
   groupPolicy: 'open',
+  dmPolicy: 'open',
+  allowFrom: ['*'],
 };
 
 // ============================================================
@@ -382,6 +384,8 @@ const SettingsChannels: React.FC = () => {
         ...currentResult.config,
         ...updatedConfig,
       };
+      // 移除 OpenClaw v0.3.13+ schema 不支持的根级别字段，避免校验失败
+      delete (mergedConfig as any).pairing;
       const result = await window.electronAPI.configSet(mergedConfig);
       if (!result.success) {
         throw new Error(result.error || t('channels.saveFailed'));

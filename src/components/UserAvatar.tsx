@@ -299,13 +299,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({
         {/* 悬浮效果 */}
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/0 to-white/0 transition-all duration-300 group-hover:from-white/10 group-hover:to-white/5" />
         
-        {/* 点击指示器（仅在显示下拉菜单时） */}
-        {showDropdown && (
-          <div className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-br from-tech-cyan to-tech-green p-0.5">
-            <ChevronDown size={10} className="text-white transition-transform duration-200" 
-              style={{ transform: isMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-          </div>
-        )}
+
       </button>
 
       {/* 用户菜单 */}

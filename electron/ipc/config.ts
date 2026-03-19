@@ -3,6 +3,7 @@ const { ipcMain } = pkg;
 import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'fs';
 import path from 'path';
 import { getOpenClawRootDir } from './settings.js';
+import { migrateBindingsSchema } from './coreConfig.js';
 
 const getConfigPath = () => path.join(getOpenClawRootDir(), 'openclaw.json');
 
@@ -34,9 +35,16 @@ export function setupConfigIPC() {
         const backupPath = `${configPath}.backup.${Date.now()}`;
         copyFileSync(configPath, backupPath);
       }
+
+      // 移除 OpenClaw v0.3.13+ schema 不支持的根级别字段，避免校验失败
+      const sanitized = { ...config };
+      delete sanitized.pairing;
+
+      // 执行 bindings schema 迁移，清理 enabled 等不兼容字段（防御层）
+      const migrated = migrateBindingsSchema(sanitized);
       
       // 写入新配置
-      const jsonContent = JSON.stringify(config, null, 2);
+      const jsonContent = JSON.stringify(migrated, null, 2);
       writeFileSync(configPath, jsonContent, 'utf8');
       
       return { success: true, path: configPath };

@@ -14,7 +14,7 @@ import {
 } from 'fs';
 import { basename, dirname, extname, join, relative, resolve } from 'path';
 import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand } from './settings.js';
-import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError } from './agentCreateLogic.js';
+import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError, needsAgentDirRepair, planAgentDirRepair } from './agentCreateLogic.js';
 
 /**
  * 构建 doctor --fix 命令的环境变量（纯函数）
@@ -1985,10 +1985,74 @@ export function setupAgentsIPC() {
         return { success: false, error: '智能体创建成功，但未能在配置中定位新条目' };
       }
 
+      // 防御性检查：CLI 可能注册了 agent 但未创建 agentDir
+      // 此情况在 openclaw.json 存在 schema 兼容性问题时会发生
+      const agentDir = createdAgent.agentDir;
+      if (needsAgentDirRepair(agentDir, existsSync)) {
+        try {
+          const plan = planAgentDirRepair(agentDir);
+          mkdirSync(plan.directoryToCreate, { recursive: true });
+          for (const file of plan.filesToWrite) {
+            // 仅在文件不存在时写入，避免覆盖已有配置
+            if (!existsSync(file.path)) {
+              writeFileSync(file.path, file.content, 'utf8');
+            }
+          }
+          console.log(`[agents:create] agentDir 不存在，已自动创建: ${agentDir}`);
+        } catch (repairErr) {
+          // 修复失败不阻塞创建流程，仅记录警告
+          console.warn(`[agents:create] agentDir 自动创建失败: ${repairErr}`);
+        }
+      }
+
       return {
         success: true,
         agent: mapAgentInfo(createdAgent, config),
       };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  /**
+   * 删除智能体 — 调用 openclaw agents delete <id> --force --json
+   * 通过官方 CLI 正式删除，清理 openclaw.json 条目、workspace 和 agentDir
+   */
+  ipcMain.handle('agents:delete', async (_, agentId: string): Promise<{ success: boolean; output?: string; error?: string }> => {
+    try {
+      const trimmedId = (agentId || '').trim();
+      if (!trimmedId) {
+        return { success: false, error: '智能体 ID 不能为空' };
+      }
+
+      const openclawCmd = resolveOpenClawCommand();
+      const shellPath = await getShellPath();
+
+      return new Promise((resolvePromise) => {
+        const child = spawn(openclawCmd, ['--no-color', 'agents', 'delete', trimmedId, '--force', '--json'], {
+          env: buildDoctorFixEnv(process.env, shellPath),
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => { stdout += data.toString(); });
+        child.stderr.on('data', (data) => { stderr += data.toString(); });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolvePromise({ success: true, output: stdout });
+          } else {
+            // 提取友好错误信息
+            const errorMsg = stderr.trim() || stdout.trim() || `命令退出码 ${code}`;
+            resolvePromise({ success: false, output: stdout, error: errorMsg });
+          }
+        });
+
+        child.on('error', (err) => {
+          resolvePromise({ success: false, error: err.message });
+        });
+      });
     } catch (error) {
       return { success: false, error: String(error) };
     }

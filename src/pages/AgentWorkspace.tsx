@@ -823,10 +823,10 @@ const AgentWorkspace: React.FC = () => {
         ? [...configResult.config.bindings]
         : [];
 
-      // 构造新的绑定记录（展开 bindingData 后覆盖关键字段，确保不被意外替换）
+      // 构造新的绑定记录（仅保留 agentId + match，不写入 enabled 等 schema 不支持的字段）
+      const { enabled: _enabled, ...cleanBindingData } = (bindingData || {}) as Record<string, unknown>;
       const newBinding = {
-        enabled: true,
-        ...bindingData,
+        ...cleanBindingData,
         agentId,
         match: { channel, accountId },
       };
@@ -917,10 +917,14 @@ const AgentWorkspace: React.FC = () => {
         return;
       }
 
+      // 编辑绑定时清理 schema 不支持的字段（如 enabled）
+      const { enabled: _enabled, ...cleanNextBinding } = (nextBinding as Record<string, unknown>);
       bindings[target.index] = {
         ...target.binding,
-        ...nextBinding,
+        ...cleanNextBinding,
       };
+      // 同时清理原始 binding 中可能残留的 enabled 字段
+      delete (bindings[target.index] as any).enabled;
 
       const nextConfig = {
         ...configResult.config,

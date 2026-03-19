@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.3.13-preview-4",
+  "version": "0.3.13-preview-5",
   "description": "OpenClaw Desktop Electron Application",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -78,8 +78,14 @@
       "output": "dist"
     },
     "extraResources": [
-      { "from": "resources/node/", "to": "node/" },
-      { "from": "resources/bin/", "to": "bin/" }
+      {
+        "from": "resources/node/",
+        "to": "node/"
+      },
+      {
+        "from": "resources/bin/",
+        "to": "bin/"
+      }
     ],
     "files": [
       "dist/**/*",

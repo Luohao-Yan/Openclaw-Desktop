@@ -17,7 +17,7 @@ import type {
   SetupRemoteVerificationResult,
   SetupSettings,
 } from '../types/setup';
-import type { FixProgressState, SetupAction } from './setupActions';
+import type { FixProgressState, SetupAction, ChannelAccountInstance } from './setupActions';
 import { isValidTransition, type StateChangeLog } from './stateTransitionLogic';
 
 // ============================================================================
@@ -66,12 +66,16 @@ export interface SetupState {
     configs: ChannelConfig[];
     /** 渠道批量添加结果 */
     addResults: ChannelAddResult[];
+    /** 渠道账户实例映射：provider → ChannelAccountInstance[] */
+    accounts: Record<string, ChannelAccountInstance[]>;
   };
 
   /** Agent 创建相关状态 */
   agent: {
     /** 引导流程中创建的 Agent 信息 */
     created: { id: string; name: string } | null;
+    /** Agent-Channel 绑定关系列表，记录引导流程中用户选择的绑定 */
+    bindings: Array<{ agentId: string; channelKey: string; accountId: string }>;
   };
 
   /** UI 状态 */
@@ -168,10 +172,12 @@ export const initialSetupState: SetupState = {
   channels: {
     configs: [],
     addResults: [],
+    accounts: {},
   },
 
   agent: {
     created: null,
+    bindings: [],
   },
 
   ui: {
@@ -435,6 +441,64 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
       };
       break;
 
+    case 'ADD_CHANNEL_ACCOUNT': {
+      // 添加渠道账户实例到指定 provider
+      const { provider, account } = action.payload;
+      const existingAccounts = state.channels.accounts[provider] || [];
+      newState = {
+        ...state,
+        channels: {
+          ...state.channels,
+          accounts: {
+            ...state.channels.accounts,
+            [provider]: [...existingAccounts, account],
+          },
+        },
+      };
+      break;
+    }
+
+    case 'UPDATE_CHANNEL_ACCOUNT': {
+      // 更新指定 provider 下指定 accountId 的账户实例
+      const { provider: updProvider, accountId: updAccountId, updates } = action.payload;
+      const providerAccounts = state.channels.accounts[updProvider] || [];
+      newState = {
+        ...state,
+        channels: {
+          ...state.channels,
+          accounts: {
+            ...state.channels.accounts,
+            [updProvider]: providerAccounts.map((acc) =>
+              acc.accountId === updAccountId ? { ...acc, ...updates } : acc,
+            ),
+          },
+        },
+      };
+      break;
+    }
+
+    case 'REMOVE_CHANNEL_ACCOUNT': {
+      // 删除渠道账户实例（至少保留一个）
+      const { provider: rmProvider, accountId: rmAccountId } = action.payload;
+      const currentAccounts = state.channels.accounts[rmProvider] || [];
+      // 列表长度 > 1 时才允许删除
+      if (currentAccounts.length <= 1) {
+        newState = state;
+      } else {
+        newState = {
+          ...state,
+          channels: {
+            ...state.channels,
+            accounts: {
+              ...state.channels.accounts,
+              [rmProvider]: currentAccounts.filter((acc) => acc.accountId !== rmAccountId),
+            },
+          },
+        };
+      }
+      break;
+    }
+
     // ========================================================================
     // Agent 创建相关
     // ========================================================================
@@ -446,6 +510,17 @@ export function setupReducer(state: SetupState, action: SetupAction): SetupState
         agent: {
           ...state.agent,
           created: action.payload,
+        },
+      };
+      break;
+
+    case 'SET_AGENT_CHANNEL_BINDINGS':
+      // 设置 Agent-Channel 绑定关系列表
+      newState = {
+        ...state,
+        agent: {
+          ...state.agent,
+          bindings: action.payload,
         },
       };
       break;
