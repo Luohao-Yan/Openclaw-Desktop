@@ -8,6 +8,7 @@ import {
   Play, StopCircle
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
+import GlobalLoading from '../components/GlobalLoading';
 import { useI18n } from '../i18n/I18nContext';
 
 interface SkillInfo {
@@ -656,7 +657,7 @@ const Skills: React.FC = () => {
         {/* Skills Grid */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <RefreshCw className="w-8 h-8 animate-spin" style={{ color: 'var(--app-text-muted)' }} />
+            <GlobalLoading visible text="加载技能中" overlay={false} size="md" />
           </div>
         ) : filteredSkills.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

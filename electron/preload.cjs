@@ -98,6 +98,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentsOpenDebugTerminal: (agentId) => ipcRenderer.invoke('agents:openDebugTerminal', agentId),
   agentsExportConfig: (agentId) => ipcRenderer.invoke('agents:exportConfig', agentId),
   agentsImportConfig: (agentId, filePath) => ipcRenderer.invoke('agents:importConfig', agentId, filePath),
+
+  // Agent 配置加密导入/导出
+  agentsExportBundle: (agentId, passphrase, filePath) => ipcRenderer.invoke('agents:exportBundle', agentId, passphrase, filePath),
+  agentsImportBundle: (filePath, passphrase) => ipcRenderer.invoke('agents:importBundle', filePath, passphrase),
+  agentsSelectExportPath: (defaultName) => ipcRenderer.invoke('agents:selectExportPath', defaultName),
+  agentsSelectImportFile: () => ipcRenderer.invoke('agents:selectImportFile'),
+  agentsGetExportHistory: () => ipcRenderer.invoke('agents:getExportHistory'),
+  agentsDeleteExportHistory: (recordId) => ipcRenderer.invoke('agents:deleteExportHistory', recordId),
+  // 导入进度监听器
+  onImportProgress: (callback) => {
+    const handler = (_event, progress) => callback(progress);
+    ipcRenderer.on('agents:importProgress', handler);
+    return () => ipcRenderer.removeListener('agents:importProgress', handler);
+  },
   agentsClone: (agentId, newName, workspace) => ipcRenderer.invoke('agents:clone', agentId, newName, workspace),
   agentsGenerateReport: (agentId, format) => ipcRenderer.invoke('agents:generateReport', agentId, format),
   agentsRestart: (agentId) => ipcRenderer.invoke('agents:restart', agentId),
@@ -113,6 +127,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sessionsExport: (sessionId, format) => ipcRenderer.invoke('sessions:export', sessionId, format),
   sessionsImport: (data, format) => ipcRenderer.invoke('sessions:import', data, format),
   sessionsStats: () => ipcRenderer.invoke('sessions:stats'),
+  sessionsAgentDetailedStats: () => ipcRenderer.invoke('sessions:agentDetailedStats'),
   sessionsCleanup: (dryRun) => ipcRenderer.invoke('sessions:cleanup', dryRun),
 
   // 打开文件路径（用于 Skills 页面）

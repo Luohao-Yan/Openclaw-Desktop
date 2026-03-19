@@ -516,6 +516,82 @@ export interface AgentConfigExport {
   };
 }
 
+// ── Agent 配置加密导入/导出相关类型 ──────────────────────────────────────────
+
+/** 导出 Bundle 结果 */
+export interface ExportBundleResult {
+  success: boolean;
+  /** 导出文件路径 */
+  filePath?: string;
+  /** 错误信息 */
+  error?: string;
+}
+
+/** 导入 Bundle 结果 */
+export interface ImportBundleResult {
+  success: boolean;
+  /** 导入成功后的 Agent 信息 */
+  agent?: any;
+  /** 安装失败的 Skills 列表 */
+  failedSkills?: Array<{ id: string; name: string; error: string }>;
+  /** 非致命警告信息（如部分文件写入失败） */
+  warnings?: string[];
+  /** 是否执行了回滚操作 */
+  rolledBack?: boolean;
+  /** 错误信息 */
+  error?: string;
+}
+
+/** 导入进度事件 */
+export interface ImportProgress {
+  /** 当前步骤编号 1-5 */
+  step: number;
+  /** 步骤名称 */
+  stepName: string;
+  /** 步骤状态（含回滚状态） */
+  status: 'pending' | 'running' | 'success' | 'failed' | 'rolling-back' | 'rolled-back';
+  /** 可选的详细信息（如错误原因、子进度、回滚提示） */
+  message?: string;
+}
+
+/** Skill 清单条目 */
+export interface SkillManifestEntry {
+  /** skill 唯一标识 */
+  id: string;
+  /** skill 名称 */
+  name: string;
+  /** 来源类型：clawhub 公共 skill 或本地私有 skill */
+  source: 'clawhub' | 'private';
+  /** 私有 skill 的文件内容（仅 source='private' 时存在） */
+  files?: Record<string, string>;
+}
+
+/** Channel 绑定模板（不含账户凭证） */
+export interface ChannelBindingTemplate {
+  /** channel 类型名称（如 wechat、telegram） */
+  channel: string;
+  /** 绑定匹配规则（不含 accountId） */
+  matchRules?: Record<string, unknown>;
+}
+
+/** 导出历史记录 */
+export interface ExportHistoryRecord {
+  /** 唯一标识（UUID） */
+  id: string;
+  /** Agent ID */
+  agentId: string;
+  /** Agent 名称 */
+  agentName: string;
+  /** 导出时间（ISO 8601） */
+  exportTime: string;
+  /** 导出文件路径 */
+  filePath: string;
+  /** Passphrase 明文（仅本地存储） */
+  passphrase: string;
+  /** 文件大小（字节） */
+  fileSize: number;
+}
+
 export interface ElectronAPI {
   runtimeInfo: () => Promise<DesktopRuntimeInfo | null>;
   getCapabilities: () => Promise<DesktopRuntimeCapabilities | null>;
@@ -624,7 +700,23 @@ export interface ElectronAPI {
   agentsRestart: (agentId: string) => Promise<{ success: boolean; error?: string }>;
   /** 安全检查 */
   agentsSecurityCheck: (agentId: string) => Promise<{ success: boolean; results?: SecurityCheckResult[]; error?: string }>;
-  
+
+  // ── Agent 配置加密导入/导出 API ──────────────────────────────────────────────
+  /** 导出 Agent 配置为加密 .ocagent 文件 */
+  agentsExportBundle: (agentId: string, passphrase: string, filePath?: string) => Promise<ExportBundleResult>;
+  /** 导入加密的 .ocagent 配置文件 */
+  agentsImportBundle: (filePath: string, passphrase: string) => Promise<ImportBundleResult>;
+  /** 调用系统保存对话框选择导出路径 */
+  agentsSelectExportPath: (defaultName: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  /** 调用系统文件选择对话框选择 .ocagent 文件 */
+  agentsSelectImportFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  /** 监听导入进度事件 */
+  onImportProgress: (callback: (progress: ImportProgress) => void) => void;
+  /** 获取导出历史记录列表 */
+  agentsGetExportHistory: () => Promise<{ success: boolean; history: ExportHistoryRecord[] }>;
+  /** 删除指定的导出历史记录 */
+  agentsDeleteExportHistory: (recordId: string) => Promise<{ success: boolean; error?: string }>;
+
   sessionsList: () => Promise<any[]>;
   sessionsGet: (sessionId: string) => Promise<any>;
   sessionsTranscript: (agentId: string, sessionKey: string) => Promise<any>;
@@ -634,6 +726,8 @@ export interface ElectronAPI {
   sessionsExport: (sessionId: string, format: 'json' | 'markdown') => Promise<any>;
   sessionsImport: (data: string, format: string) => Promise<any>;
   sessionsStats: () => Promise<any>;
+  /** 获取每个 agent 的详细统计（会话数 + 消息数 + Token 估算 + 平均响应时间） */
+  sessionsAgentDetailedStats: () => Promise<{ success: boolean; stats: Record<string, { sessionCount: number; messageCount: number; tokenUsage: number; avgResponseMs: number }>; error?: string }>;
   sessionsCleanup: (dryRun?: boolean) => Promise<{ success: boolean; output?: string; error?: string }>;
   openPath: (targetPath: string) => Promise<{ success: boolean; error?: string }>;
   windowMinimize: () => Promise<void>;

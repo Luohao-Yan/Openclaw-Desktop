@@ -321,6 +321,113 @@ export function setupSessionsIPC() {
     };
   });
 
+  /**
+   * 获取每个 agent 的详细统计：会话数、消息数、Token 估算、平均响应时间
+   * 遍历 stores 中的 sessions.json，解析每个 session 的 .jsonl 文件
+   * - Token 估算：从 usage 字段读取，若无则按内容字符数 / 4 粗略估算
+   * - 平均响应时间：计算 user → assistant 消息对的时间差均值
+   */
+  ipcMain.handle('sessions:agentDetailedStats', async () => {
+    const result = await getSessionsList();
+    if (!result.success) {
+      return { success: false, stats: {}, error: result.error };
+    }
+
+    // 按 agent 分组 session
+    const agentSessions: Record<string, string[]> = {};
+    for (const s of result.sessions) {
+      if (!agentSessions[s.agent]) agentSessions[s.agent] = [];
+      agentSessions[s.agent].push(s.key);
+    }
+
+    // 统计结果
+    const stats: Record<string, {
+      sessionCount: number;
+      messageCount: number;
+      tokenUsage: number;
+      avgResponseMs: number;
+    }> = {};
+
+    for (const [agentId, sessionKeys] of Object.entries(agentSessions)) {
+      stats[agentId] = { sessionCount: sessionKeys.length, messageCount: 0, tokenUsage: 0, avgResponseMs: 0 };
+
+      // 找到该 agent 的 store 路径
+      const store = result.stores.find((s) => s.agentId === agentId);
+      if (!store?.path || !fs.existsSync(store.path)) continue;
+
+      // 收集所有响应时间差，最后求均值
+      const responseTimes: number[] = [];
+
+      try {
+        const indexContent = fs.readFileSync(store.path, 'utf-8');
+        const indexData = JSON.parse(indexContent);
+
+        // 遍历该 agent 的每个 session
+        for (const key of sessionKeys) {
+          const sessionMeta = indexData?.[key];
+          const sessionFile = sessionMeta?.sessionFile;
+          if (!sessionFile || !fs.existsSync(sessionFile)) continue;
+
+          try {
+            const content = fs.readFileSync(sessionFile, 'utf-8');
+            const lines = content.split('\n').filter((l) => l.trim());
+
+            let lastUserTimestamp: number | null = null;
+
+            for (const line of lines) {
+              try {
+                const obj = JSON.parse(line);
+                if (obj.type !== 'message' || !obj.message) continue;
+
+                stats[agentId].messageCount++;
+
+                // Token 统计：优先从 usage 字段读取，否则按内容长度估算
+                if (obj.usage && typeof obj.usage.total_tokens === 'number') {
+                  stats[agentId].tokenUsage += obj.usage.total_tokens;
+                } else {
+                  // 粗略估算：英文约 4 字符/token，中文约 2 字符/token，取 3 作为折中
+                  const msg = obj.message;
+                  let textLen = 0;
+                  if (typeof msg.content === 'string') {
+                    textLen = msg.content.length;
+                  } else if (Array.isArray(msg.content)) {
+                    for (const block of msg.content) {
+                      if (block?.type === 'text' && block?.text) textLen += block.text.length;
+                    }
+                  }
+                  stats[agentId].tokenUsage += Math.ceil(textLen / 3);
+                }
+
+                // 响应时间计算：user → assistant 的时间差
+                const role = obj.message.role;
+                const ts = obj.timestamp ? new Date(obj.timestamp).getTime() : 0;
+
+                if (role === 'user' && ts > 0) {
+                  lastUserTimestamp = ts;
+                } else if (role === 'assistant' && ts > 0 && lastUserTimestamp !== null) {
+                  const diff = ts - lastUserTimestamp;
+                  // 只记录合理范围内的响应时间（0~5分钟）
+                  if (diff > 0 && diff < 300_000) {
+                    responseTimes.push(diff);
+                  }
+                  lastUserTimestamp = null;
+                }
+              } catch { /* 跳过解析失败的行 */ }
+            }
+          } catch { /* 跳过读取失败的文件 */ }
+        }
+      } catch { /* 跳过解析失败的 sessions.json */ }
+
+      // 计算平均响应时间
+      if (responseTimes.length > 0) {
+        const sum = responseTimes.reduce((a, b) => a + b, 0);
+        stats[agentId].avgResponseMs = Math.round(sum / responseTimes.length);
+      }
+    }
+
+    return { success: true, stats };
+  });
+
   // 创建新 session
   ipcMain.handle('sessions:create', async (_event, agent: string, model?: string): Promise<{ success: boolean; sessionId?: string; error?: string }> => {
     const args = ['sessions', 'create', '--agent', agent];

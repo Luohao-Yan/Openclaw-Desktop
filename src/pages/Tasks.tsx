@@ -513,19 +513,19 @@ const Tasks: React.FC = () => {
 
   return (
     <div className="space-y-6 p-6">
-      {/* 顶部渐变标题卡片，参照设置页面设计语言 */}
+      {/* 顶部渐变标题卡片 */}
       <GlassCard
         variant="gradient"
         className="relative rounded-[28px] px-6 py-5"
         style={{
-          background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.12) 0%, rgba(245, 158, 11, 0.08) 48%, rgba(255, 255, 255, 0.02) 100%)',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.14) 0%, rgba(139, 92, 246, 0.10) 50%, rgba(59, 130, 246, 0.06) 100%)',
           backdropFilter: 'blur(18px)',
           border: 'none',
         }}
       >
         {/* 右上角装饰光晕 */}
-        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(251, 191, 36, 0.18)' }} />
-        <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)' }} />
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(99, 102, 241, 0.16)' }} />
+        <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)' }} />
 
         <div className="relative flex items-start justify-between gap-4">
           <div className="max-w-2xl">
@@ -601,12 +601,13 @@ const Tasks: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* 统计卡片：Dashboard 风格紧凑一行四列 */}
+      <div className="grid grid-cols-4 gap-3">
         {[
-          { label: '总任务数', value: stats.total, icon: Clock3 },
-          { label: '启用中', value: stats.enabled, icon: PlayCircle },
-          { label: '已停用', value: stats.disabled, icon: X },
-          { label: '最近记录', value: stats.runs, icon: Sparkles },
+          { label: '总任务数', value: stats.total, icon: Clock3, accent: '#60a5fa' },
+          { label: '启用中', value: stats.enabled, icon: PlayCircle, accent: '#34d399' },
+          { label: '已停用', value: stats.disabled, icon: X, accent: '#f87171' },
+          { label: '最近记录', value: stats.runs, icon: Sparkles, accent: '#a78bfa' },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -614,27 +615,24 @@ const Tasks: React.FC = () => {
               key={item.label}
               className="rounded-2xl border p-4"
               style={{
-                backgroundColor: 'var(--app-bg-elevated)',
+                backgroundColor: 'var(--app-bg-subtle)',
                 borderColor: 'var(--app-border)',
               }}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.14em]" style={{ color: 'var(--app-text-muted)' }}>
-                    {item.label}
-                  </div>
-                  <div className="mt-3 text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>
-                    {item.value}
-                  </div>
-                </div>
+              <div className="flex items-center gap-3">
+                {/* 圆形图标背景 */}
                 <div
-                  className="flex h-10 w-10 items-center justify-center rounded-2xl"
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl flex-shrink-0"
                   style={{
-                    backgroundColor: 'var(--app-active-bg)',
-                    color: 'var(--app-active-text)',
+                    backgroundColor: `${item.accent}1f`,
+                    color: item.accent,
                   }}
                 >
-                  <Icon size={18} />
+                  <Icon size={20} />
+                </div>
+                <div>
+                  <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{item.label}</div>
+                  <div className="mt-1 text-lg font-semibold" style={{ color: 'var(--app-text)' }}>{item.value}</div>
                 </div>
               </div>
             </div>

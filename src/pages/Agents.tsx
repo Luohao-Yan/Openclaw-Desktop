@@ -2,27 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AgentInfo } from '../../types/electron';
 import { 
-  Users, Folder, Cpu, Hash,
-  RefreshCw, Copy, AlertCircle, CheckCircle,
+  Users, Cpu, Hash,
+  RefreshCw, AlertCircle, CheckCircle,
   User, FileText, Settings, ArrowRight,
   Plus,
   Zap,
   AlertTriangle,
   Trash2,
+  Download, Upload, History,
+  MessageSquare, Clock, Coins, Globe,
 } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import AppIconButton from '../components/AppIconButton';
 import GlassCard from '../components/GlassCard';
 import AgentEnhancer from '../components/AgentEnhancer';
+import GlobalLoading from '../components/GlobalLoading';
 import SegmentedTabs from '../components/SegmentedTabs';
 import { useI18n } from '../i18n/I18nContext';
 import CreateAgentWizard from './settings/CreateAgentWizard';
+import ExportAgentDialog from './settings/ExportAgentDialog';
+import ImportAgentDialog from './settings/ImportAgentDialog';
+import ExportHistoryPanel from './settings/ExportHistoryPanel';
 
 const Agents: React.FC = () => {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'enhance'>('list');
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -33,12 +38,23 @@ const Agents: React.FC = () => {
   const [globalChannels, setGlobalChannels] = useState<Record<string, any>>({});
   // 可用模型列表，从 modelsGetConfig 获取，用于创建智能体时的模型下拉选择
   const [availableModels, setAvailableModels] = useState<{ label: string; value: string; description?: string }[]>([]);
+  // 导出/导入对话框状态
+  const [exportTarget, setExportTarget] = useState<AgentInfo | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   // 删除确认对话框状态
   const [deleteTarget, setDeleteTarget] = useState<AgentInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   // 操作结果提示（自动消失）
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // 每个 Agent 的统计数据（会话数、消息数、Token 估算、平均响应时间）
+  const [agentStats, setAgentStats] = useState<Record<string, {
+    sessionCount: number;
+    messageCount: number;
+    tokenUsage: number;
+    avgResponseMs: number;
+  }>>({});
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -62,6 +78,15 @@ const Agents: React.FC = () => {
       } catch {
         setGlobalBindings([]);
         setGlobalChannels({});
+      }
+      // 加载 agent 详细统计（会话数 + 消息数，从 session 文件中统计）
+      try {
+        const detailedResult = await window.electronAPI.sessionsAgentDetailedStats();
+        if (detailedResult.success && detailedResult.stats) {
+          setAgentStats(detailedResult.stats);
+        }
+      } catch {
+        setAgentStats({});
       }
     } catch (error) {
       console.error('Failed to load agents:', error);
@@ -162,49 +187,8 @@ const Agents: React.FC = () => {
     }
   };
 
-  const copyToClipboard = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyStatus({ ...copyStatus, [id]: true });
-      setTimeout(() => {
-        setCopyStatus({ ...copyStatus, [id]: false });
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-    }
-  };
-
   const openAgentWorkspace = (agentId: string) => {
     navigate(`/agent-workspace/${agentId}`);
-  };
-
-  const copyAgentPath = async (agentId: string, pathType: 'workspace' | 'config') => {
-    try {
-      const agent = agents.find(a => a.id === agentId);
-      if (!agent) {
-        alert('Agent not found');
-        return;
-      }
-      
-      let pathToCopy = '';
-      if (pathType === 'workspace') {
-        pathToCopy = agent.workspace;
-      } else if (pathType === 'config') {
-        const result = await window.electronAPI.agentsGetAgentConfigPath(agentId);
-        if (result.success && result.path) {
-          pathToCopy = result.path;
-        } else {
-          alert(`Failed to get agent config path: ${result.error}`);
-          return;
-        }
-      }
-      
-      await navigator.clipboard.writeText(pathToCopy);
-      alert(`Agent ${pathType} path copied to clipboard:\n${pathToCopy}`);
-    } catch (error) {
-      console.error('Failed to copy agent path:', error);
-      alert('Failed to copy agent path');
-    }
   };
 
   useEffect(() => {
@@ -227,27 +211,38 @@ const Agents: React.FC = () => {
 
     return (
     <GlassCard className="p-6 hover:shadow-xl transition-all duration-300">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+      {/* 卡片头部：左侧信息 + 右侧操作按钮 */}
+      <div className="flex items-start justify-between mb-4 gap-2">
+        {/* 左侧：头像 + 名称 + ID 徽章，允许收缩以避免挤压 */}
+        <div className="flex items-center space-x-3 min-w-0 flex-1">
+          <div className="p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
             <User className="w-6 h-6 text-blue-400" />
           </div>
-          <div>
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>{agent.name}</h3>
-            <div className="flex items-center space-x-2 mt-1">
-              <span className="text-xs font-mono px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold truncate" style={{ color: 'var(--app-text)' }}>{agent.name}</h3>
+            <div className="flex items-center space-x-2 mt-1 min-w-0">
+              <span className="text-xs font-mono px-2 py-1 rounded truncate max-w-[160px]" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
                 <Hash className="w-3 h-3 inline mr-1" />
                 {agent.id}
               </span>
               {agent.agentDir && (
-                <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
+                <span className="text-xs px-2 py-1 rounded flex-shrink-0 whitespace-nowrap" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
                   Configured
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
+        {/* 右侧操作按钮：固定不收缩 */}
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          {/* 导出 Agent 配置按钮 */}
+          <AppIconButton
+            onClick={() => setExportTarget(agent)}
+            tint="default"
+            title="导出 Agent 配置"
+          >
+            <Download className="w-5 h-5" />
+          </AppIconButton>
           <AppIconButton
             onClick={() => {
               setSelectedAgent(agent);
@@ -294,73 +289,93 @@ const Agents: React.FC = () => {
         </div>
       )}
 
-      <div className="space-y-3">
-        <div className="flex items-start">
-          <Folder className="w-4 h-4 mt-1 mr-2 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
-          <div className="flex-1">
-            <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>Workspace</p>
-            <div className="flex items-center justify-between mt-1">
-              <code className="text-xs font-mono truncate max-w-[70%]" style={{ color: 'var(--app-text-muted)' }}>
-                {agent.workspace}
-              </code>
-              <button
-                onClick={() => copyAgentPath(agent.id, 'workspace')}
-                className="p-1 rounded transition-colors"
-                style={{ color: 'var(--app-text-muted)' }}
-                title="Copy workspace path"
-              >
-                <Copy className="w-3 h-3" style={{ color: 'var(--app-text-muted)' }} />
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* 模型信息 */}
+      <div className="flex items-center gap-2 mb-3">
+        <Cpu className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
+        <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>模型</span>
+        <code className="text-xs font-mono px-2 py-0.5 rounded truncate" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}>
+          {agent.model || '-'}
+        </code>
+      </div>
 
-        <div className="flex items-start">
-          <Cpu className="w-4 h-4 mt-1 mr-2 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
-          <div className="flex-1">
-            <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>Model</p>
-            <div className="flex items-center justify-between mt-1">
-              <code className="text-xs font-mono truncate max-w-[70%]" style={{ color: 'var(--app-text-muted)' }}>
-                {agent.model}
-              </code>
-              <button
-                onClick={() => copyToClipboard(agent.model, `model-${agent.id}`)}
-                className="p-1 rounded transition-colors"
-                style={{ color: 'var(--app-text-muted)' }}
-                title="Copy model name"
-              >
-                {copyStatus[`model-${agent.id}`] ? (
-                  <CheckCircle className="w-3 h-3 text-green-500" />
-                ) : (
-                  <Copy className="w-3 h-3" style={{ color: 'var(--app-text-muted)' }} />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {agent.agentDir && (
-          <div className="flex items-start">
-            <FileText className="w-4 h-4 mt-1 mr-2 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
-            <div className="flex-1">
-              <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>Config Path</p>
-              <div className="flex items-center justify-between mt-1">
-                <code className="text-xs font-mono truncate max-w-[70%]" style={{ color: 'var(--app-text-muted)' }}>
-                  {agent.agentDir}
-                </code>
-                <button
-                  onClick={() => copyAgentPath(agent.id, 'config')}
-                  className="p-1 rounded transition-colors"
-                  style={{ color: 'var(--app-text-muted)' }}
-                  title="Copy config path"
+      {/* 绑定平台 + DM 策略（紧凑单行，和模型行一致） */}
+      <div className="flex items-center gap-2 mb-3 min-w-0">
+        <Globe className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
+        <span className="text-xs flex-shrink-0" style={{ color: 'var(--app-text-muted)' }}>平台</span>
+        {agentBindings.length > 0 ? (
+          <div className="flex flex-wrap gap-1 min-w-0">
+            {agentBindings.map((b: any, i: number) => {
+              const ch = b?.match?.channel || '未知';
+              // 从 binding 的 match 中读取 DM 策略（dm 字段为 true/false 或不存在）
+              const hasDm = b?.match?.dm === true || b?.match?.dm === 'true';
+              return (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
                 >
-                  <Copy className="w-3 h-3" style={{ color: 'var(--app-text-muted)' }} />
-                </button>
-              </div>
-            </div>
+                  {ch}
+                  {hasDm && (
+                    <span className="text-[10px] px-1 rounded" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>DM</span>
+                  )}
+                </span>
+              );
+            })}
           </div>
+        ) : (
+          <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>未绑定</span>
         )}
       </div>
+
+      {/* 统计数据网格：会话数、消息数、Token 用量、平均响应时间 */}
+      {(() => {
+        const stats = agentStats[agent.id];
+        const sessionCount = stats?.sessionCount ?? 0;
+        const messageCount = stats?.messageCount ?? 0;
+        const tokenUsage = stats?.tokenUsage ?? 0;
+        const avgResponseMs = stats?.avgResponseMs ?? 0;
+        // 格式化 Token 用量（超过 1M 显示 M，超过 1K 显示 K）
+        const formatToken = (n: number) => {
+          if (n <= 0) return '0';
+          if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+          if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+          return String(n);
+        };
+        // 格式化平均响应时间（毫秒 → 秒）
+        const formatResponseTime = (ms: number) => {
+          if (ms <= 0) return '-';
+          if (ms < 1000) return `${ms}ms`;
+          return `${(ms / 1000).toFixed(1)}s`;
+        };
+        return (
+          <div className="grid grid-cols-2 gap-2">
+            {/* 会话数 */}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#3B82F6' }} />
+              <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>会话</span>
+              <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--app-text)' }}>{sessionCount}</span>
+            </div>
+            {/* 消息数（从 session transcript 文件统计） */}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+              <FileText className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#8B5CF6' }} />
+              <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>消息</span>
+              <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--app-text)' }}>{messageCount}</span>
+            </div>
+            {/* Token 用量（从 usage 字段或内容长度估算） */}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+              <Coins className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#F59E0B' }} />
+              <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Token</span>
+              <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--app-text)' }}>{formatToken(tokenUsage)}</span>
+            </div>
+            {/* 平均响应时间（user→assistant 时间差均值） */}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+              <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#10B981' }} />
+              <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>响应</span>
+              <span className="text-sm font-semibold ml-auto" style={{ color: 'var(--app-text)' }}>{formatResponseTime(avgResponseMs)}</span>
+            </div>
+          </div>
+        );
+      })()}
     </GlassCard>
   );
   };
@@ -433,6 +448,26 @@ const Agents: React.FC = () => {
                   >
                     Back to Agents
                   </AppButton>
+                )}
+                {activeTab === 'list' && (
+                  <>
+                    {/* 导入 Agent 配置按钮 */}
+                    <AppButton
+                      onClick={() => setImportOpen(true)}
+                      icon={<Upload className="w-4 h-4" />}
+                      variant="secondary"
+                    >
+                      导入
+                    </AppButton>
+                    {/* 导出历史按钮 */}
+                    <AppButton
+                      onClick={() => setHistoryOpen(true)}
+                      icon={<History className="w-4 h-4" />}
+                      variant="secondary"
+                    >
+                      导出历史
+                    </AppButton>
+                  </>
                 )}
                 {activeTab === 'list' && (
                   <AppButton
@@ -538,7 +573,7 @@ const Agents: React.FC = () => {
             {/* Agents Grid */}
             {loading ? (
               <div className="flex justify-center items-center h-64">
-                <RefreshCw className="w-8 h-8 animate-spin" style={{ color: 'var(--app-text-muted)' }} />
+                <GlobalLoading visible text="加载智能体中" overlay={false} size="md" />
               </div>
             ) : agents.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -713,6 +748,33 @@ const Agents: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* 导出 Agent 配置对话框 */}
+            {exportTarget && (
+              <ExportAgentDialog
+                open={!!exportTarget}
+                onClose={() => setExportTarget(null)}
+                agent={exportTarget}
+                onExported={() => {
+                  // 导出成功后可选刷新
+                }}
+              />
+            )}
+
+            {/* 导入 Agent 配置对话框 */}
+            <ImportAgentDialog
+              open={importOpen}
+              onClose={() => setImportOpen(false)}
+              onImported={() => {
+                loadAgents(); // 导入成功后刷新列表
+              }}
+            />
+
+            {/* 导出历史面板 */}
+            <ExportHistoryPanel
+              open={historyOpen}
+              onClose={() => setHistoryOpen(false)}
+            />
           </>
         ) : (
           <>

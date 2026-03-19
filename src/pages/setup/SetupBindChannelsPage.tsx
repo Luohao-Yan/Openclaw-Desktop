@@ -10,6 +10,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Link2, Loader2, SkipForward, XCircle, AlertCircle, UserCheck } from 'lucide-react';
 import AppButton from '../../components/AppButton';
+import GlobalLoading from '../../components/GlobalLoading';
 import SetupLayout from '../../components/setup/SetupLayout';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
 
@@ -248,7 +249,7 @@ export const SetupBindChannelsPage: React.FC = () => {
         stepLabel="渠道绑定"
       >
         <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin" style={{ color: 'var(--app-text-muted)' }} />
+          <GlobalLoading visible text="正在查询渠道配置" overlay={false} size="sm" />
         </div>
       </SetupLayout>
     );

@@ -10,6 +10,7 @@ import {
   MessageSquare, FileText, Terminal
 } from 'lucide-react';
 import GlassCard from './GlassCard';
+import GlobalLoading from './GlobalLoading';
 import { useI18n } from '../i18n/I18nContext';
 
 interface AgentEnhancement {
@@ -236,7 +237,7 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <RefreshCw className="w-8 h-8 animate-spin" style={{ color: 'var(--app-text-muted)' }} />
+        <GlobalLoading visible text="加载增强配置中" overlay={false} size="md" />
       </div>
     );
   }

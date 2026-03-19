@@ -15,6 +15,7 @@ import Sessions from './pages/sessions';
 import Instances from './pages/Instances';
 import Skills from './pages/Skills';
 import TitleBar from './components/TitleBar';
+import GlobalLoading from './components/GlobalLoading';
 import {
   SetupCompletePage,
   SetupLocalCheckPage,
@@ -33,21 +34,15 @@ import { SetupChannelsPage } from './pages/setup/SetupChannelsPage';
 import { SetupCreateAgentPage } from './pages/setup/SetupCreateAgentPage';
 import { SetupBindChannelsPage } from './pages/setup/SetupBindChannelsPage';
 
-const AppLoadingScreen: React.FC = () => {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{
-        backgroundColor: 'var(--app-bg)',
-        color: 'var(--app-text)',
-      }}
-    >
-      <div className="rounded-2xl border px-6 py-4 text-sm" style={{ borderColor: 'var(--app-border)' }}>
-        正在加载初始化状态...
-      </div>
-    </div>
-  );
-};
+/** 应用初始化加载屏 —— 使用全局 Loading 组件 */
+const AppLoadingScreen: React.FC = () => (
+  <div
+    className="flex min-h-screen items-center justify-center"
+    style={{ backgroundColor: 'var(--app-bg)' }}
+  >
+    <GlobalLoading visible text="正在初始化" overlay={false} size="lg" />
+  </div>
+);
 
 const MainAppLayout: React.FC = () => {
   return (
