@@ -20,83 +20,101 @@ const GlassCard: React.FC<GlassCardProps> = ({
 }) => {
   const baseClasses = 'relative overflow-hidden transition-all duration-300';
 
+  /* 各 variant 的基础 Tailwind 类 */
   const variantClasses = {
-    default: `
-      bg-white/5 backdrop-blur-xl
-      border border-white/10
-      rounded-2xl p-6
-      hover:bg-white/8 hover:border-white/20
-    `,
-    elevated: `
-      bg-gradient-to-br from-white/10 to-white/5
-      backdrop-blur-xl
-      border border-white/20
-      rounded-2xl p-6
-      shadow-xl
-    `,
-    status: `
-      backdrop-blur-xl
-      rounded-2xl p-6
-    `,
-    gradient: `
-      bg-gradient-to-br from-tech-cyan/20 to-tech-green/10
-      border border-tech-cyan/30
-      rounded-2xl p-6
-    `,
+    /* 默认：玻璃液态，半透明背景 + backdrop-blur */
+    default: 'backdrop-blur-xl rounded-2xl p-6',
+    /* 提升：更强的渐变 + 阴影 */
+    elevated: 'backdrop-blur-xl rounded-2xl p-6 shadow-xl',
+    /* 状态：由 statusColor 决定背景 */
+    status: 'backdrop-blur-xl rounded-2xl p-6',
+    /* 渐变：彩色渐变背景 */
+    gradient: 'backdrop-blur-xl rounded-2xl p-6',
   };
 
-  const statusClasses = {
-    green: 'bg-gradient-to-r from-tech-green/20 to-tech-teal/10 border-tech-green/30',
-    red: 'bg-gradient-to-r from-red-500/20 to-orange-500/10 border-red-500/30',
-    yellow: 'bg-gradient-to-r from-yellow-500/20 to-amber-500/10 border-yellow-500/30',
-    blue: 'bg-gradient-to-r from-tech-cyan/20 to-tech-aqua/10 border-tech-cyan/30',
-    purple: 'bg-gradient-to-r from-tech-teal/20 to-tech-mint/10 border-tech-teal/30',
+  /* status variant 的颜色映射 */
+  const statusStyles: Record<string, React.CSSProperties> = {
+    green: {
+      background: 'linear-gradient(135deg, rgba(52,211,153,0.14) 0%, rgba(16,185,129,0.08) 100%)',
+      border: '1px solid rgba(52,211,153,0.22)',
+    },
+    red: {
+      background: 'linear-gradient(135deg, rgba(239,68,68,0.14) 0%, rgba(220,38,38,0.08) 100%)',
+      border: '1px solid rgba(239,68,68,0.22)',
+    },
+    yellow: {
+      background: 'linear-gradient(135deg, rgba(251,191,36,0.14) 0%, rgba(245,158,11,0.08) 100%)',
+      border: '1px solid rgba(251,191,36,0.22)',
+    },
+    blue: {
+      background: 'linear-gradient(135deg, rgba(96,165,250,0.14) 0%, rgba(59,130,246,0.08) 100%)',
+      border: '1px solid rgba(96,165,250,0.22)',
+    },
+    purple: {
+      background: 'linear-gradient(135deg, rgba(167,139,250,0.14) 0%, rgba(139,92,246,0.08) 100%)',
+      border: '1px solid rgba(167,139,250,0.22)',
+    },
   };
 
-  const getVariantClass = () => {
-    if (variant === 'status' && statusColor) {
-      return `${variantClasses[variant]} ${statusClasses[statusColor]}`;
+  /* 根据 variant 计算内联 style */
+  const getInlineStyle = (): React.CSSProperties => {
+    if (variant === 'default') {
+      return {
+        /* 玻璃液态：半透明白色叠加 + 主题边框 */
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+        border: '1px solid var(--app-border)',
+        ...style,
+      };
     }
-    return variantClasses[variant];
+    if (variant === 'elevated') {
+      return {
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        ...style,
+      };
+    }
+    if (variant === 'status' && statusColor) {
+      return { ...statusStyles[statusColor], ...style };
+    }
+    if (variant === 'gradient') {
+      return {
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.14) 0%, rgba(139,92,246,0.08) 100%)',
+        border: '1px solid rgba(99,102,241,0.22)',
+        ...style,
+      };
+    }
+    return { ...style };
   };
 
   return (
     <div
-      className={`${baseClasses} ${getVariantClass()} ${className} ${
+      className={`${baseClasses} ${variantClasses[variant]} ${className} ${
         onClick ? 'cursor-pointer hover:scale-[1.01]' : ''
       }`}
-      style={variant === 'default'
-        ? {
-            backgroundColor: 'var(--app-bg-subtle)',
-            border: '1px solid var(--app-border)',
-            ...style,
-          }
-        : variant === 'elevated'
-          ? {
-              background: 'linear-gradient(135deg, var(--app-bg-subtle) 0%, transparent 100%)',
-              border: '1px solid var(--app-border)',
-              ...style,
-            }
-          : style}
+      style={getInlineStyle()}
       onClick={onClick}
       {...props}
     >
-      {/* 装饰性光晕 */}
+      {/* status / gradient variant 的右上角装饰光晕 */}
       {(variant === 'status' || variant === 'gradient') && statusColor && (
         <div
-          className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-30 pointer-events-none`}
+          className="absolute -right-6 -top-6 h-24 w-24 rounded-full blur-3xl opacity-25 pointer-events-none"
           style={{
-            background: `var(--neon-${statusColor}, #A855F7)`,
+            backgroundColor: statusColor === 'green' ? '#34d399'
+              : statusColor === 'red' ? '#f87171'
+              : statusColor === 'yellow' ? '#fbbf24'
+              : statusColor === 'blue' ? '#60a5fa'
+              : '#a78bfa',
           }}
         />
       )}
 
-      {/* 渐变叠加层 */}
+      {/* gradient variant 的高光叠加层 */}
       {variant === 'gradient' && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%)',
           }}
         />
       )}

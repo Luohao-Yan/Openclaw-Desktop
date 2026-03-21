@@ -430,6 +430,7 @@ function Dashboard() {
       title: '查看运行日志',
       description: '打开日志页，快速查看最近运行记录与错误。',
       icon: FolderOpen,
+      accent: '#60a5fa',   // 蓝色
       onClick: () => navigate('/logs'),
     },
     {
@@ -437,6 +438,7 @@ function Dashboard() {
       title: '配置 Agent',
       description: '进入 Agent 管理页，查看、编辑或新建 Agent 配置。',
       icon: Settings2,
+      accent: '#a78bfa',   // 紫色
       onClick: () => navigate('/agents'),
     },
     {
@@ -444,6 +446,7 @@ function Dashboard() {
       title: '配置模型渠道',
       description: '前往渠道设置，管理 AI 模型接入与 API 配置。',
       icon: Cpu,
+      accent: '#2dd4bf',   // 青色
       onClick: () => navigate('/settings?section=channels'),
     },
   ];
@@ -548,19 +551,25 @@ function Dashboard() {
             {healthCards.map((item) => {
               const Icon = item.icon;
               return (
+                /* 玻璃液态统计卡片：半透明渐变背景 + backdrop-blur + 装饰光晕 */
                 <div
                   key={item.label}
-                  className="rounded-2xl border p-4"
+                  className="relative overflow-hidden rounded-2xl p-4 backdrop-blur-xl"
                   style={{
-                    backgroundColor: 'var(--app-bg-subtle)',
-                    borderColor: 'var(--app-border)',
+                    background: `linear-gradient(135deg, ${item.accent}14 0%, ${item.accent}08 100%)`,
+                    border: `1px solid ${item.accent}22`,
                   }}
                 >
-                  <div className="flex items-center gap-3">
+                  {/* 右上角装饰光晕 */}
+                  <div
+                    className="pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full blur-2xl"
+                    style={{ backgroundColor: `${item.accent}30` }}
+                  />
+                  <div className="relative z-10 flex items-center gap-3">
                     <div
                       className="flex h-11 w-11 items-center justify-center rounded-2xl"
                       style={{
-                        backgroundColor: `${item.accent}1f`,
+                        background: `linear-gradient(135deg, ${item.accent}28 0%, ${item.accent}14 100%)`,
                         color: item.accent,
                       }}
                     >
@@ -719,22 +728,28 @@ function Dashboard() {
             {quickActions.map((item) => {
               const Icon = item.icon;
               return (
+                /* 玻璃液态快捷操作按钮：半透明背景 + backdrop-blur + accent 图标圆圈 */
                 <button
                   key={item.key}
                   onClick={item.onClick}
-                  className="w-full rounded-xl border px-4 py-3 text-left transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+                  className="relative w-full overflow-hidden rounded-xl px-4 py-3 text-left backdrop-blur-xl transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
                   style={{
-                    backgroundColor: 'var(--app-bg-subtle)',
-                    borderColor: 'var(--app-border)',
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+                    border: '1px solid var(--app-border)',
                     color: 'var(--app-text)',
                   }}
                 >
-                  <div className="flex items-start gap-3">
+                  {/* 右上角装饰光晕 */}
+                  <div
+                    className="pointer-events-none absolute -right-4 -top-4 h-14 w-14 rounded-full blur-2xl"
+                    style={{ backgroundColor: `${item.accent}28` }}
+                  />
+                  <div className="relative z-10 flex items-start gap-3">
                     <div
                       className="flex h-9 w-9 items-center justify-center rounded-xl"
                       style={{
-                        backgroundColor: 'var(--app-active-bg)',
-                        color: 'var(--app-active-text)',
+                        background: `linear-gradient(135deg, ${item.accent}28 0%, ${item.accent}14 100%)`,
+                        color: item.accent,
                       }}
                     >
                       <Icon size={18} />

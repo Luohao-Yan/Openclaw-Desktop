@@ -6,6 +6,25 @@
 
 ---
 
+## [0.3.13-preview-7] - 2026-03-21
+
+### 🎨 界面优化 (UI/UX)
+
+- **Dashboard 玻璃液态卡片升级**：健康统计卡片（服务状态/CPU/内存/运行时长）改为玻璃液态风格，每张卡片使用各自 accent 色半透明渐变背景 + `backdrop-blur` + 右上角装饰光晕
+- **Dashboard 快捷操作卡片升级**：三个快捷操作按钮（日志/Agent/渠道）改为玻璃液态风格，图标圆圈使用各自 accent 色渐变（蓝/紫/青），右上角加装饰光晕
+- **GlassCard 组件全局升级**：`default` variant 改为半透明渐变背景 + `backdrop-blur-xl`，`elevated` variant 加强渐变与阴影，`status`/`gradient` variant 保留彩色渐变并加右上角装饰光晕
+- **Tasks 页面全宽列表 + 右侧抽屉详情**：主内容区从左右分栏改为全宽任务列表，点击行从右侧滑入详情抽屉（含渐变头部、基本信息、Payload、运行历史）
+- **Tasks 页面统计卡片合并**：4 个独立统计卡片合并到顶部渐变卡片内，改为 inline pill tag 样式
+- **Skills 页面 Tab 换成 SegmentedTabs 胶囊样式**：将下划线式 tab 替换为胶囊样式分段控件
+- **插件 Tab 操作栏迁移**：PluginsTab 内部操作栏移到 Skills 页面顶部卡片右侧按钮组，通过 trigger 计数器 props 控制子组件刷新
+- **GlobalLoading 内联模式优化**：`overlay=false` 模式只显示旋转光环，不渲染文字和跳动圆点
+- **Sessions 页面 loading 替换**：初始加载态替换为 `GlobalLoading` 内联模式
+- **SkillDetailPanel loading 替换**：抽屉内加载态替换为 `GlobalLoading` 内联模式
+- **各页面顶部卡片渐变风格统一**：Agents/Instances/Skills/Logs/Sessions 页面顶部卡片统一为渐变设计，各页面使用不同颜色调
+- **Agents 页面顶部卡片布局重构**：改为左右两列布局，右侧按钮组顺序「更多 → 刷新 → 新增智能体」，更多下拉菜单包含「导入配置」和「导出历史」
+
+---
+
 ## [0.3.13-preview-6] - 2026-03-20
 
 ### ✨ 新增 (Features)
