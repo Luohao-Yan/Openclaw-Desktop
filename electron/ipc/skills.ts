@@ -325,30 +325,8 @@ export function setupSkillsIPC() {
   ipcMain.handle('skills:clawHubSearch', async (_, query: string) => {
     try {
       if (!query || !query.trim()) return { success: false, error: '搜索关键词不能为空' };
-      const shellPath = await getShellPath();
-      // clawhub 是独立 CLI，不是 openclaw 子命令
-      const searchResult = await new Promise<{ success: boolean; output: string; error?: string }>((resolve) => {
-        const child = spawn('clawhub', ['search', query.trim(), '--limit', '20'], {
-          env: { ...process.env, PATH: shellPath },
-        });
-        let stdout = '', stderr = '';
-        const timer = setTimeout(() => {
-          try { child.kill(); } catch {}
-          resolve({ success: false, output: '', error: '搜索超时，请重试' });
-        }, 15_000);
-        child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-        child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-        child.once('close', (code) => {
-          clearTimeout(timer);
-          resolve(code === 0
-            ? { success: true, output: stdout.trim() }
-            : { success: false, output: stdout.trim(), error: stripAnsi(stderr.trim()) || `命令退出码 ${code}` });
-        });
-        child.once('error', (e) => {
-          clearTimeout(timer);
-          resolve({ success: false, output: '', error: e.message });
-        });
-      });
+      // clawhub 是独立 CLI，需要用完整 shell PATH 才能找到（Electron 主进程 PATH 不含 npm global bin）
+      const searchResult = await runShellCommand('clawhub', ['search', query.trim(), '--limit', '20']);
       if (!searchResult.success) {
         // rate limit 给出友好提示
         const errMsg = searchResult.error || 'ClawHub 搜索失败';
