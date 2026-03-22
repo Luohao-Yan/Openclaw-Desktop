@@ -6,48 +6,33 @@
 
 ---
 
-## [0.3.13-preview-9] - 2026-03-22
-
-### ✨ 新增 (Features)
-
-- **卸载 OpenClaw 功能**：在「设置 → 高级」危险操作区域新增第三张功能卡片「卸载 OpenClaw」，支持三条执行路径：
-  - **Easy Path**：本地模式自动执行 `openclaw uninstall --all --yes --non-interactive`，300 秒超时保护
-  - **Remote SSH Path**：远程模式通过系统 `ssh` 命令在远程主机执行卸载，SSH 失败时自动降级到手动引导
-  - **Manual Path**：SSH 不可用时展示平台对应的手动卸载步骤（macOS / Linux / Windows），含官方文档链接
-- **卸载后自动重置并退出**：卸载成功后自动调用 `app-config:reset` 清除配置，再通过新增的 `app-config:quit` IPC 退出应用，无需用户手动操作
-- **二次确认弹窗**：卸载操作使用 AppModal danger variant 进行二次确认，防止误操作
-- **新增 IPC handler**：`app-config:uninstall-openclaw`（支持 local / remote-ssh / remote-manual 三种模式）和 `app-config:quit`
-
-### 🔧 重构 (Refactor)
-
-- **类型声明扩展**：`src/types/electron.ts` 和 `types/electron.ts` 新增 `appConfigUninstallOpenclaw` 和 `appConfigQuit` 方法签名
-- **preload.cjs 扩展**：暴露 `appConfigUninstallOpenclaw` 和 `appConfigQuit` 到渲染进程
-- **i18n 扩充**：`translations.ts` 新增 13 个卸载功能相关中英文翻译键
-
-### 🧪 测试 (Tests)
-
-- 新增 `uninstallOpenclaw.pbt.test.ts` 属性测试，覆盖 7 个正确性属性（19 个测试用例）：
-  - Property 1：IPC 返回值结构完整性
-  - Property 2：mode 参数决定执行路径
-  - Property 3：本地模式描述文案包含本机标识
-  - Property 4：远程模式描述文案包含连接地址
-  - Property 5：平台命令与操作系统对应（含 darwin 平台检测修复）
-  - Property 6：i18n 键完整性
-  - Property 7：卸载成功后自动触发重置
-
----
-
 ## [0.3.13-preview-8] - 2026-03-22
 
 ### ✨ 新增 (Features)
 
+- **卸载 OpenClaw 功能**：在「设置 → 高级」危险操作区域新增第三张功能卡片「卸载 OpenClaw」，支持三条执行路径：
+  - Easy Path：本地模式自动执行 `openclaw uninstall --all --yes --non-interactive`，300 秒超时保护
+  - Remote SSH Path：远程模式通过系统 `ssh` 命令在远程主机执行卸载，SSH 失败时自动降级到手动引导
+  - Manual Path：SSH 不可用时展示平台对应的手动卸载步骤（macOS / Linux / Windows），含官方文档链接
+- **卸载后自动重置并退出**：卸载成功后自动调用 `app-config:reset` 清除配置，再通过新增的 `app-config:quit` IPC 退出应用
+- **二次确认弹窗**：卸载操作使用 AppModal danger variant 进行二次确认，防止误操作
+- **新增 IPC handler**：`app-config:uninstall-openclaw`（支持 local / remote-ssh / remote-manual 三种模式）和 `app-config:quit`
 - **Skills 管理完整功能**：Skills 页面全面重构，新增技能详情面板（SkillDetailPanel）、技能配置编辑器（SkillConfigEditor）、创建/编辑/删除对话框（CreateSkillDialog / EditSkillDialog / DeleteSkillConfirm）、插件 Tab（PluginsTab）、诊断面板（DiagnosticsPanel）
 - **AppModal 通用弹窗组件**：新增统一模态对话框组件，支持 default/danger/info/success/warning 五种语义变体、自定义头部图标、底部操作栏、Escape 关闭、遮罩关闭、焦点陷阱等
 - **AppBadge 徽章组件**：新增通用徽章/标签组件，统一替换各页面散落的状态标签
 - **Skills IPC 完整实现**：`skillsLogic.ts` 新增技能增删改查、插件管理、诊断检查等完整 IPC 逻辑，配套 PBT 属性测试和单元测试
 - **AppConfig IPC 扩展**：`appConfig.ts` 新增应用配置读写相关 IPC 处理器
 - **Channels IPC 扩展**：`channels.ts` 新增渠道相关 IPC 处理器
-- **i18n 大幅扩充**：`translations.ts` 新增 Skills 管理、模型提供商、会话、Agent 工作区等模块的中英文翻译条目（约 289 行新增）
+- **i18n 大幅扩充**：`translations.ts` 新增 Skills 管理、模型提供商、会话、Agent 工作区、卸载功能等模块的中英文翻译条目
+
+### 🐛 修复 (Fixes)
+
+- **macOS Sequoia 15.x 应用图标变巨大**：修复在 macOS 15.x 系统中应用图标（Dock、导航栏）异常放大的问题
+  - 根因：`.icns` 文件缺少 `icon_16x16.png` 和 `icon_32x32.png` 两个 1x 尺寸，Sequoia 15.x 回退逻辑直接使用最大尺寸图标
+  - 重新生成 `resources/icns/icon_1024.icns`，补全 10 个完整尺寸（16/32/64/128/256/512/1024 及对应 @2x）
+  - `package.json` 顶层 `icon` 和 `mac.icon` 统一改为 `.icns` 文件
+  - `mac.extendInfo` 新增 `NSHighResolutionCapable: true` 确保高分辨率支持
+  - `electron/main.ts` 的 `setupAppIcon()` 和 `BrowserWindow.icon` 改用 `.icns` 文件
 
 ### 🎨 界面优化 (UI/UX)
 
@@ -64,8 +49,8 @@
 
 ### 🔧 重构 (Refactor)
 
-- **IPC 类型定义扩展**：`src/types/electron.ts` 和 `types/electron.ts` 新增 Skills、AppConfig 等模块的完整类型定义
-- **preload.cjs 扩展**：新增 Skills、AppConfig、Channels 相关 API 暴露
+- **IPC 类型定义扩展**：`src/types/electron.ts` 和 `types/electron.ts` 新增 Skills、AppConfig、卸载功能等模块的完整类型定义
+- **preload.cjs 扩展**：新增 Skills、AppConfig、Channels、卸载相关 API 暴露
 - **tsconfig.node.json 调整**：编译配置优化
 - **agentCreation 工具函数补充**：`agentCreation.ts` 补充工具函数
 
@@ -73,6 +58,7 @@
 
 - 新增 `skillsLogic.pbt.test.ts` 属性测试（技能 CRUD、插件管理、诊断逻辑等正确性属性）
 - 新增 `skillsLogic.unit.test.ts` 单元测试（完整技能管理流程覆盖）
+- 新增 `uninstallOpenclaw.pbt.test.ts` 属性测试，覆盖 7 个正确性属性（19 个测试用例）
 
 ---
 
