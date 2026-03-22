@@ -114,6 +114,29 @@ const Sessions: React.FC = () => {
     }
   }, []);
 
+  /**
+   * 静默刷新 transcript：不清空当前内容，加载完成后直接替换
+   * 用于发送消息后刷新，避免 UI 闪烁
+   * 只有读到非空 transcript 时才替换，防止空数组覆盖乐观消息
+   */
+  const refreshTranscript = useCallback(async (session: Session) => {
+    try {
+      const result: any = await window.electronAPI.sessionsGet(session.id);
+      if (result?.success && Array.isArray(result.transcript) && result.transcript.length > 0) {
+        setTranscript(result.transcript);
+        return;
+      }
+      // 回退：直接用 transcript 接口，同样只在非空时替换
+      const fallback: any = await window.electronAPI.sessionsTranscript(session.agent, session.id);
+      if (fallback?.success && Array.isArray(fallback.transcript) && fallback.transcript.length > 0) {
+        setTranscript(fallback.transcript);
+      }
+      // 若两个接口都返回空，保留当前 transcript（含乐观消息），不做任何覆盖
+    } catch (err) {
+      console.error('[Sessions] transcript 刷新失败:', err);
+    }
+  }, []);
+
   const handleSelectSession = useCallback((session: Session) => {
     setSelectedSession(session);
     void loadTranscript(session);
@@ -164,15 +187,48 @@ const Sessions: React.FC = () => {
     const msgText = newMessage;
     try {
       setSending(true);
-      setTranscript((prev) => [...prev, { role: 'user', content: msgText }]);
       setNewMessage('');
-      const result = await window.electronAPI.sessionsSend(selectedSession.id, msgText);
-      if (result?.success && result.response) {
-        setTranscript((prev) => [...prev, { role: 'assistant', content: result.response! }]);
+
+      // 乐观更新：立即把用户消息追加到 transcript，让 UI 即时响应
+      // CLI 完成后会用真实数据替换，若失败则回滚
+      const optimisticMsg = { role: 'user', content: msgText, timestamp: new Date().toLocaleString() };
+      setTranscript((prev) => [...prev, optimisticMsg]);
+
+      // 通过 CLI `openclaw agent --session-id` 发送消息
+      const result = await window.electronAPI.sessionsSend(
+        selectedSession.id,
+        msgText,
+        {
+          sessionId: (selectedSession as any).sessionId,
+          agentId: selectedSession.agent,
+          deliveryContext: (selectedSession as any).deliveryContext,
+        },
+      );
+
+      if (result?.success) {
+        // sessions:send 直接返回最新 transcript（含用户消息 + agent 回复），替换乐观更新
+        // 只有 transcript 非空时才替换，避免空数组覆盖掉乐观消息
+        if (Array.isArray((result as any).transcript) && (result as any).transcript.length > 0) {
+          setTranscript((result as any).transcript);
+        } else {
+          // transcript 未随 send 返回（或为空）：延迟 500ms 后刷新，等文件系统写入完成
+          // 不立即覆盖，保留乐观消息让用户看到自己发的内容
+          setTimeout(() => void refreshTranscript(selectedSession), 500);
+        }
+      } else {
+        // 发送失败：回滚乐观更新，显示错误
+        setTranscript((prev) => prev.filter((m) => m !== optimisticMsg));
+        setError(result?.error || t('sessions.sendFailed'));
       }
-    } catch (err) { console.error('[Sessions] 发送失败:', err); }
-    finally { setSending(false); }
-  }, [newMessage, selectedSession]);
+    } catch (err) {
+      console.error('[Sessions] 发送失败:', err);
+      // 异常时回滚最后一条乐观消息
+      setTranscript((prev) => prev.slice(0, -1));
+      setError(String(err));
+    } finally {
+      setSending(false);
+    }
+  }, [newMessage, selectedSession, refreshTranscript, t]);
 
   const handleCleanup = useCallback(async (dryRun: boolean) => {
     try {

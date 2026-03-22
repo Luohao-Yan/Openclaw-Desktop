@@ -2,6 +2,9 @@ import pkg from 'electron';
 const { ipcMain } = pkg;
 import { resolveOpenClawCommand, runCommand as runShellCommand } from './settings.js';
 import * as fs from 'fs';
+import * as path from 'path';
+// WebSocket 方案已废弃：Gateway 要求设备配对认证（connect.challenge），
+// 无法从 Electron 主进程直接建立连接。改用 CLI 方案。
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
 // 基于 openclaw sessions --all-agents --json 的真实返回格式：
@@ -41,6 +44,14 @@ export interface Session {
   model: string;                                 // 模型名称
   channel: string;                               // 从 key 解析出的渠道类型
   status: 'active' | 'idle' | 'inactive';        // 推断状态（CLI 不直接提供）
+  /** sessions.json 中的真实 session uuid，用于 openclaw agent --session-id */
+  sessionId?: string;
+  /** 从 sessions.json 读取的投递上下文，用于 openclaw message send */
+  deliveryContext?: {
+    channel: string;   // 渠道名，如 "feishu"、"telegram"
+    to: string;        // 目标，如 "user:ou_xxx"
+    accountId?: string; // 账号 id
+  };
 }
 
 /** 前端使用的统计数据 */
@@ -73,9 +84,9 @@ interface RawCleanupOutput {
 // ── 工具函数 ──────────────────────────────────────────────────────────────────
 
 /** 运行 openclaw 子命令，复用 settings 中带完整 shell PATH 的 runCommand */
-async function runCommand(args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
+async function runCommand(args: string[], options?: { timeoutMs?: number }): Promise<{ success: boolean; output: string; error?: string }> {
   const cmd = resolveOpenClawCommand();
-  return runShellCommand(cmd, args);
+  return runShellCommand(cmd, args, options);
 }
 
 /** 去除 ANSI 转义码及其他终端控制字符 */
@@ -126,6 +137,100 @@ function tryParseJson<T>(raw: string): T | null {
   try { return JSON.parse(jsonStr) as T; } catch { return null; }
 }
 
+// ── 发消息 CLI 方案 ──────────────────────────────────────────────────────────
+
+/**
+ * 通过 CLI 命令 `openclaw agent --session-id <id> --message <text> --json`
+ * 向指定 session 发送消息并获取 agent 回复。
+ *
+ * 这是最可靠的方式：本地进程调用，不需要 WebSocket 认证（Gateway 要求设备配对）。
+ * CLI 返回 JSON 格式：{ runId, status, summary, result: { payloads: [{ text }] } }
+ */
+async function sendViaAgentCli(
+  sessionId: string,
+  message: string,
+  timeoutMs = 120_000,
+): Promise<{ success: boolean; response?: string; error?: string }> {
+  const result = await runCommand(
+    ['agent', '--session-id', sessionId, '--message', message, '--json'],
+    { timeoutMs },
+  );
+
+  if (!result.success) {
+    const errMsg = result.error || result.output || 'CLI 执行失败';
+    console.error('[sessions:send] CLI 失败:', errMsg);
+    return { success: false, error: errMsg };
+  }
+
+  // CLI 输出格式：stdout 中可能包含 [plugins] 注册日志（带 ANSI 转义码），后跟多行 JSON
+  // 解析策略：不依赖行过滤（用户可能没有任何 plugin，输出就是纯 JSON）
+  // 统一先 stripAnsi，再从整个文本中提取最后一个完整的 {...} JSON 对象
+  // 因为 CLI 的结果 JSON 永远是最后输出的，日志永远在前面
+  const cleanOutput = stripAnsi(result.output).trim();
+
+  let parsed: any = null;
+
+  // 方法1：直接整体解析（无日志前缀时命中，最快）
+  try {
+    parsed = JSON.parse(cleanOutput);
+  } catch { /* 继续尝试 */ }
+
+  // 方法2：从最后一个 '}' 往前找匹配的 '{'，提取最后一个完整 JSON 对象
+  // 这是最健壮的方式：无论前面有多少行日志、有没有 [plugins]，都能正确提取
+  if (!parsed) {
+    const lastClose = cleanOutput.lastIndexOf('}');
+    if (lastClose >= 0) {
+      // 从 lastClose 往前扫描，用括号计数找到对应的开括号
+      let depth = 0;
+      let start = -1;
+      for (let i = lastClose; i >= 0; i--) {
+        if (cleanOutput[i] === '}') depth++;
+        else if (cleanOutput[i] === '{') {
+          depth--;
+          if (depth === 0) { start = i; break; }
+        }
+      }
+      if (start >= 0) {
+        try {
+          parsed = JSON.parse(cleanOutput.substring(start, lastClose + 1));
+        } catch { /* 继续 */ }
+      }
+    }
+  }
+
+  // 方法3：逐行从末尾往前找单行 JSON（兼容极简输出格式）
+  if (!parsed) {
+    const lines = cleanOutput.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line.startsWith('{')) continue;
+      try {
+        parsed = JSON.parse(line);
+        break;
+      } catch { /* 继续往前找 */ }
+    }
+  }
+
+  if (!parsed) {
+    console.error('[sessions:send] JSON 解析失败，输出末尾:', cleanOutput.slice(-300));
+    return { success: false, error: 'CLI 输出解析失败' };
+  }
+
+  if (parsed.status !== 'ok' && parsed.status !== 'completed') {
+    const errMsg = parsed.error?.message || parsed.summary || `agent 执行失败: ${parsed.status}`;
+    return { success: false, error: errMsg };
+  }
+
+  // 提取 agent 回复文本
+  const response: string | undefined =
+    parsed.result?.payloads?.[0]?.text ||
+    parsed.result?.text ||
+    parsed.payload?.text ||
+    undefined;
+
+  return { success: true, response };
+}
+
 /**
  * 从 session key 中解析渠道类型
  * key 格式示例: "agent:main:telegram:dm:123" → "telegram"
@@ -170,31 +275,115 @@ async function getSessionsList(): Promise<{
   const rawList = Array.isArray(parsed.sessions) ? parsed.sessions : [];
   const stores = Array.isArray(parsed.stores) ? parsed.stores : [];
 
+  // 从各 agent 的 sessions.json 读取 deliveryContext 和 sessionId，用于后续 agent 命令
+  // 结构: { "<sessionKey>": { sessionId: "<uuid>", deliveryContext: { channel, to, accountId }, ... } }
+  const sessionMetaMap = new Map<string, { sessionId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } }>();
+  for (const store of stores) {
+    try {
+      if (!store.path || !fs.existsSync(store.path)) continue;
+      const indexData = JSON.parse(fs.readFileSync(store.path, 'utf-8')) as Record<string, any>;
+      for (const [key, meta] of Object.entries(indexData)) {
+        const dc = meta?.deliveryContext;
+        sessionMetaMap.set(key, {
+          sessionId: meta?.sessionId,
+          deliveryContext: dc?.channel && dc?.to ? { channel: dc.channel, to: dc.to, accountId: dc.accountId } : undefined,
+        });
+      }
+    } catch {
+      // 读取失败不影响主流程
+    }
+  }
+
   const sessions: Session[] = rawList
-    .filter((item): item is RawSession => typeof item === 'object' && item !== null)
-    .map((item) => ({
-      id: String(item.key || ''),
-      key: String(item.key || ''),
-      agent: String(item.agentId || 'unknown'),
-      model: String(item.model || 'unknown'),
-      channel: parseChannelFromKey(String(item.key || '')),
-      // CLI 不返回 status，标记为 active（已存在即活跃）
-      status: 'active' as const,
-    }));
+    .filter((item): item is RawSession => {
+      if (typeof item !== 'object' || item === null) return false;
+      // 过滤掉 cron 运行子会话（key 格式: agent:<id>:cron:<job-uuid>:run:<run-uuid>）
+      // 这类 key 是每次 cron 执行的临时记录，不应出现在会话列表中
+      const key = String(item.key || '');
+      if (key.includes(':run:')) return false;
+      return true;
+    })
+    .map((item) => {
+      const key = String(item.key || '');
+      return {
+        id: key,
+        key,
+        agent: String(item.agentId || 'unknown'),
+        model: String(item.model || 'unknown'),
+        channel: parseChannelFromKey(key),
+        // CLI 不返回 status，标记为 active（已存在即活跃）
+        status: 'active' as const,
+        // 从 sessions.json 补充 deliveryContext 和 sessionId，供 agent 命令使用
+        sessionId: sessionMetaMap.get(key)?.sessionId,
+        deliveryContext: sessionMetaMap.get(key)?.deliveryContext,
+      };
+    });
 
   return { success: true, sessions, stores };
 }
 
 /**
- * 从 session 的 .jsonl 文件中读取对话记录
+ * 从 .jsonl 文件中解析消息列表（内部工具函数）
  *
- * sessions.json 结构:
- *   { "<sessionKey>": { sessionFile: "/path/to/<uuid>.jsonl", ... }, ... }
+ * .jsonl 每行格式:
+ *   { "type": "message", "message": { "role": "user"|"assistant", "content": [...] }, "timestamp": "..." }
+ */
+function parseJsonlMessages(filePath: string): Array<{ role: string; content: string; timestamp?: string; _ts: number }> {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n').filter((l) => l.trim());
+    const messages: Array<{ role: string; content: string; timestamp?: string; _ts: number }> = [];
+
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line);
+        if (obj.type !== 'message' || !obj.message) continue;
+
+        const msg = obj.message;
+        const role: string = msg.role || 'unknown';
+
+        // content 可能是字符串或 [{type:'text', text:'...'}] 数组
+        let text = '';
+        if (typeof msg.content === 'string') {
+          text = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          text = msg.content
+            .filter((item: any) => item?.type === 'text' && item?.text)
+            .map((item: any) => item.text as string)
+            .join('\n');
+        }
+
+        // 剥离 runtime 注入的时间戳前缀，格式如：[Mon 2026-03-23 00:51 GMT+8]
+        text = text.replace(/^\[[A-Za-z]{3}\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}[^\]]*\]\s*/m, '');
+
+        if (!text.trim()) continue;
+
+        const ts = obj.timestamp ? new Date(obj.timestamp).getTime() : 0;
+        messages.push({
+          role,
+          content: text,
+          timestamp: obj.timestamp ? new Date(obj.timestamp).toLocaleString() : undefined,
+          _ts: ts,
+        });
+      } catch { /* 跳过解析失败的行 */ }
+    }
+    return messages;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 从 session 的所有 .jsonl 文件中读取并合并对话记录
  *
- * .jsonl 每行一个 JSON 对象，对话消息的行格式:
- *   { "type": "message", "message": { "role": "user"|"assistant", "content": [{ "type": "text", "text": "..." }] }, "timestamp": "..." }
+ * 背景：openclaw agent --session-id <uuid> 每次调用可能写入同一个 .jsonl 文件，
+ * 也可能创建新文件（取决于 runtime 版本）。为确保历史消息完整，
+ * 我们收集该 session 关联的所有 .jsonl 文件，合并后按时间戳排序去重。
  *
- * 返回前端可用的 { role, content, timestamp } 数组
+ * 文件来源（按优先级收集，全部合并）：
+ *   1. sessionMeta.sessionId → <sessionsDir>/<uuid>.jsonl
+ *   2. sessionMeta.sessionFile
+ *   3. sessions.json 中所有以 sessionKey 为前缀的条目（含 :run: 子会话）
  */
 async function readSessionTranscript(
   agentId: string,
@@ -209,70 +398,129 @@ async function readSessionTranscript(
   }
 
   try {
-    // 1. 读取 sessions.json，获取 sessionFile 路径
     const indexContent = fs.readFileSync(store.path, 'utf-8');
-    const indexData = JSON.parse(indexContent);
+    const indexData = JSON.parse(indexContent) as Record<string, any>;
+    const sessionsDir = path.dirname(store.path);
 
-    const sessionMeta = indexData?.[sessionKey];
+    // ── 收集所有候选 .jsonl 文件路径（去重）──
+    const candidateFiles = new Set<string>();
+
+    /**
+     * 从单条 session meta 中提取候选文件路径
+     * 优先用 sessionId 字段拼路径，其次用 sessionFile 字段
+     */
+    const extractFiles = (meta: any) => {
+      if (!meta) return;
+      // sessionId → <dir>/<uuid>.jsonl
+      if (meta.sessionId) {
+        const p = path.join(sessionsDir, `${meta.sessionId}.jsonl`);
+        if (fs.existsSync(p)) candidateFiles.add(p);
+      }
+      // sessionFile 字段（绝对路径）
+      if (meta.sessionFile && fs.existsSync(meta.sessionFile)) {
+        candidateFiles.add(meta.sessionFile);
+      }
+    };
+
+    // 1. 主 session 条目
+    const sessionMeta = indexData[sessionKey];
     if (!sessionMeta) {
       console.log(`[sessions] transcript: sessions.json 中未找到 key "${sessionKey}"`);
       return [];
     }
+    extractFiles(sessionMeta);
 
-    const sessionFile = sessionMeta.sessionFile;
-    if (!sessionFile || !fs.existsSync(sessionFile)) {
-      console.log(`[sessions] transcript: sessionFile 不存在: ${sessionFile}`);
+    // 2. 所有以 sessionKey 为前缀的子条目（含 :run: 子会话、cron 运行记录等）
+    const prefix = sessionKey + ':';
+    for (const [k, v] of Object.entries(indexData)) {
+      if (k.startsWith(prefix)) extractFiles(v);
+    }
+
+    if (candidateFiles.size === 0) {
+      console.log(`[sessions] transcript: 未找到任何 .jsonl 文件 (key=${sessionKey})`);
       return [];
     }
 
-    // 2. 读取 .jsonl 文件，逐行解析
-    const jsonlContent = fs.readFileSync(sessionFile, 'utf-8');
-    const lines = jsonlContent.split('\n').filter((l) => l.trim());
-
-    const messages: any[] = [];
-    for (const line of lines) {
-      try {
-        const obj = JSON.parse(line);
-        // 只取 type=message 的行
-        if (obj.type !== 'message' || !obj.message) continue;
-
-        const msg = obj.message;
-        const role = msg.role || 'unknown';
-
-        // content 可能是字符串或 [{type:'text', text:'...'}] 数组
-        let content = '';
-        if (typeof msg.content === 'string') {
-          content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          // 拼接所有 text 类型的内容块
-          content = msg.content
-            .filter((item: any) => item?.type === 'text' && item?.text)
-            .map((item: any) => item.text)
-            .join('\n');
-        }
-
-        // 跳过空内容
-        if (!content.trim()) continue;
-
-        messages.push({
-          role,
-          content,
-          timestamp: obj.timestamp ? new Date(obj.timestamp).toLocaleString() : undefined,
-        });
-      } catch {
-        // 跳过解析失败的行
-      }
+    // ── 读取并合并所有文件的消息，按时间戳排序 ──
+    const allMessages: Array<{ role: string; content: string; timestamp?: string; _ts: number }> = [];
+    for (const filePath of Array.from(candidateFiles)) {
+      const msgs = parseJsonlMessages(filePath);
+      allMessages.push(...msgs);
     }
 
-    console.log(`[sessions] transcript: 从 ${sessionFile} 读取到 ${messages.length} 条消息`);
-    return messages;
+    // 按时间戳升序排序（_ts=0 的消息排在最前）
+    allMessages.sort((a, b) => a._ts - b._ts);
+
+    // 去重：相邻的相同 role+content 消息只保留一条（多文件可能有重叠）
+    const deduped: Array<{ role: string; content: string; timestamp?: string }> = [];
+    for (const msg of allMessages) {
+      const last = deduped[deduped.length - 1];
+      if (last && last.role === msg.role && last.content === msg.content) continue;
+      deduped.push({ role: msg.role, content: msg.content, timestamp: msg.timestamp });
+    }
+
+    console.log(`[sessions] transcript: 合并 ${candidateFiles.size} 个文件，共 ${deduped.length} 条消息 (key=${sessionKey})`);
+    return deduped;
   } catch (err) {
     console.error(`[sessions] 读取 transcript 失败 (agent=${agentId}, key=${sessionKey}):`, err);
     return [];
   }
 }
 
-// ── IPC 注册 ──────────────────────────────────────────────────────────────────
+// ── stores 路径缓存 ──────────────────────────────────────────────────────────
+// 避免每次读 transcript 都重新执行 CLI，缓存 stores 路径（TTL 30s）
+let storesCache: { stores: { agentId: string; path: string }[]; expiresAt: number } | null = null;
+
+/**
+ * 直接扫描文件系统获取所有 agent 的 sessions store 路径
+ * 不需要执行 CLI，速度极快
+ * 路径规律：~/.openclaw/agents/<agentId>/sessions/sessions.json
+ */
+function scanStoresFromFilesystem(): { agentId: string; path: string }[] {
+  try {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const agentsDir = path.join(homeDir, '.openclaw', 'agents');
+    if (!fs.existsSync(agentsDir)) return [];
+
+    const stores: { agentId: string; path: string }[] = [];
+    const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const sessionsJsonPath = path.join(agentsDir, entry.name, 'sessions', 'sessions.json');
+      if (fs.existsSync(sessionsJsonPath)) {
+        stores.push({ agentId: entry.name, path: sessionsJsonPath });
+      }
+    }
+    return stores;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 获取 stores 路径列表（带 30s 缓存）
+ * 优先从文件系统直接扫描（快速），失败时回退到 CLI
+ */
+async function getStoresCached(): Promise<{ agentId: string; path: string }[]> {
+  const now = Date.now();
+  if (storesCache && storesCache.expiresAt > now) {
+    return storesCache.stores;
+  }
+  // 优先直接扫描文件系统，不需要 CLI
+  let stores = scanStoresFromFilesystem();
+  if (stores.length === 0) {
+    // 回退：执行 CLI 获取
+    const result = await getSessionsList();
+    stores = result.stores;
+  }
+  storesCache = { stores, expiresAt: now + 30_000 };
+  return stores;
+}
+
+/** 使 stores 缓存立即失效（session 列表变化时调用） */
+function invalidateStoresCache() {
+  storesCache = null;
+}
 
 export function setupSessionsIPC() {
 
@@ -282,22 +530,61 @@ export function setupSessionsIPC() {
     return { success: result.success, sessions: result.sessions, error: result.error };
   });
 
-  // 获取单个 session 详情 + transcript（从 sessions.json 文件读取对话记录）
+  // 获取单个 session 详情 + transcript
+  // 使用 stores 缓存避免每次都执行 CLI，发消息后缓存会失效确保读到最新内容
   ipcMain.handle('sessions:get', async (_event, sessionId: string) => {
-    const { sessions, stores } = await getSessionsList();
-    const session = sessions.find((s) => s.id === sessionId) ?? null;
-    if (!session) return { success: false, error: '会话不存在' };
+    // 先用缓存的 stores 尝试读取（快速路径）
+    const stores = await getStoresCached();
 
-    // 尝试从 sessions.json 中读取该 session 的 transcript
-    const transcript = await readSessionTranscript(session.agent, sessionId, stores);
+    // 从 sessions.json 直接找 session 的 agentId（不需要重跑 CLI）
+    let agentId: string | undefined;
+    let sessionMeta: any;
+    for (const store of stores) {
+      try {
+        if (!store.path || !fs.existsSync(store.path)) continue;
+        const indexData = JSON.parse(fs.readFileSync(store.path, 'utf-8')) as Record<string, any>;
+        if (indexData[sessionId]) {
+          agentId = store.agentId;
+          sessionMeta = indexData[sessionId];
+          break;
+        }
+      } catch { /* 继续 */ }
+    }
 
-    return { success: true, session, transcript };
+    if (!agentId) {
+      // 缓存可能过期，重新获取
+      invalidateStoresCache();
+      const fresh = await getSessionsList();
+      const session = fresh.sessions.find((s) => s.id === sessionId);
+      if (!session) return { success: false, error: '会话不存在' };
+      const transcript = await readSessionTranscript(session.agent, sessionId, fresh.stores);
+      console.log(`[sessions:get] fresh path, transcript count=${transcript.length}`);
+      return { success: true, session, transcript };
+    }
+
+    const transcript = await readSessionTranscript(agentId, sessionId, stores);
+    console.log(`[sessions:get] cached path, agentId=${agentId}, transcript count=${transcript.length}`);
+    // 返回完整 session 对象（含 sessionId UUID，供前端发消息使用）
+    return {
+      success: true,
+      session: {
+        id: sessionId,
+        key: sessionId,
+        agent: agentId,
+        sessionId: sessionMeta?.sessionId,
+        model: sessionMeta?.model || 'unknown',
+        channel: sessionId.split(':')[2] || 'unknown',
+        status: 'active' as const,
+      },
+      transcript,
+    };
   });
 
-  // 读取 session transcript（独立接口）
+  // 读取 session transcript（独立接口，使用缓存）
   ipcMain.handle('sessions:transcript', async (_event, agentId: string, sessionKey: string) => {
-    const { stores } = await getSessionsList();
+    const stores = await getStoresCached();
     const transcript = await readSessionTranscript(agentId, sessionKey, stores);
+    console.log(`[sessions:transcript] agentId=${agentId}, key=${sessionKey}, count=${transcript.length}`);
     return { success: true, transcript };
   });
 
@@ -446,18 +733,40 @@ export function setupSessionsIPC() {
     };
   });
 
-  // 向 session 发送消息
-  ipcMain.handle('sessions:send', async (_event, sessionId: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> => {
-    const result = await runCommand(['sessions', 'send', sessionId, '--message', message, '--json']);
-    if (!result.success) {
-      return { success: false, error: result.error || '发送消息失败' };
+  // 向 session 发送消息，通过 CLI `openclaw agent --session-id <uuid> --message <text> --json`
+  // 发送成功后直接返回最新 transcript，前端无需再发额外请求
+  ipcMain.handle('sessions:send', async (
+    _event,
+    sessionKey: string,   // session key（保留参数兼容性，实际用 meta.sessionId）
+    message: string,
+    meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } },
+  ): Promise<{ success: boolean; response?: string; transcript?: any[]; error?: string }> => {
+    const sessionId = meta?.sessionId;
+    if (!sessionId) {
+      return { success: false, error: '缺少 sessionId，无法发送消息' };
+    }
+    console.log(`[sessions:send] sessionId=${sessionId}, key=${sessionKey}, message="${message.substring(0, 50)}"`);
+
+    const sendResult = await sendViaAgentCli(sessionId, message, 120_000);
+
+    if (!sendResult.success) {
+      return sendResult;
     }
 
-    const parsed = tryParseJson<any>(result.output);
-    return {
-      success: true,
-      response: parsed?.text || parsed?.output || parsed?.response,
-    };
+    // 发消息成功后，让缓存失效并立即读取最新 transcript 一并返回
+    // 这样前端只需一次 IPC 往返就能拿到最新对话，不需要再调用 sessionsGet
+    invalidateStoresCache();
+    try {
+      const stores = await getStoresCached();
+      const agentId = meta?.agentId || sessionKey.split(':')[1] || 'main';
+      const transcript = await readSessionTranscript(agentId, sessionKey, stores);
+      console.log(`[sessions:send] 发送成功，transcript count=${transcript.length}`);
+      return { success: true, response: sendResult.response, transcript };
+    } catch (err) {
+      // transcript 读取失败不影响发送成功的结果
+      console.error('[sessions:send] transcript 读取失败:', err);
+      return { success: true, response: sendResult.response };
+    }
   });
 
   // 关闭 session
