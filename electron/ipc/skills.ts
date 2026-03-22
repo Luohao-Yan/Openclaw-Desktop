@@ -95,10 +95,10 @@ async function fetchSkillsFromCLI(): Promise<SkillInfo[]> {
       const missingEnv = Array.isArray(missing.env) ? missing.env : [];
       const missingConfig = Array.isArray(missing.config) ? missing.config : [];
       const isInstalled = installedSkills.some(s => s.id === id || s.name === name);
+      // 状态判断：disabled → error；已安装 → installed；其余 → available
       let status: SkillInfo['status'] = 'available';
-      if (disabled) status = 'error'; else if (isInstalled) status = 'installed';
-      else if (eligible && !missingBins.length && !missingEnv.length && !missingConfig.length) status = 'available';
-      else status = 'error';
+      if (disabled) status = 'error';
+      else if (isInstalled) status = 'installed';
       return { id, name, description: description.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(), version, author, category, status, enabled: !disabled && isInstalled, eligible, missingRequirements: [...missingBins, ...missingEnv, ...missingConfig] };
     });
   }
