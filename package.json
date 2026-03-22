@@ -104,7 +104,8 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "x64ArchFiles": "**/*darwin-arm64*"
     },
     "win": {
       "icon": "resources/win/icon_win.ico",
