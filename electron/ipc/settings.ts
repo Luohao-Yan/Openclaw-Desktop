@@ -412,7 +412,10 @@ export async function getShellPath(): Promise<string> {
 export async function runCommand(
   command: string,
   args: string[],
+  options?: { timeoutMs?: number },
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  // 默认超时 10s，避免命令挂起导致验证流程卡死
+  const timeoutMs = options?.timeoutMs ?? 10_000;
   const shellPath = await getShellPath();
   return new Promise((resolve) => {
     try {
@@ -431,6 +434,12 @@ export async function runCommand(
         resolve(result);
       };
 
+      // 超时保护：超时后 kill 子进程并返回失败
+      const timer = setTimeout(() => {
+        try { child.kill(); } catch { /* 忽略 kill 失败 */ }
+        finish({ success: false, output: output.trim(), error: `命令执行超时（${timeoutMs}ms）` });
+      }, timeoutMs);
+
       child.stdout.on('data', (data) => {
         output += data.toString();
       });
@@ -440,10 +449,12 @@ export async function runCommand(
       });
 
       child.once('error', (error) => {
+        clearTimeout(timer);
         finish({ success: false, output: '', error: error.message });
       });
 
       child.once('close', (code) => {
+        clearTimeout(timer);
         if (code === 0) {
           finish({ success: true, output: output.trim() });
           return;
@@ -613,7 +624,7 @@ async function diagnoseOpenClawCommand(): Promise<OpenClawCommandDiagnostic> {
   const rootDir = getOpenClawRootDir();
   const detected = await detectOpenClawInstallation();
   const pathEnvCommand = await detectCommandInPath('openclaw');
-  const versionResult = await runCommand(resolvedCommand, ['--version']);
+  const versionResult = await runCommand(resolvedCommand, ['--version'], { timeoutMs: 5_000 });
 
   return {
     configuredPath,

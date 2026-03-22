@@ -12,24 +12,46 @@ const SetupModeCard: React.FC<{
   description: string;
   icon: React.ReactNode;
   onClick: () => void;
-}> = ({ title, description, icon, onClick }) => {
+  /** 禁用卡片，不允许点击 */
+  disabled?: boolean;
+  /** 禁用时显示的提示文字 */
+  disabledReason?: string;
+}> = ({ title, description, icon, onClick, disabled, disabledReason }) => {
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="group flex min-h-[176px] flex-1 cursor-pointer flex-col justify-between rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,0,0,0.12)] focus:outline-none focus:ring-2"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className="group flex min-h-[176px] flex-1 flex-col justify-between rounded-2xl border p-5 text-left transition-all duration-200 focus:outline-none focus:ring-2"
       style={{
         backgroundColor: 'var(--app-bg)',
         borderColor: 'var(--app-border)',
         boxShadow: '0 8px 20px rgba(0, 0, 0, 0.08)',
         outlineColor: 'var(--app-active-border)',
+        // 禁用时降低透明度，鼠标变为不可用
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
       }}
     >
-      <div
-        className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors duration-200 group-hover:border-[var(--app-active-border)]"
-        style={{ borderColor: 'var(--app-border)' }}
-      >
-        {icon}
+      <div className="relative">
+        {/* 禁用时在右上角显示"暂未完成开发"角标 */}
+        {disabled && disabledReason && (
+          <span
+            className="absolute right-0 top-0 rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{
+              backgroundColor: 'var(--app-border)',
+              color: 'var(--app-text-muted)',
+            }}
+          >
+            {disabledReason}
+          </span>
+        )}
+        <div
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors duration-200 group-hover:border-[var(--app-active-border)]"
+          style={{ borderColor: 'var(--app-border)' }}
+        >
+          {icon}
+        </div>
       </div>
       <div className="mt-4">
         <div className="text-lg font-semibold md:text-xl">{title}</div>
@@ -37,10 +59,13 @@ const SetupModeCard: React.FC<{
           {description}
         </p>
       </div>
-      <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--app-active-text)' }}>
-        开始初始化
-        <ChevronRight size={16} />
-      </div>
+      {/* 禁用时不显示"开始初始化"箭头 */}
+      {!disabled && (
+        <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--app-active-text)' }}>
+          开始初始化
+          <ChevronRight size={16} />
+        </div>
+      )}
     </button>
   );
 };
@@ -172,6 +197,10 @@ export const SetupWelcomePage: React.FC = () => {
   const navigate = useNavigate();
   const { selectMode } = useSetupFlow();
 
+  // 检测远程连接 IPC 是否已实现：通过判断 electronAPI 上是否存在对应方法
+  const isRemoteAvailable =
+    typeof window.electronAPI?.remoteOpenClawTestConnection === 'function';
+
   const handleSelectMode = async (mode: SetupMode, path: string) => {
     await selectMode(mode);
     navigate(path);
@@ -196,6 +225,9 @@ export const SetupWelcomePage: React.FC = () => {
           description="适合已经在服务器、NAS 或另一台电脑上完成部署的用户。你只需要填写连接信息并验证连通性。"
           icon={<Server size={22} />}
           onClick={() => void handleSelectMode('remote', '/setup/remote/intro')}
+          // 远程功能未实现时禁用卡片
+          disabled={!isRemoteAvailable}
+          disabledReason="暂未完成开发"
         />
       </div>
     </SetupLayout>
@@ -906,11 +938,43 @@ export const SetupLocalConfigurePage: React.FC = () => {
 export const SetupLocalVerifyPage: React.FC = () => {
   const {
     completeSetup,
+    error,
     isBusy,
     verifyLocalSetup,
   } = useSetupFlow();
 
+  // 是否是"服务未安装"错误（检查 message 和 details 两个字段）
+  const isServiceNotInstalled = Boolean(
+    error?.message?.includes('尚未安装') ||
+    error?.details?.includes('service not installed') ||
+    error?.details?.includes('service unit not found')
+  );
+
+  // 一键执行 gateway install
+  const [installing, setInstalling] = React.useState(false);
+  const [installMsg, setInstallMsg] = React.useState('');
+
+  const handleInstallGateway = async () => {
+    setInstalling(true);
+    setInstallMsg('正在执行 openclaw gateway install…');
+    try {
+      const result = typeof window.electronAPI?.gatewayRepairCompatibility === 'function'
+        ? await window.electronAPI.gatewayRepairCompatibility()
+        : null;
+      if (result?.success) {
+        setInstallMsg('Gateway 服务安装成功，请点击"开始验证"重试。');
+      } else {
+        setInstallMsg(result?.message || '安装未能完成，请手动执行 openclaw gateway install。');
+      }
+    } catch (e: any) {
+      setInstallMsg(`安装失败：${e.message}`);
+    } finally {
+      setInstalling(false);
+    }
+  };
+
   const handleVerify = async () => {
+    setInstallMsg('');
     const success = await verifyLocalSetup();
     if (success) {
       await completeSetup();
@@ -927,6 +991,14 @@ export const SetupLocalVerifyPage: React.FC = () => {
           <AppButton variant="primary" onClick={() => void handleVerify()} disabled={isBusy} icon={<ShieldCheck size={16} />}>
             开始验证
           </AppButton>
+          {/* 跳过验证：gateway 可能还在启动中，允许用户直接进入主应用 */}
+          <AppButton
+            variant="secondary"
+            onClick={() => void completeSetup()}
+            disabled={isBusy}
+          >
+            跳过验证，直接进入
+          </AppButton>
         </div>
       }
     >
@@ -935,6 +1007,46 @@ export const SetupLocalVerifyPage: React.FC = () => {
         '再检查 Desktop 当前连接到的网关状态，确认不是错误或检查中状态。',
         '验证成功后，初始化向导才会允许进入主应用。',
       ]} />
+      {/* 验证失败时显示错误详情和修复建议 */}
+      {error && (
+        <div
+          className="mt-4 rounded-2xl border p-4 text-sm"
+          style={{
+            backgroundColor: 'rgba(239,68,68,0.06)',
+            borderColor: 'rgba(239,68,68,0.28)',
+          }}
+        >
+          <div className="font-semibold" style={{ color: '#f87171' }}>{error.message}</div>
+          <div className="mt-1 leading-6" style={{ color: 'var(--app-text-muted)' }}>
+            {error.suggestion}
+          </div>
+          {/* 服务未安装时显示一键安装按钮 */}
+          {isServiceNotInstalled && (
+            <div className="mt-3">
+              <AppButton
+                size="sm"
+                variant="primary"
+                onClick={() => void handleInstallGateway()}
+                disabled={installing || isBusy}
+                icon={<Wrench size={13} />}
+              >
+                {installing ? '正在安装…' : '一键安装 Gateway 服务'}
+              </AppButton>
+              {installMsg && (
+                <div className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                  {installMsg}
+                </div>
+              )}
+            </div>
+          )}
+          {/* gateway 连接失败时给出额外提示 */}
+          {!isServiceNotInstalled && error.message.includes('网关') && (
+            <div className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              提示：Gateway 可能还在启动中，稍等片刻后可重试，或点击"跳过验证"直接进入。
+            </div>
+          )}
+        </div>
+      )}
     </SetupLayout>
   );
 };

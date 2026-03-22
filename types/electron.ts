@@ -142,6 +142,8 @@ export interface GatewayActions {
       error?: string;
     };
   }>;
+  /** 启动 Gateway，失败时自动调用 repairCompatibility 修复后重试 */
+  gatewayStartWithAutoRepair(): Promise<{ success: boolean; message?: string; error?: string }>;
 }
 
 export interface RuntimeActions {

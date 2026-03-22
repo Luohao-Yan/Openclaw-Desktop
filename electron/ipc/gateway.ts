@@ -429,7 +429,8 @@ async function resolveGatewayTarget(): Promise<OpenClawGatewayTarget> {
   };
 }
 
-async function probeGatewayPort(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
+// 端口探测超时 1.5s，本地端口响应应该很快
+async function probeGatewayPort(host: string, port: number, timeoutMs = 1500): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const socket = new net.Socket();
@@ -522,7 +523,8 @@ async function hasGatewayStateArtifacts(): Promise<boolean> {
   return false;
 }
 
-async function waitForGatewayReady(maxAttempts: number = 16, delayMs: number = 1500): Promise<GatewayStatus> {
+// 轮询间隔 600ms，最多等 8 次（约 4.8s），gateway 进程通常 2-3s 内就绪
+async function waitForGatewayReady(maxAttempts: number = 8, delayMs: number = 600): Promise<GatewayStatus> {
   let lastStatus: GatewayStatus = {
     status: 'error',
     error: 'Gateway warm-up timed out',
@@ -576,7 +578,9 @@ function diagnoseGatewayFailure(target: OpenClawGatewayTarget, commandOutput?: s
     return '当前 Gateway 服务尚未安装。请先执行 openclaw gateway install，再重新启动 Gateway。';
   }
 
-  if (lowerOutput.includes('launchagent (not loaded)') || lowerOutput.includes('not loaded')) {
+  // 仅匹配完整短语 "launchagent (not loaded)"，避免误伤其他含 "not loaded" 的输出
+  // 注意：LaunchAgent 未加载不代表 Gateway 进程无法直接启动，不应阻断验证流程
+  if (lowerOutput.includes('launchagent (not loaded)')) {
     return '当前 macOS LaunchAgent 没有加载，Gateway 没有真正驻留运行。请先修复服务安装状态，再重新启动。';
   }
 
@@ -635,7 +639,8 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
       };
     }
 
-    const result = await runCommand(resolveOpenClawCommand(), ['gateway', 'status']);
+    // gateway status 命令，8s 超时
+    const result = await runCommand(resolveOpenClawCommand(), ['gateway', 'status'], { timeoutMs: 8_000 });
     console.log('Gateway status command result:', {
       success: result.success,
       output: result.output,
@@ -644,7 +649,20 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
 
     if (result.success) {
       const output = result.output;
-      if (output.includes('running') || output.includes('正在运行')) {
+      const outputLower = output.toLowerCase();
+
+      // 优先检测"服务未安装"状态，直接返回明确错误，不走 diagnoseGatewayFailure
+      if (outputLower.includes('service not installed') || outputLower.includes('service unit not found')) {
+        return {
+          status: 'error',
+          error: 'Gateway 服务尚未安装。请先执行 openclaw gateway install，再重新启动 Gateway。',
+          version,
+          host: target.host,
+          port: target.port,
+        };
+      }
+
+      if (outputLower.includes('running') || outputLower.includes('正在运行')) {
         return {
           status: 'running',
           pid,
@@ -655,7 +673,7 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
         };
       }
 
-      if (output.includes('stopped') || output.includes('已停止')) {
+      if (outputLower.includes('stopped') || outputLower.includes('已停止')) {
         return {
           status: 'stopped',
           version,
@@ -710,7 +728,8 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
 export async function gatewayStart(): Promise<{ success: boolean; message: string }> {
   try {
     const command = resolveOpenClawCommand();
-    const commandCheck = await runCommand(command, ['--version']);
+    // --version 只是检查命令是否可执行，5s 足够
+    const commandCheck = await runCommand(command, ['--version'], { timeoutMs: 5_000 });
     if (!commandCheck.success) {
       const errorText = `${commandCheck.output || ''}\n${commandCheck.error || ''}`;
       const lowerErrorText = errorText.toLowerCase();
@@ -727,7 +746,8 @@ export async function gatewayStart(): Promise<{ success: boolean; message: strin
       };
     }
 
-    const preflightStatus = await runCommand(command, ['gateway', 'status']);
+    // preflight status 检查，5s 足够
+    const preflightStatus = await runCommand(command, ['gateway', 'status'], { timeoutMs: 5_000 });
     const preflightOutput = `${preflightStatus.output || ''}\n${preflightStatus.error || ''}`.trim();
     if (preflightOutput) {
       const preflightLower = preflightOutput.toLowerCase();
@@ -736,6 +756,19 @@ export async function gatewayStart(): Promise<{ success: boolean; message: strin
           success: false,
           message: 'Gateway 服务尚未安装。请先执行 openclaw gateway install，或在桌面端的一键修复中补齐服务。',
         };
+      }
+      // 如果 gateway 已经在运行，直接探测端口，不重复 spawn
+      if (preflightLower.includes('running') || preflightLower.includes('正在运行')) {
+        const target = await resolveGatewayTarget();
+        const alreadyReachable = await probeGatewayPort(target.host, target.port);
+        if (alreadyReachable) {
+          return { success: true, message: 'Gateway 已在运行' };
+        }
+        // 端口还没 ready，等待一段时间
+        const status = await waitForGatewayReady();
+        if (status.status === 'running') {
+          return { success: true, message: 'Gateway 已在运行' };
+        }
       }
     }
 

@@ -667,8 +667,26 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? await window.electronAPI.gatewayStatus()
         : null;
 
-      if (gatewayStatus?.status === 'stopped' && typeof window.electronAPI?.gatewayStart === 'function') {
-        const startResult = await window.electronAPI.gatewayStart();
+      // status 为 stopped 或 error 时都尝试启动 gateway
+      // 排除明确的"服务未安装"错误（这类情况启动也无意义，需要先执行 gateway install）
+      const isServiceNotInstalled = (
+        gatewayStatus?.error?.includes('尚未安装') ||
+        gatewayStatus?.error?.includes('service not installed') ||
+        gatewayStatus?.error?.includes('service unit not found')
+      );
+      const shouldTryStart = (
+        gatewayStatus?.status === 'stopped' ||
+        (gatewayStatus?.status === 'error' && !isServiceNotInstalled)
+      ) && (
+        typeof window.electronAPI?.gatewayStartWithAutoRepair === 'function' ||
+        typeof window.electronAPI?.gatewayStart === 'function'
+      );
+
+      if (shouldTryStart) {
+        // 优先使用带自动修复能力的启动接口
+        const startResult = typeof window.electronAPI?.gatewayStartWithAutoRepair === 'function'
+          ? await window.electronAPI.gatewayStartWithAutoRepair()
+          : await window.electronAPI!.gatewayStart();
         if (!startResult.success) {
           throw new Error(startResult.error || startResult.message || 'OpenClaw 网关启动失败');
         }

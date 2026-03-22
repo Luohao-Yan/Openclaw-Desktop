@@ -65,6 +65,12 @@ const GATEWAY_FAILED_KEYWORDS = [
   'econnrefused',
   'timeout',
   'timed out',
+  // 中文连接失败提示（来自 diagnoseGatewayFailure 的 fallback 消息）
+  '无法连接到',
+  // 英文连接失败关键词
+  'connect',
+  'connection refused',
+  'port',
 ];
 
 // ─── ZodError 解析 ──────────────────────────────────────────────────────────

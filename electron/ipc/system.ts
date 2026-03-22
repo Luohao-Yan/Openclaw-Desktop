@@ -1145,7 +1145,7 @@ export function setupSystemIPC() {
   ipcMain.handle('system:doctorFix', async () => {
     try {
       const openclawCmd = resolveOpenClawCommand();
-      const result = await runCommand(openclawCmd, ['doctor', '--fix']);
+      const result = await runCommand(openclawCmd, ['doctor', '--fix'], 15_000);
       return {
         success: result.success,
         output: result.output,

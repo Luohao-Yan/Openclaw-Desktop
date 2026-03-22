@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gatewayStop: () => ipcRenderer.invoke('gateway:stop'),
   gatewayRestart: () => ipcRenderer.invoke('gateway:restart'),
   gatewayRepairCompatibility: () => ipcRenderer.invoke('gateway:repairCompatibility'),
+  gatewayStartWithAutoRepair: () => ipcRenderer.invoke('gateway:startWithAutoRepair'),
 
   // Config
   configGet: () => ipcRenderer.invoke('config:get'),

@@ -684,6 +684,8 @@ export interface ElectronAPI {
   gatewayStop: () => Promise<BasicSuccessResult>;
   gatewayRestart: () => Promise<BasicSuccessResult>;
   gatewayRepairCompatibility: () => Promise<GatewayRepairResult>;
+  /** 启动 Gateway，失败时自动调用 repairCompatibility 修复后重试 */
+  gatewayStartWithAutoRepair: () => Promise<BasicSuccessResult>;
   configGet: () => Promise<{ success: boolean; error?: string; config?: any }>;
   configSet: (config: any) => Promise<{ success: boolean; error?: string }>;
   nodeConfigGet: () => Promise<NodeConfigGetResult>;
