@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.3.13-preview-8",
+  "version": "0.3.13-preview-9",
   "description": "OpenClaw Desktop Electron Application",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -55,6 +55,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/react-router-dom": "^5.3.3",
+    "@types/ws": "^8.18.1",
     "autoprefixer": "^10.4.27",
     "electron-store": "^11.0.2",
     "js-yaml": "^4.1.1",
@@ -67,7 +68,8 @@
     "react-router-dom": "^7.13.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.2.1",
-    "wait-on": "^9.0.4"
+    "wait-on": "^9.0.4",
+    "ws": "^8.20.0"
   },
   "build": {
     "appId": "com.openclaw.desktop",

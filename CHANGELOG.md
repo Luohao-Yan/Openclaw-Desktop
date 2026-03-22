@@ -6,6 +6,29 @@
 
 ---
 
+## [0.3.13-preview-9] - 2026-03-23
+
+### 🐛 修复 (Fixes)
+
+- **Sessions 发消息 CLI 解析失败**：`sendViaAgentCli` 改为三层解析策略——先 `stripAnsi` 整体输出，再用括号深度扫描从最后一个 `}` 往前找完整 JSON，最后逐行兜底，彻底解决 `[plugins]` ANSI 日志行干扰导致解析失败的问题
+- **Sessions 乐观更新消息丢失**：`sessions:send` 返回 transcript 为空时不再覆盖现有内容，改为延迟 500ms 后刷新；`refreshTranscript` 读到空结果时保留现有消息列表
+- **插件列表全部显示"禁用"状态**：`plugins:list` 状态映射修复，正确保留 CLI 返回的 `loaded` 状态而非统一映射为 `enabled`，解决所有插件错误显示为禁用的问题
+- **插件 Tab 内容不可滚动**：`PluginsTab` 外层改为 `flex` 列布局 + `overflow-hidden`，插件列表区域加 `overflow-y-auto`，内容超出时可正常滚动浏览
+- **feishu 等已安装插件不显示**：修复插件状态映射逻辑，`loaded` 状态插件现在正确显示为绿色"已加载"，不再被误判为禁用
+
+### ✨ 新增 (Features)
+
+- **插件状态 `loaded` 支持**：`PluginInfo.status` 类型新增 `loaded` 值（CLI 真实返回值），`getPluginStatusDisplay` 加入对应 case，显示绿色"已加载"标签，与 `enabled` 视觉一致但标签有区分
+- **插件列表智能排序**：已加载/已启用插件排在最前，错误状态居中，禁用插件排在最后，方便用户快速定位活跃插件
+- **`loaded` 状态支持禁用操作**：`handleToggle` 现在将 `loaded` 和 `enabled` 统一视为"已启用"，点击禁用按钮均可正常触发禁用操作
+- **`PluginInfo` 新增 `origin` 字段**：区分插件来源（`bundled` 内置 / `global` 用户安装），为后续按来源过滤做准备
+
+### 🔧 重构 (Refactor)
+
+- **`types/electron.ts` 与 `src/types/electron.ts` 同步**：两处 `PluginInfo` 类型定义统一，均包含 `loaded` 状态和 `origin` 字段
+
+---
+
 ## [0.3.13-preview-8] - 2026-03-22
 
 ### ✨ 新增 (Features)
