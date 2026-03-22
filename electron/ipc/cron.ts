@@ -1,7 +1,6 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
-import { spawn } from 'child_process';
-import { resolveOpenClawCommand } from './settings.js';
+import { resolveOpenClawCommand, runCommand } from './settings.js';
 
 export interface CronScheduleAt {
   kind: 'at';
@@ -86,68 +85,6 @@ export interface CronRunRecord {
   finishedAt?: string;
   summary?: string;
   raw?: Record<string, unknown>;
-}
-
-interface CommandResult {
-  success: boolean;
-  output: string;
-  error?: string;
-}
-
-const COMMAND_TIMEOUT_MS = 15000;
-
-async function runCommand(cmd: string, args: string[]): Promise<CommandResult> {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(cmd, args);
-      let output = '';
-      let errorOutput = '';
-      let settled = false;
-
-      const finish = (result: CommandResult) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        resolve(result);
-      };
-
-      child.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      child.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          finish({ success: true, output });
-          return;
-        }
-
-        finish({
-          success: false,
-          output,
-          error: errorOutput || `Command exited with code ${code}`,
-        });
-      });
-
-      child.on('error', (error) => {
-        finish({ success: false, output, error: error.message });
-      });
-
-      setTimeout(() => {
-        try {
-          child.kill();
-        } catch {
-        }
-        finish({ success: false, output, error: 'Command timeout' });
-      }, COMMAND_TIMEOUT_MS);
-    } catch (error: any) {
-      resolve({ success: false, output: '', error: error.message });
-    }
-  });
 }
 
 function stripAnsi(value: string): string {

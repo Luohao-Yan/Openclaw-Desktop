@@ -1,7 +1,6 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
-import { spawn } from 'child_process';
-import { resolveOpenClawCommand } from './settings.js';
+import { resolveOpenClawCommand, runCommand } from './settings.js';
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
 
@@ -25,36 +24,6 @@ export type ApprovalsTarget =
   | { kind: 'node'; nodeId: string };
 
 // ── 内部工具函数 ──────────────────────────────────────────────────────────────
-
-/** 通用 spawn 封装，带 10s 超时 */
-async function runCommand(
-  cmd: string,
-  args: string[],
-): Promise<{ success: boolean; output: string; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(cmd, args);
-      let output = '';
-      let errorOutput = '';
-      let settled = false;
-
-      const finish = (success: boolean) => {
-        if (settled) return;
-        settled = true;
-        resolve({ success, output: output.trim(), error: errorOutput.trim() || undefined });
-      };
-
-      const timer = setTimeout(() => finish(false), 10000);
-
-      child.stdout.on('data', (chunk: Buffer) => { output += chunk.toString(); });
-      child.stderr.on('data', (chunk: Buffer) => { errorOutput += chunk.toString(); });
-      child.on('close', (code) => { clearTimeout(timer); finish(code === 0); });
-      child.on('error', (err) => { clearTimeout(timer); errorOutput = err.message; finish(false); });
-    } catch (err) {
-      resolve({ success: false, output: '', error: String(err) });
-    }
-  });
-}
 
 /** 将 ApprovalsTarget 转换为 CLI 参数片段 */
 function targetArgs(target: ApprovalsTarget): string[] {

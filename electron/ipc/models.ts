@@ -13,13 +13,14 @@ const { ipcMain, shell } = pkg;
 import { spawn } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
-import { getOpenClawRootDir } from './settings.js';
+import { getOpenClawRootDir, getShellPath } from './settings.js';
 
 /** 获取配置文件路径 */
 const getConfigPath = () => path.join(getOpenClawRootDir(), 'openclaw.json');
 
 /**
  * 执行 openclaw CLI 命令
+ * 使用 getShellPath() 注入完整 shell PATH，确保 Electron 主进程能找到 openclaw
  * @param args CLI 参数数组
  * @param timeoutMs 超时时间（毫秒）
  * @returns 执行结果
@@ -28,10 +29,12 @@ async function runOpenClawCommand(
   args: string[],
   timeoutMs = 30000
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  // 获取完整 shell PATH
+  const shellPath = await getShellPath();
   return new Promise((resolve) => {
     try {
       const child = spawn('openclaw', args, {
-        env: process.env,
+        env: { ...process.env, PATH: shellPath },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 

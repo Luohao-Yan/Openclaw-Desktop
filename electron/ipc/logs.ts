@@ -2,6 +2,7 @@ import pkg from 'electron';
 const { ipcMain, shell } = pkg;
 import { spawn } from 'child_process';
 import { homedir } from 'os';
+import { getShellPath, resolveOpenClawCommand } from './settings.js';
 
 const LOG_PATH = `${homedir()}/.openclaw/logs/gateway.log`;
 
@@ -170,83 +171,85 @@ export async function openGatewayLog(): Promise<{ success: boolean; path?: strin
 /**
  * 按过滤条件查询日志
  * 通过 spawn 执行 `openclaw logs --filter <filter>`，返回过滤后的日志列表
+ * 使用 getShellPath() 确保 Electron 主进程能找到 openclaw 命令
  * @param filter 过滤条件字符串，如 `channel=feishu`
  * @returns 过滤后的日志结果 { success, logs?, error? }
  */
 export async function logsFilter(filter: string): Promise<{ success: boolean; logs?: any[]; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      // 通过 spawn 执行 openclaw logs --filter 命令
-      const child = spawn('openclaw', ['logs', '--filter', filter], {
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+  try {
+    // 获取完整 shell PATH，确保 Electron 主进程能找到 openclaw 命令
+    const shellPath = await getShellPath();
+    return new Promise((resolve) => {
+      try {
+        const child = spawn(resolveOpenClawCommand(), ['logs', '--filter', filter], {
+          env: { ...process.env, PATH: shellPath },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
 
-      let output = '';
-      let errorOutput = '';
-      let settled = false;
+        let output = '';
+        let errorOutput = '';
+        let settled = false;
 
-      const finish = (result: { success: boolean; logs?: any[]; error?: string }) => {
-        if (settled) return;
-        settled = true;
-        resolve(result);
-      };
+        const finish = (result: { success: boolean; logs?: any[]; error?: string }) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
 
-      child.stdout?.on('data', (data: Buffer) => {
-        output += data.toString();
-      });
+        child.stdout?.on('data', (data: Buffer) => {
+          output += data.toString();
+        });
 
-      child.stderr?.on('data', (data: Buffer) => {
-        errorOutput += data.toString();
-      });
+        child.stderr?.on('data', (data: Buffer) => {
+          errorOutput += data.toString();
+        });
 
-      child.on('close', (code) => {
-        if (code === 0 || output.trim()) {
-          // 解析日志输出为结构化数组
-          const logs = output
-            .split('\n')
-            .filter((line) => line.trim() && line !== '')
-            .map((line, index) => {
-              // 解析日志级别
-              let level = 'info';
-              if (line.includes('ERROR') || line.includes('error')) level = 'error';
-              else if (line.includes('WARN') || line.includes('warning')) level = 'warn';
-              else if (line.includes('DEBUG') || line.includes('debug')) level = 'debug';
+        child.on('close', (code) => {
+          if (code === 0 || output.trim()) {
+            // 解析日志输出为结构化数组
+            const logs = output
+              .split('\n')
+              .filter((line) => line.trim() && line !== '')
+              .map((line, index) => {
+                // 解析日志级别
+                let level = 'info';
+                if (line.includes('ERROR') || line.includes('error')) level = 'error';
+                else if (line.includes('WARN') || line.includes('warning')) level = 'warn';
+                else if (line.includes('DEBUG') || line.includes('debug')) level = 'debug';
 
-              return {
-                id: `log-filter-${Date.now()}-${index}`,
-                raw: line,
-                level,
-                timestamp: Date.now() - (output.length - index) * 1000,
-              };
+                return {
+                  id: `log-filter-${Date.now()}-${index}`,
+                  raw: line,
+                  level,
+                  timestamp: Date.now() - (output.length - index) * 1000,
+                };
+              });
+
+            finish({ success: true, logs });
+          } else {
+            finish({
+              success: false,
+              error: errorOutput.trim() || `Command exited with code ${code}`,
             });
+          }
+        });
 
-          finish({ success: true, logs });
-        } else {
-          finish({
-            success: false,
-            error: errorOutput.trim() || `Command exited with code ${code}`,
-          });
-        }
-      });
+        child.on('error', (err) => {
+          finish({ success: false, error: `Failed to filter logs: ${err.message}` });
+        });
 
-      child.on('error', (err) => {
-        finish({ success: false, error: `Failed to filter logs: ${err.message}` });
-      });
-
-      // 超时处理：30 秒后终止子进程
-      setTimeout(() => {
-        try {
-          child.kill();
-        } catch {
-          // ignore
-        }
-        finish({ success: false, error: 'Log filter timeout' });
-      }, 30000);
-    } catch (error: any) {
-      resolve({ success: false, error: `Failed to filter logs: ${error.message}` });
-    }
-  });
+        // 超时处理：30 秒后终止子进程
+        setTimeout(() => {
+          try { child.kill(); } catch { /* ignore */ }
+          finish({ success: false, error: 'Log filter timeout' });
+        }, 30000);
+      } catch (error: any) {
+        resolve({ success: false, error: `Failed to filter logs: ${error.message}` });
+      }
+    });
+  } catch (error: any) {
+    return { success: false, error: `Failed to filter logs: ${error.message}` };
+  }
 }
 
 // IPC 设置函数
