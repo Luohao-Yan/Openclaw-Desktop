@@ -832,48 +832,52 @@ export async function gatewayStart(): Promise<{ success: boolean; message: strin
 
 export async function gatewayStop(): Promise<{ success: boolean; message: string }> {
   try {
-    // 真实停止 gateway - 使用 spawn 代替 execSync
     const result = await runCommand(resolveOpenClawCommand(), ['gateway', 'stop']);
-    
-    if (result.success) {
-      // 等待几秒后检查状态
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const status = await gatewayStatus();
-      
-      if (status.status === 'stopped') {
-        return { success: true, message: 'Gateway 停止成功' };
-      } else {
-        return { success: false, message: 'Gateway 停止失败: process still running' };
-      }
-    } else {
+
+    // 等待 1 秒后检查端口是否已关闭（不要求状态严格为 stopped，error 状态也算停止成功）
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const target = await resolveGatewayTarget();
+    const stillReachable = await probeGatewayPort(target.host, target.port);
+
+    if (!stillReachable) {
+      return { success: true, message: 'Gateway 停止成功' };
+    }
+
+    // 端口仍可达，说明进程还在跑
+    if (!result.success) {
       return { success: false, message: `停止失败: ${result.error}` };
     }
+    return { success: false, message: 'Gateway 停止失败: 进程仍在运行' };
   } catch (error: any) {
-    return { 
-      success: false, 
-      message: `停止失败: ${error.message}` 
+    return {
+      success: false,
+      message: `停止失败: ${error.message}`,
     };
   }
 }
 
 export async function gatewayRestart(): Promise<{ success: boolean; message: string }> {
   try {
-    // 先停止
-    const stopResult = await gatewayStop();
-    if (!stopResult.success) {
-      return stopResult;
+    // 先尝试停止；如果 gateway 本来就没在运行（端口不通），stop 失败也继续执行 start
+    const target = await resolveGatewayTarget();
+    const isRunning = await probeGatewayPort(target.host, target.port);
+
+    if (isRunning) {
+      const stopResult = await gatewayStop();
+      if (!stopResult.success) {
+        return { success: false, message: `重启失败（停止阶段）: ${stopResult.message}` };
+      }
+      // 停止后稍等，让端口完全释放
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
-    // 等待 2 秒
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // 再启动
+
+    // 启动
     const startResult = await gatewayStart();
     return startResult;
   } catch (error: any) {
-    return { 
-      success: false, 
-      message: `重启失败: ${error.message}` 
+    return {
+      success: false,
+      message: `重启失败: ${error.message}`,
     };
   }
 }
