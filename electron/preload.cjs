@@ -219,6 +219,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 应用配置管理
   appConfigReset: () => ipcRenderer.invoke('app-config:reset'),
   appConfigReinstallOpenclaw: () => ipcRenderer.invoke('app-config:reinstall-openclaw'),
+  // 卸载 OpenClaw（本地自动执行、SSH 远程执行或返回手动引导标志）
+  appConfigUninstallOpenclaw: (params) => ipcRenderer.invoke('app-config:uninstall-openclaw', params),
+  // 退出应用
+  appConfigQuit: () => ipcRenderer.invoke('app-config:quit'),
 
   // Channels — 渠道管理
   channelsStatus: () => ipcRenderer.invoke('channels:status'),

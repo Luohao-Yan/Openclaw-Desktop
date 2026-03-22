@@ -901,6 +901,12 @@ export interface ElectronAPI {
   // 应用配置管理
   appConfigReset: () => Promise<BasicSuccessResult>;
   appConfigReinstallOpenclaw: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 卸载 OpenClaw（本地执行命令、SSH 远程执行或返回手动引导标志） */
+  appConfigUninstallOpenclaw: (
+    params: { mode: 'local' | 'remote-ssh' | 'remote-manual' }
+  ) => Promise<{ success: boolean; output?: string; error?: string; manualRequired?: boolean; sshError?: string }>;
+  /** 退出应用 */
+  appConfigQuit: () => Promise<{ success: boolean }>;
 
   /** 执行 openclaw doctor --fix 自动修复配置文件 */
   doctorFix: () => Promise<{ success: boolean; output?: string; error?: string }>;

@@ -6,6 +6,37 @@
 
 ---
 
+## [0.3.13-preview-9] - 2026-03-22
+
+### ✨ 新增 (Features)
+
+- **卸载 OpenClaw 功能**：在「设置 → 高级」危险操作区域新增第三张功能卡片「卸载 OpenClaw」，支持三条执行路径：
+  - **Easy Path**：本地模式自动执行 `openclaw uninstall --all --yes --non-interactive`，300 秒超时保护
+  - **Remote SSH Path**：远程模式通过系统 `ssh` 命令在远程主机执行卸载，SSH 失败时自动降级到手动引导
+  - **Manual Path**：SSH 不可用时展示平台对应的手动卸载步骤（macOS / Linux / Windows），含官方文档链接
+- **卸载后自动重置并退出**：卸载成功后自动调用 `app-config:reset` 清除配置，再通过新增的 `app-config:quit` IPC 退出应用，无需用户手动操作
+- **二次确认弹窗**：卸载操作使用 AppModal danger variant 进行二次确认，防止误操作
+- **新增 IPC handler**：`app-config:uninstall-openclaw`（支持 local / remote-ssh / remote-manual 三种模式）和 `app-config:quit`
+
+### 🔧 重构 (Refactor)
+
+- **类型声明扩展**：`src/types/electron.ts` 和 `types/electron.ts` 新增 `appConfigUninstallOpenclaw` 和 `appConfigQuit` 方法签名
+- **preload.cjs 扩展**：暴露 `appConfigUninstallOpenclaw` 和 `appConfigQuit` 到渲染进程
+- **i18n 扩充**：`translations.ts` 新增 13 个卸载功能相关中英文翻译键
+
+### 🧪 测试 (Tests)
+
+- 新增 `uninstallOpenclaw.pbt.test.ts` 属性测试，覆盖 7 个正确性属性（19 个测试用例）：
+  - Property 1：IPC 返回值结构完整性
+  - Property 2：mode 参数决定执行路径
+  - Property 3：本地模式描述文案包含本机标识
+  - Property 4：远程模式描述文案包含连接地址
+  - Property 5：平台命令与操作系统对应（含 darwin 平台检测修复）
+  - Property 6：i18n 键完整性
+  - Property 7：卸载成功后自动触发重置
+
+---
+
 ## [0.3.13-preview-8] - 2026-03-22
 
 ### ✨ 新增 (Features)

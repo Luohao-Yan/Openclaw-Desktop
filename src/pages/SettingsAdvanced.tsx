@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, RotateCcw, Download } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import GlassCard from '../components/GlassCard';
 import { useI18n } from '../i18n/I18nContext';
+import UninstallOpenclawCard from './settings/UninstallOpenclawCard';
 
 const SettingsAdvanced: React.FC = () => {
   const { t } = useI18n();
@@ -17,6 +18,29 @@ const SettingsAdvanced: React.FC = () => {
   const [reinstallMessage, setReinstallMessage] = useState('');
   const [reinstallOutput, setReinstallOutput] = useState('');
   const [reinstallConfirm, setReinstallConfirm] = useState(false);
+
+  // 运行模式和远程主机地址（用于传入 UninstallOpenclawCard）
+  const [runMode, setRunMode] = useState<'local' | 'remote'>('local');
+  const [remoteHost, setRemoteHost] = useState<string | undefined>(undefined);
+
+  /** 从 settings 读取 runMode 和远程连接地址 */
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const result = await window.electronAPI.settingsGet<{
+          runMode?: 'local' | 'remote';
+          remoteConnection?: { host?: string };
+        }>();
+        if (result.success && result.settings) {
+          setRunMode(result.settings.runMode || 'local');
+          setRemoteHost(result.settings.remoteConnection?.host);
+        }
+      } catch {
+        // 读取失败时保持默认值 local
+      }
+    };
+    void loadSettings();
+  }, []);
 
   /** 重置应用配置 */
   const handleReset = async () => {
@@ -252,6 +276,9 @@ const SettingsAdvanced: React.FC = () => {
           </div>
         </div>
       </GlassCard>
+
+      {/* 卸载 OpenClaw — 第三张危险操作卡片 */}
+      <UninstallOpenclawCard runMode={runMode} remoteHost={remoteHost} />
     </div>
   );
 };
