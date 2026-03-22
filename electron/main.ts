@@ -45,12 +45,17 @@ let mainWindow: BrowserWindow | null = null;
 app.setName(appName);
 
 function setupAppIcon() {
-  if (!iconPath) {
-    return;
-  }
-
   if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(nativeImage.createFromPath(iconPath));
+    // macOS 优先使用完整 icns（含所有尺寸），避免 Sequoia 15.x 因缺少小尺寸回退到最大图导致图标巨大
+    const icnsPath = path.join(__dirname, '../../resources/icns/icon_1024.icns');
+    const dockIcon = fs.existsSync(icnsPath)
+      ? nativeImage.createFromPath(icnsPath)
+      : iconPath
+        ? nativeImage.createFromPath(iconPath)
+        : null;
+    if (dockIcon) {
+      app.dock.setIcon(dockIcon);
+    }
   }
 }
 
@@ -60,12 +65,17 @@ function createWindow() {
     const projectRoot = path.join(__dirname, '../..');
     const preloadPath = path.join(projectRoot, 'electron/preload.cjs');
     
+    // macOS 窗口图标优先使用完整 icns
+    const windowIcon = process.platform === 'darwin'
+      ? path.join(__dirname, '../../resources/icns/icon_1024.icns')
+      : iconPath;
+
     mainWindow = new BrowserWindow({
       width: 1200,
       height: 800,
       minWidth: 800,
       minHeight: 600,
-      icon: iconPath,
+      icon: windowIcon,
       titleBarStyle: 'hiddenInset',
       show: true,
       autoHideMenuBar: false,

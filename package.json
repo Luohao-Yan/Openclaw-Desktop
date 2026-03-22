@@ -73,7 +73,7 @@
     "appId": "com.openclaw.desktop",
     "productName": "OpenClaw Desktop",
     "artifactName": "${productName}-${version}-${arch}.${ext}",
-    "icon": "resources/icon.png",
+    "icon": "resources/icns/icon_1024.icns",
     "directories": {
       "output": "dist"
     },
@@ -96,6 +96,9 @@
     "mac": {
       "icon": "resources/icns/icon_1024.icns",
       "category": "public.app-category.developer-tools",
+      "extendInfo": {
+        "NSHighResolutionCapable": true
+      },
       "target": [
         "dmg",
         "zip"
