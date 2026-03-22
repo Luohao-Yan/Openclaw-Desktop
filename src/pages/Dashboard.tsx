@@ -95,11 +95,14 @@ function Dashboard() {
     setLoading(true);
     try {
       const result = await window.electronAPI.gatewayStart();
-      if (result.success) {
-        await fetchGatewayStatus();
+      // 无论成功失败都刷新状态
+      await fetchGatewayStatus();
+      if (!result.success) {
+        setActionMessage('error', '启动服务时遇到问题，请稍后重试。');
       }
     } catch (error) {
       console.error('Error starting gateway:', error);
+      setActionMessage('error', '启动服务时遇到问题，请稍后重试。');
     } finally {
       setLoading(false);
     }
@@ -142,25 +145,30 @@ function Dashboard() {
     setLoading(true);
     try {
       const result = await window.electronAPI.gatewayStop();
-      if (result.success) {
-        await fetchGatewayStatus();
+      // 无论成功失败都刷新状态，让 UI 反映真实情况
+      await fetchGatewayStatus();
+      if (!result.success) {
+        setActionMessage('error', '停止服务时遇到问题，请稍后重试。');
       }
     } catch (error) {
       console.error('Error stopping gateway:', error);
+      setActionMessage('error', '停止服务时遇到问题，请稍后重试。');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGatewayRestart = async () => {
+  const handleGatewayRestart = async (): Promise<boolean> => {
     setLoading(true);
     try {
       const result = await window.electronAPI.gatewayRestart();
-      if (result.success) {
-        await fetchGatewayStatus();
-      }
+      // 无论成功失败都刷新状态
+      await fetchGatewayStatus();
+      return result.success;
     } catch (error) {
       console.error('Error restarting gateway:', error);
+      await fetchGatewayStatus();
+      return false;
     } finally {
       setLoading(false);
     }
@@ -187,14 +195,19 @@ function Dashboard() {
       setActionMessage('info', '正在启动 OpenClaw 服务。');
       await handleGatewayStart();
       await Promise.all([fetchSystemStats(), fetchRootDiagnostic()]);
-      setActionMessage('success', 'OpenClaw 服务已尝试启动。');
+      // handleGatewayStart 内部已刷新 gatewayStatus，这里不再重复设置消息
       return;
     }
 
-    setActionMessage('info', '正在重启 OpenClaw 服务。');
-    await handleGatewayRestart();
+    // running 状态 → 重启
+    setActionMessage('info', '正在重启 OpenClaw 服务，请稍候。');
+    const restartOk = await handleGatewayRestart();
     await Promise.all([fetchSystemStats(), fetchRootDiagnostic()]);
-    setActionMessage('success', 'OpenClaw 服务已重启。');
+    if (restartOk) {
+      setActionMessage('success', 'OpenClaw 服务已重启成功。');
+    } else {
+      setActionMessage('error', '重启未能完成，请稍后重试或查看日志。');
+    }
   };
 
   const fetchGatewayStatus = async () => {

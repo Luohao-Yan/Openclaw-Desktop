@@ -943,38 +943,7 @@ export const SetupLocalVerifyPage: React.FC = () => {
     verifyLocalSetup,
   } = useSetupFlow();
 
-  // 是否是"服务未安装"错误（检查 message 和 details 两个字段）
-  const isServiceNotInstalled = Boolean(
-    error?.message?.includes('尚未安装') ||
-    error?.details?.includes('service not installed') ||
-    error?.details?.includes('service unit not found')
-  );
-
-  // 一键执行 gateway install
-  const [installing, setInstalling] = React.useState(false);
-  const [installMsg, setInstallMsg] = React.useState('');
-
-  const handleInstallGateway = async () => {
-    setInstalling(true);
-    setInstallMsg('正在执行 openclaw gateway install…');
-    try {
-      const result = typeof window.electronAPI?.gatewayRepairCompatibility === 'function'
-        ? await window.electronAPI.gatewayRepairCompatibility()
-        : null;
-      if (result?.success) {
-        setInstallMsg('Gateway 服务安装成功，请点击"开始验证"重试。');
-      } else {
-        setInstallMsg(result?.message || '安装未能完成，请手动执行 openclaw gateway install。');
-      }
-    } catch (e: any) {
-      setInstallMsg(`安装失败：${e.message}`);
-    } finally {
-      setInstalling(false);
-    }
-  };
-
   const handleVerify = async () => {
-    setInstallMsg('');
     const success = await verifyLocalSetup();
     if (success) {
       await completeSetup();
@@ -1020,27 +989,8 @@ export const SetupLocalVerifyPage: React.FC = () => {
           <div className="mt-1 leading-6" style={{ color: 'var(--app-text-muted)' }}>
             {error.suggestion}
           </div>
-          {/* 服务未安装时显示一键安装按钮 */}
-          {isServiceNotInstalled && (
-            <div className="mt-3">
-              <AppButton
-                size="sm"
-                variant="primary"
-                onClick={() => void handleInstallGateway()}
-                disabled={installing || isBusy}
-                icon={<Wrench size={13} />}
-              >
-                {installing ? '正在安装…' : '一键安装 Gateway 服务'}
-              </AppButton>
-              {installMsg && (
-                <div className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {installMsg}
-                </div>
-              )}
-            </div>
-          )}
-          {/* gateway 连接失败时给出额外提示 */}
-          {!isServiceNotInstalled && error.message.includes('网关') && (
+          {/* gateway 连接问题时给出额外提示 */}
+          {error.message.includes('网关') && (
             <div className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
               提示：Gateway 可能还在启动中，稍等片刻后可重试，或点击"跳过验证"直接进入。
             </div>

@@ -456,7 +456,8 @@ export async function runCommand(
       child.once('close', (code) => {
         clearTimeout(timer);
         if (code === 0) {
-          finish({ success: true, output: output.trim() });
+          // 成功时也保留 stderr，部分命令会把状态信息输出到 stderr
+          finish({ success: true, output: output.trim(), error: errorOutput.trim() || undefined });
           return;
         }
 

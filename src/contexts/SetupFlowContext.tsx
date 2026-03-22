@@ -667,17 +667,8 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? await window.electronAPI.gatewayStatus()
         : null;
 
-      // status 为 stopped 或 error 时都尝试启动 gateway
-      // 排除明确的"服务未安装"错误（这类情况启动也无意义，需要先执行 gateway install）
-      const isServiceNotInstalled = (
-        gatewayStatus?.error?.includes('尚未安装') ||
-        gatewayStatus?.error?.includes('service not installed') ||
-        gatewayStatus?.error?.includes('service unit not found')
-      );
-      const shouldTryStart = (
-        gatewayStatus?.status === 'stopped' ||
-        (gatewayStatus?.status === 'error' && !isServiceNotInstalled)
-      ) && (
+      // status 为 stopped 时尝试启动 gateway（gatewayStart 内部会自动处理 service not installed）
+      const shouldTryStart = gatewayStatus?.status === 'stopped' && (
         typeof window.electronAPI?.gatewayStartWithAutoRepair === 'function' ||
         typeof window.electronAPI?.gatewayStart === 'function'
       );

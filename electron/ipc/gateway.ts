@@ -649,13 +649,18 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
 
     if (result.success) {
       const output = result.output;
-      const outputLower = output.toLowerCase();
+      // 同时合并 stderr，部分关键状态行（如 rpc probe: failed）会输出到 stderr
+      const fullOutput = `${result.output || ''}\n${result.error || ''}`.trim();
+      const outputLower = fullOutput.toLowerCase();
 
-      // 优先检测"服务未安装"状态，直接返回明确错误，不走 diagnoseGatewayFailure
-      if (outputLower.includes('service not installed') || outputLower.includes('service unit not found')) {
+      // 服务未安装 / LaunchAgent 未加载 → stopped，用户点"启动"会自动 install+load
+      if (
+        outputLower.includes('service not installed') ||
+        outputLower.includes('service unit not found') ||
+        outputLower.includes('launchagent (not loaded)')
+      ) {
         return {
-          status: 'error',
-          error: 'Gateway 服务尚未安装。请先执行 openclaw gateway install，再重新启动 Gateway。',
+          status: 'stopped',
           version,
           host: target.host,
           port: target.port,
@@ -684,7 +689,7 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
 
       return {
         status: 'error',
-        error: diagnoseGatewayFailure(target, output),
+        error: diagnoseGatewayFailure(target, fullOutput),
         version,
         host: target.host,
         port: target.port,
@@ -697,24 +702,75 @@ export async function gatewayStatus(): Promise<GatewayStatus> {
     const bind = target.bind?.trim().toLowerCase();
     const isNonLoopbackBind = bind === 'lan' || bind === 'tailnet' || bind === 'custom';
     const commandFailureOutput = `${result.output || ''}\n${result.error || ''}`.trim();
-    const diagnosedError = commandFailureOutput
-      ? diagnoseGatewayFailure(target, commandFailureOutput)
-      : undefined;
+    const commandFailureLower = commandFailureOutput.toLowerCase();
 
+    // 命令失败时的状态判断：
+    // - 有状态文件 → 先检查是否是"只是没启动"的情况（service not installed / launchagent not loaded）
+    // - 这类情况应返回 stopped，用户点启动会自动 install+start
+    // - 有明确的配置/认证类错误关键词 → error，需要用户修复
+    // - 没有状态文件 → error，openclaw 可能未安装
+
+    // 优先检查"只是没启动"的关键词，无论命令是否成功都应返回 stopped
+    // 这些关键词表示服务未安装或 LaunchAgent 未加载，不是真正的错误
+    if (
+      commandFailureLower.includes('service not installed') ||
+      commandFailureLower.includes('service unit not found') ||
+      commandFailureLower.includes('launchagent (not loaded)')
+    ) {
+      return {
+        status: 'stopped',
+        version,
+        host: target.host,
+        port: target.port,
+      };
+    }
+
+    if (!hasState) {
+      const diagnosedError = commandFailureOutput
+        ? diagnoseGatewayFailure(target, commandFailureOutput)
+        : undefined;
+      return {
+        status: 'error',
+        version,
+        host: target.host,
+        port: target.port,
+        error: diagnosedError || `未找到 OpenClaw 状态目录或配置文件：${getOpenClawRootDir()}`,
+      };
+    }
+
+    // 有明确的配置/认证类错误关键词 → error，需要用户修复
+    const isConfigError = isNonLoopbackBind && !authConfigured;
+    const isRemoteError = target.mode === 'remote';
+    const hasErrorKeyword =
+      commandFailureLower.includes('unauthorized') ||
+      commandFailureLower.includes('config invalid') ||
+      commandFailureLower.includes('invalid config at') ||
+      commandFailureLower.includes('device identity required') ||
+      commandFailureLower.includes('connect.challenge') ||
+      commandFailureLower.includes('pairing required') ||
+      commandFailureLower.includes('refusing to bind gateway') ||
+      commandFailureLower.includes('rpc probe: failed') ||
+      commandFailureLower.includes('gateway connect failed');
+
+    if (isConfigError || isRemoteError || hasErrorKeyword) {
+      const diagnosedError = commandFailureOutput
+        ? diagnoseGatewayFailure(target, commandFailureOutput)
+        : undefined;
+      return {
+        status: 'error',
+        version,
+        host: target.host,
+        port: target.port,
+        error: diagnosedError || `Gateway 连接失败：${target.host}:${target.port}`,
+      };
+    }
+
+    // 其余情况：gateway 只是没在跑，返回 stopped，用户点启动即可
     return {
-      status: hasState ? 'stopped' : 'error',
+      status: 'stopped',
       version,
       host: target.host,
       port: target.port,
-      error: hasState
-        ? diagnosedError ||
-          (isNonLoopbackBind && !authConfigured
-            ? '检测到非 loopback Gateway 暴露，但未发现可用认证配置。新版 Gateway 会拒绝此类连接。'
-            : target.mode === 'remote'
-              ? `当前为 remote 模式，但无法访问目标 ${target.remoteUrl || `${target.host}:${target.port}`}`
-              : `无法连接到 ${target.host}:${target.port}`)
-        : diagnosedError ||
-          `未找到 OpenClaw 状态目录或配置文件：${getOpenClawRootDir()}`,
     };
   } catch (error: any) {
     console.error('Unexpected error in gatewayStatus:', error);
@@ -751,12 +807,40 @@ export async function gatewayStart(): Promise<{ success: boolean; message: strin
     const preflightOutput = `${preflightStatus.output || ''}\n${preflightStatus.error || ''}`.trim();
     if (preflightOutput) {
       const preflightLower = preflightOutput.toLowerCase();
-      if (preflightLower.includes('service not installed') || preflightLower.includes('service unit not found')) {
+
+      // 服务未安装 / LaunchAgent 未加载时，自动执行 install，不让用户手动处理
+      if (
+        preflightLower.includes('service not installed') ||
+        preflightLower.includes('service unit not found') ||
+        preflightLower.includes('launchagent (not loaded)')
+      ) {
+        console.log('Gateway 服务未安装，自动执行 openclaw gateway install...');
+        const installResult = await runCommand(command, ['gateway', 'install'], { timeoutMs: 30_000 });
+        if (!installResult.success) {
+          return {
+            success: false,
+            message: `Gateway 服务安装失败：${installResult.error || installResult.output || '请检查 openclaw 安装状态'}`,
+          };
+        }
+        console.log('Gateway 服务安装成功，执行 openclaw gateway start 通过 LaunchAgent 启动...');
+        // install 完成后必须显式调用 gateway start，让 launchd 管理进程
+        // 不能走下面的 spawn 流程，否则会绕过 LaunchAgent 直接跑裸进程
+        const startAfterInstall = await runCommand(command, ['gateway', 'start'], { timeoutMs: 15_000 });
+        console.log('Gateway start after install:', {
+          success: startAfterInstall.success,
+          output: startAfterInstall.output?.slice(0, 200),
+        });
+        // 等待端口就绪（install+start 后 launchd 需要几秒启动进程）
+        const postStartStatus = await waitForGatewayReady(8, 800);
+        if (postStartStatus.status === 'running') {
+          return { success: true, message: 'Gateway 服务已安装并启动成功' };
+        }
         return {
           success: false,
-          message: 'Gateway 服务尚未安装。请先执行 openclaw gateway install，或在桌面端的一键修复中补齐服务。',
+          message: postStartStatus.error || 'Gateway 服务已安装，但启动后端口仍无法连接',
         };
       }
+
       // 如果 gateway 已经在运行，直接探测端口，不重复 spawn
       if (preflightLower.includes('running') || preflightLower.includes('正在运行')) {
         const target = await resolveGatewayTarget();
@@ -769,6 +853,12 @@ export async function gatewayStart(): Promise<{ success: boolean; message: strin
         if (status.status === 'running') {
           return { success: true, message: 'Gateway 已在运行' };
         }
+        // 等待超时：status 显示 running 但端口始终不通，说明进程异常，直接报错
+        // 不继续 spawn，避免与 LaunchAgent 自动重启产生冲突
+        return {
+          success: false,
+          message: status.error || `Gateway 进程报告运行中，但端口 ${target.host}:${target.port} 始终无法连接`,
+        };
       }
     }
 
@@ -858,22 +948,43 @@ export async function gatewayStop(): Promise<{ success: boolean; message: string
 
 export async function gatewayRestart(): Promise<{ success: boolean; message: string }> {
   try {
-    // 先尝试停止；如果 gateway 本来就没在运行（端口不通），stop 失败也继续执行 start
+    const command = resolveOpenClawCommand();
     const target = await resolveGatewayTarget();
     const isRunning = await probeGatewayPort(target.host, target.port);
 
-    if (isRunning) {
-      const stopResult = await gatewayStop();
-      if (!stopResult.success) {
-        return { success: false, message: `重启失败（停止阶段）: ${stopResult.message}` };
-      }
-      // 停止后稍等，让端口完全释放
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // gateway 没在跑，直接启动（会自动处理 install）
+    if (!isRunning) {
+      console.log('Gateway 未运行，直接执行启动...');
+      return await gatewayStart();
     }
 
-    // 启动
-    const startResult = await gatewayStart();
-    return startResult;
+    // gateway 正在跑，调用 openclaw gateway restart 命令
+    // 避免 stop+start 在 LaunchAgent 模式下的竞态问题
+    const restartResult = await runCommand(command, ['gateway', 'restart'], { timeoutMs: 20_000 });
+    console.log('Gateway restart command result:', {
+      success: restartResult.success,
+      output: restartResult.output?.slice(0, 200),
+      error: restartResult.error,
+    });
+
+    // 等待 gateway 就绪（最多 8 次 × 600ms ≈ 4.8s）
+    const status = await waitForGatewayReady();
+    if (status.status === 'running') {
+      return { success: true, message: 'Gateway 重启成功' };
+    }
+
+    // restart 命令失败，降级为 stop+start
+    if (!restartResult.success) {
+      console.log('openclaw gateway restart 失败，降级为 stop+start...');
+      await gatewayStop().catch(() => null);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return await gatewayStart();
+    }
+
+    return {
+      success: false,
+      message: status.error || `Gateway 重启后仍无法连接到 ${status.host || '127.0.0.1'}:${status.port || 18789}`,
+    };
   } catch (error: any) {
     return {
       success: false,
