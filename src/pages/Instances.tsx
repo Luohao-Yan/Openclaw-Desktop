@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import GlobalLoading from '../components/GlobalLoading';
+import AppBadge from '../components/AppBadge';
 import { useI18n } from '../i18n/I18nContext';
 
 interface InstanceInfo {
@@ -124,13 +125,14 @@ const Instances: React.FC = () => {
     loadInstances();
   }, []);
 
-  const getStatusColor = (status: InstanceInfo['status']) => {
+  /** 将实例状态映射到 AppBadge variant */
+  const getStatusVariant = (status: InstanceInfo['status']): 'success' | 'neutral' | 'warning' | 'danger' => {
     switch (status) {
-      case 'running': return 'text-green-500 bg-green-500/10';
-      case 'stopped': return 'text-gray-500 bg-gray-500/10';
-      case 'starting': return 'text-yellow-500 bg-yellow-500/10';
-      case 'error': return 'text-red-500 bg-red-500/10';
-      default: return 'text-gray-500 bg-gray-500/10';
+      case 'running':  return 'success';
+      case 'stopped':  return 'neutral';
+      case 'starting': return 'warning';
+      case 'error':    return 'danger';
+      default:         return 'neutral';
     }
   };
 
@@ -164,17 +166,19 @@ const Instances: React.FC = () => {
           <div>
             <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>{instance.name}</h3>
             <div className="flex items-center space-x-2 mt-1">
-              <span className={`text-xs font-medium px-2 py-1 rounded flex items-center gap-1 ${getStatusColor(instance.status)}`}>
-                {getStatusIcon(instance.status)}
+              {/* 实例状态 badge */}
+              <AppBadge
+                variant={getStatusVariant(instance.status)}
+                size="sm"
+                icon={getStatusIcon(instance.status)}
+              >
                 {t(`instances.status.${instance.status}`)}
-              </span>
-              <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+              </AppBadge>
+              <AppBadge variant="neutral" size="sm">
                 {instance.type.charAt(0).toUpperCase() + instance.type.slice(1)}
-              </span>
+              </AppBadge>
               {instance.pid && (
-                <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
-                  PID: {instance.pid}
-                </span>
+                <AppBadge variant="neutral" size="sm">PID: {instance.pid}</AppBadge>
               )}
             </div>
           </div>
@@ -343,19 +347,42 @@ const Instances: React.FC = () => {
 
           <div className="relative flex items-start justify-between gap-4">
             <div className="max-w-2xl">
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
-                style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--app-text)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+              {/* 页面标题 badge */}
+              <AppBadge
+                variant="neutral"
+                icon={<Server size={13} />}
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.08)' }}
               >
-                <Server size={14} />
                 运行时实例
-              </div>
+              </AppBadge>
               <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
                 {t('instances.title')}
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
                 实例是 OpenClaw 系统中运行的各类服务进程，包括网关、智能体节点、后台服务等。在这里可以查看它们的运行状态、资源占用，并进行启停控制。
               </p>
+              {/* 内联统计指标 badge 组 */}
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {[
+                  { label: '总实例', value: instances.length, color: '#2dd4bf', icon: Server },
+                  { label: '运行中', value: instances.filter(i => i.status === 'running').length, color: '#34d399', icon: CheckCircle },
+                  { label: '已停止', value: instances.filter(i => i.status === 'stopped').length, color: '#94a3b8', icon: XCircle },
+                  { label: '异常', value: instances.filter(i => i.status === 'error').length, color: '#f87171', icon: AlertCircle },
+                ].map((m) => {
+                  const Icon = m.icon;
+                  return (
+                    <AppBadge
+                      key={m.label}
+                      variant="neutral"
+                      icon={<Icon size={13} style={{ color: m.color }} />}
+                      style={{ backgroundColor: 'var(--app-bg-elevated)', backdropFilter: 'blur(10px)' }}
+                    >
+                      <span style={{ color: 'var(--app-text-muted)' }}>{m.label}</span>
+                      <span className="font-semibold ml-1" style={{ color: m.color }}>{m.value}</span>
+                    </AppBadge>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 操作按钮 */}
@@ -389,63 +416,6 @@ const Instances: React.FC = () => {
             </div>
           </div>
         </GlassCard>
-
-        {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <GlassCard className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>{t('instances.total')}</p>
-                <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>{instances.length}</p>
-              </div>
-              <div className="p-3 bg-tech-teal/10 rounded-lg">
-                <Server className="w-6 h-6 text-tech-teal" />
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>{t('instances.running')}</p>
-                <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                  {instances.filter(i => i.status === 'running').length}
-                </p>
-              </div>
-              <div className="p-3 bg-green-500/10 rounded-lg">
-                <CheckCircle className="w-6 h-6 text-green-500" />
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>{t('instances.stopped')}</p>
-                <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                  {instances.filter(i => i.status === 'stopped').length}
-                </p>
-              </div>
-              <div className="p-3 bg-gray-500/10 rounded-lg">
-                <XCircle className="w-6 h-6 text-gray-500" />
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>{t('instances.error')}</p>
-                <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                  {instances.filter(i => i.status === 'error').length}
-                </p>
-              </div>
-              <div className="p-3 bg-red-500/10 rounded-lg">
-                <AlertCircle className="w-6 h-6 text-red-500" />
-              </div>
-            </div>
-          </GlassCard>
-        </div>
 
         {/* 错误提示 */}
         {error && (

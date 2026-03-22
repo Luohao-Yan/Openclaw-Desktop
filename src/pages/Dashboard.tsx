@@ -19,6 +19,7 @@ import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useI18n } from '../i18n/I18nContext';
 import { createGatewayRepairLoadingState, runGatewayRepair } from '../services/gatewayRepair';
 import AppButton from '../components/AppButton';
+import AppBadge from '../components/AppBadge';
 // OpenClawRootDiagnostic type should be defined locally
 interface OpenClawRootDiagnostic {
   rootDir: string;
@@ -273,26 +274,6 @@ function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const getStatusColor = (status: GatewayStatus['status']) => {
-    switch (status) {
-      case 'running': return 'text-green-500';
-      case 'stopped': return 'text-red-500';
-      case 'error': return 'text-red-500';
-      case 'checking': return 'text-yellow-500';
-      default: return 'text-gray-500';
-    }
-  };
-
-  const getStatusBgColor = (status: GatewayStatus['status']) => {
-    switch (status) {
-      case 'running': return 'bg-green-500/10';
-      case 'stopped': return 'bg-red-500/10';
-      case 'error': return 'bg-red-500/10';
-      case 'checking': return 'bg-yellow-500/10';
-      default: return 'bg-gray-500/10';
-    }
-  };
-
   const getStatusText = (status: GatewayStatus['status']) => {
     switch (status) {
       case 'running': return t('running');
@@ -455,22 +436,15 @@ function Dashboard() {
     <div className="p-6 space-y-6">
       <GlassCard className="p-6">
         <div className="flex items-start justify-between gap-4">
-          <div
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--app-bg-elevated)',
-              border: '1px solid var(--app-border)',
-              color: 'var(--app-text-muted)',
-            }}
-          >
-            <Sparkles size={14} />
+          {/* 页面标签 badge */}
+          <AppBadge variant="neutral" icon={<Sparkles size={13} />}>
             今日控制台
-          </div>
+          </AppBadge>
           <AppButton
             variant="secondary"
             onClick={() => void handleRefreshStats()}
-            disabled={loading}
-            icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />}
+            loading={loading}
+            icon={<RefreshCw size={16} />}
           >
             刷新首页状态
           </AppButton>
@@ -485,20 +459,25 @@ function Dashboard() {
               {gatewayHeadline}
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium ${getStatusBgColor(gatewayStatus.status)}`}>
-                <div className={`h-2.5 w-2.5 rounded-full ${getStatusColor(gatewayStatus.status)}`} />
-                <span className={getStatusColor(gatewayStatus.status)}>{getStatusText(gatewayStatus.status)}</span>
-                <span style={{ color: 'var(--app-text-muted)' }}>· {gatewayStatusDetail}</span>
-              </div>
+              {/* Gateway 状态 badge：使用 AppBadge dot 模式 */}
+              <AppBadge
+                variant={
+                  gatewayStatus.status === 'running' ? 'success'
+                  : gatewayStatus.status === 'checking' ? 'warning'
+                  : 'danger'
+                }
+                dot
+              >
+                {getStatusText(gatewayStatus.status)}
+                <span style={{ color: 'var(--app-text-muted)', marginLeft: 4 }}>· {gatewayStatusDetail}</span>
+              </AppBadge>
               {gatewayStatus.version ? (
-                <div className="rounded-full px-3 py-2 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
-                  版本 {gatewayStatus.version}
-                </div>
+                <AppBadge variant="neutral">{`版本 ${gatewayStatus.version}`}</AppBadge>
               ) : null}
               {(gatewayStatus.host || gatewayStatus.port) ? (
-                <div className="rounded-full px-3 py-2 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+                <AppBadge variant="neutral">
                   {gatewayStatus.host || 'localhost'}:{gatewayStatus.port || 'unknown'}
-                </div>
+                </AppBadge>
               ) : null}
             </div>
             {/* 服务控制 */}
@@ -627,10 +606,11 @@ function Dashboard() {
               <AppButton
                 variant="danger"
                 onClick={() => void handleGatewayRepairCompatibility()}
+                loading={isRepairingGateway}
                 disabled={isRepairingGateway || !repairCapabilityAvailable}
-                icon={<RefreshCw size={16} className={isRepairingGateway ? 'animate-spin' : ''} />}
+                icon={<RefreshCw size={16} />}
               >
-                {isRepairingGateway ? '修复中...' : repairCapabilityAvailable ? '立即修复' : '重启后可用'}
+                {repairCapabilityAvailable ? '立即修复' : '重启后可用'}
               </AppButton>
               <AppButton
                 variant="secondary"

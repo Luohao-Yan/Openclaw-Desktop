@@ -3,10 +3,13 @@ import { translations } from './translations';
 
 type Language = 'en' | 'zh';
 
+/** 所有合法的翻译 key 类型，供子组件 props 使用 */
+export type TranslationKey = keyof typeof translations.en;
+
 interface I18nContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: keyof typeof translations.en) => string;
+  t: (key: TranslationKey) => string;
 }
 
 const I18nContext = createContext<I18nContextType>({

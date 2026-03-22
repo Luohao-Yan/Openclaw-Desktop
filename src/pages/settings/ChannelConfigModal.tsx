@@ -5,10 +5,11 @@
  * 复用 SettingsChannels 中已有的 FeishuChannelForm / FeishuAccountForm / GenericChannelJsonEditor / GenericAccountJsonEditor
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, Loader2, Plus, Save, Trash2, X, RotateCcw } from 'lucide-react';
+import { Bot, Plus, Save, Trash2, X, RotateCcw } from 'lucide-react';
 import AppButton from '../../components/AppButton';
+import AppBadge from '../../components/AppBadge';
 import { useI18n } from '../../i18n/I18nContext';
-import { getChannelBindingCount, SUPPORTED_CHANNEL_TYPES } from '../../utils/channelOps';
+import { SUPPORTED_CHANNEL_TYPES } from '../../utils/channelOps';
 import AddAccountModal from './AddAccountModal';
 
 // ── 类型定义（与 SettingsChannels 保持一致） ──────────────────────────────
@@ -175,15 +176,13 @@ const ChannelConfigModal: React.FC<ChannelConfigModalProps> = ({
               <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
                 {channelName}
               </h3>
-              <span
-                className="rounded-full px-2 py-0.5 text-xs"
-                style={{
-                  backgroundColor: isEnabled ? 'rgba(34, 197, 94, 0.15)' : 'rgba(156, 163, 175, 0.15)',
-                  color: isEnabled ? '#22C55E' : 'var(--app-text-muted)',
-                }}
+              {/* 渠道启用状态 badge */}
+              <AppBadge
+                variant={isEnabled ? 'success' : 'neutral'}
+                size="sm"
               >
                 {isEnabled ? t('channels.channelEnabled') : t('channels.channelDisabled')}
-              </span>
+              </AppBadge>
             </div>
             <button
               type="button"
@@ -332,14 +331,15 @@ const ChannelConfigModal: React.FC<ChannelConfigModalProps> = ({
           <AppButton variant="secondary" size="sm" onClick={onReset} icon={<RotateCcw size={14} />}>
             {t('channels.modal.reset')}
           </AppButton>
+          {/* 保存按钮：loading 时自动显示 spinner */}
           <AppButton
             variant="primary"
             size="sm"
             onClick={() => void onSave()}
-            disabled={isSaving}
-            icon={isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            loading={isSaving}
+            icon={<Save size={14} />}
           >
-            {isSaving ? t('saving') : t('channels.modal.save')}
+            {t('channels.modal.save')}
           </AppButton>
         </div>
       </div>

@@ -458,7 +458,7 @@ function resolveAgentConfigRoot(agent: any) {
   return undefined;
 }
 
-function resolveWorkspaceRoot(agent: any) {
+function resolveWorkspaceRoot(agent: any, autoCreate = false) {
   if (agent?.id) {
     const normalizedId = String(agent.id).trim();
     const directWorkspace = join(getOpenClawRoot(), `workspace-${normalizedId}`);
@@ -494,13 +494,27 @@ function resolveWorkspaceRoot(agent: any) {
     }
   }
 
-  return typeof agent?.workspace === 'string' && agent.workspace.trim().length > 0
+  // 所有候选路径均不存在，确定最终路径
+  const finalPath = typeof agent?.workspace === 'string' && agent.workspace.trim().length > 0
     ? resolve(agent.workspace)
     : undefined;
+
+  // autoCreate 模式：workspace 目录缺失时自动创建
+  // 典型场景：新环境安装后 openclaw.json 中已有 main agent 但 workspace 目录尚未创建
+  if (autoCreate && finalPath) {
+    try {
+      mkdirSync(finalPath, { recursive: true });
+      console.log(`[resolveWorkspaceRoot] 自动创建缺失的 workspace 目录: ${finalPath}`);
+    } catch (err) {
+      console.warn(`[resolveWorkspaceRoot] 自动创建 workspace 目录失败: ${finalPath}`, err);
+    }
+  }
+
+  return finalPath;
 }
 
-function mapAgentInfo(agent: any, config: any): AgentInfo {
-  const workspaceRoot = resolveWorkspaceRoot(agent);
+function mapAgentInfo(agent: any, config: any, autoCreateWorkspace = false): AgentInfo {
+  const workspaceRoot = resolveWorkspaceRoot(agent, autoCreateWorkspace);
   const agentConfigRoot = resolveAgentConfigRoot(agent);
   const hasWorkspace = Boolean(workspaceRoot && existsSync(workspaceRoot));
   const hasAgentConfig = Boolean(agentConfigRoot && existsSync(agentConfigRoot));
@@ -1962,7 +1976,9 @@ export function setupAgentsIPC() {
     try {
       const config = readConfig();
       const agentsList = config?.agents?.list || [];
-      const agents = agentsList.map((agent: any) => mapAgentInfo(agent, config));
+      // autoCreateWorkspace = true：自动创建缺失的 workspace 目录
+      // 典型场景：新环境安装后 main agent 的 workspace 目录尚未创建
+      const agents = agentsList.map((agent: any) => mapAgentInfo(agent, config, true));
       
       return { success: true, agents };
     } catch (error) {

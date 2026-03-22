@@ -8,6 +8,7 @@ import { Bot, Server, CheckCircle, XCircle, HelpCircle, Star, Trash2, Edit2, Eye
 import GlassCard from '../../../components/GlassCard';
 import AppButton from '../../../components/AppButton';
 import AppIconButton from '../../../components/AppIconButton';
+import AppBadge from '../../../components/AppBadge';
 import AppInput from '../../../components/AppInput';
 import { useI18n } from '../../../i18n/I18nContext';
 import type { ProviderAuthStatus } from '../../../types/electron';
@@ -147,13 +148,14 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
     const { icon: Icon, color, bg, text } = config[status];
 
     return (
-      <div 
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+      /* 认证状态 badge */
+      <AppBadge
+        size="sm"
+        icon={<Icon size={12} />}
         style={{ backgroundColor: bg, color }}
       >
-        <Icon size={12} />
         {text}
-      </div>
+      </AppBadge>
     );
   };
 
@@ -609,13 +611,14 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                   {provider.name}
                 </div>
                 {provider.isDefault && (
-                  <div
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                    style={{ backgroundColor: 'rgba(252, 211, 77, 0.15)', color: '#FCD34D' }}
+                  /* 默认提供商标记 badge */
+                  <AppBadge
+                    size="sm"
+                    icon={<Star size={10} fill="#FCD34D" />}
+                    style={{ backgroundColor: 'rgba(252, 211, 77, 0.15)', borderColor: 'rgba(252, 211, 77, 0.25)', color: '#FCD34D' }}
                   >
-                    <Star size={10} fill="#FCD34D" />
                     默认
-                  </div>
+                  </AppBadge>
                 )}
               </div>
               {provider.description && (
@@ -727,11 +730,11 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                   <div className="flex gap-2">
                     <AppButton
                       onClick={saveProviderConfig}
-                      disabled={savingConfig}
+                      loading={savingConfig}
                       variant="primary"
                       size="xs"
                     >
-                      {savingConfig ? '保存中...' : '保存配置'}
+                      保存配置
                     </AppButton>
                     <AppButton
                       onClick={() => {

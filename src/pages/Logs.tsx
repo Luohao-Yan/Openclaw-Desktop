@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-// LogEntry type should be defined locally since we removed the old type file
+// LogEntry 类型本地定义
 interface LogEntry {
   id: string;
   raw: string;
   level: 'info' | 'error' | 'warn' | 'debug';
   timestamp: number;
 }
-import { CircleAlert, CircleAlert as CircleAlertIcon, CircleDot, Info } from 'lucide-react';
+import { CircleAlert, CircleAlert as CircleAlertIcon, CircleDot, Info, FileText, RefreshCw as RefreshCwIcon, Search as SearchIcon } from 'lucide-react';
+import AppBadge from '../components/AppBadge';
 
 // XSS 防护：转义 HTML 特殊字符
 function escapeHtml(unsafe: string): string {
@@ -58,11 +59,12 @@ const Logs: React.FC = () => {
     !search || log.raw.toLowerCase().includes(search.toLowerCase())
   ), [logs, search]);
 
-  const levelColors: Record<string, { badge: string; text: string }> = {
-    error: { badge: 'rgba(239, 68, 68, 0.12)', text: '#EF4444' },
-    warn: { badge: 'rgba(245, 158, 11, 0.12)', text: '#F59E0B' },
-    info: { badge: 'rgba(59, 130, 246, 0.12)', text: '#3B82F6' },
-    debug: { badge: 'rgba(148, 163, 184, 0.14)', text: '#94A3B8' },
+  /** 日志级别 → AppBadge variant 映射 */
+  const levelVariant: Record<string, 'danger' | 'warning' | 'info' | 'neutral'> = {
+    error: 'danger',
+    warn:  'warning',
+    info:  'info',
+    debug: 'neutral',
   };
 
   const levelIcons: Record<string, React.ReactNode> = {
@@ -78,104 +80,156 @@ const Logs: React.FC = () => {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>Logs</h1>
-        <div className="flex gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <label htmlFor="lines" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Rows:</label>
-            <input
-              id="lines"
-              type="number"
-              value={lines}
-              onChange={(e) => setLines(Math.max(1, Math.min(1000, parseInt(e.target.value) || 100)))}
-              className="w-20 px-2 py-1 rounded text-sm"
-              style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-              min="1"
-              max="1000"
-            />
+    <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
+      {/* ── 顶部渐变标题卡片（橙色/琥珀色调） ── */}
+      <div className="px-4 pt-4 pb-0 shrink-0">
+        <div
+          className="relative rounded-[24px] px-6 py-5 overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.14) 0%, rgba(245, 158, 11, 0.10) 50%, rgba(255, 255, 255, 0.02) 100%)',
+            backdropFilter: 'blur(18px)',
+          }}
+        >
+          {/* 装饰光晕 */}
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(251, 146, 60, 0.18)' }} />
+          <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)' }} />
+
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              {/* badge 标签 */}
+              <AppBadge
+                variant="neutral"
+                icon={<FileText size={13} />}
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.08)' }}
+              >
+                Gateway Logs
+              </AppBadge>
+              <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
+                日志
+              </h1>
+              <p className="mt-2 text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
+                查看 OpenClaw Gateway 运行日志，支持关键词过滤与自动刷新。
+              </p>
+              {/* 内联统计指标 badge 组 */}
+              <div className="mt-3 flex flex-wrap gap-2.5">
+                {[
+                  { label: '显示条数', value: filteredLogs.length, color: '#fb923c' },
+                  { label: '错误', value: filteredLogs.filter(l => l.level === 'error').length, color: '#f87171' },
+                  { label: '警告', value: filteredLogs.filter(l => l.level === 'warn').length, color: '#fbbf24' },
+                ].map((m) => (
+                  <AppBadge
+                    key={m.label}
+                    variant="neutral"
+                    style={{ backgroundColor: 'var(--app-bg-elevated)', backdropFilter: 'blur(10px)' }}
+                  >
+                    <span style={{ color: 'var(--app-text-muted)' }}>{m.label}</span>
+                    <span className="font-semibold ml-1" style={{ color: m.color }}>{m.value}</span>
+                  </AppBadge>
+                ))}
+              </div>
+            </div>
+
+            {/* 右侧控制区 */}
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+              {/* 行数输入 */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="log-lines" className="text-xs" style={{ color: 'var(--app-text-muted)' }}>行数</label>
+                <input
+                  id="log-lines"
+                  type="number"
+                  value={lines}
+                  onChange={(e) => setLines(Math.max(1, Math.min(1000, parseInt(e.target.value) || 100)))}
+                  className="w-16 px-2 py-1.5 rounded-lg text-xs focus:outline-none"
+                  style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
+                  min="1"
+                  max="1000"
+                />
+              </div>
+              {/* 搜索框 */}
+              <div className="relative">
+                <SearchIcon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--app-text-muted)' }} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索日志..."
+                  className="pl-7 pr-3 py-1.5 rounded-lg text-xs w-36 focus:outline-none"
+                  style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
+                />
+              </div>
+              {/* 自动刷新 */}
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded"
+                />
+                自动刷新
+              </label>
+              {/* 刷新按钮 */}
+              <button
+                onClick={loadLogs}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all hover:opacity-80 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+              >
+                <RefreshCwIcon size={13} className={loading ? 'animate-spin' : ''} />
+                {loading ? '加载中' : '刷新'}
+              </button>
+            </div>
           </div>
-          
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs..."
-            className="px-3 py-1 rounded text-sm w-48"
-            style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-          />
-          
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="auto-refresh"
-              checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="auto-refresh" className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-              Auto-refresh (5s)
-            </label>
-          </div>
-          
-          <button
-            onClick={loadLogs}
-            disabled={loading}
-            className="px-3 py-1 rounded text-sm"
-            style={{ backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-          >
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
         </div>
       </div>
 
-      <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-        Showing {filteredLogs.length} of {logs.length} logs
-        {search && ` • Filtered by: "${search}"`}
-      </div>
+      {/* ── 日志内容区 ── */}
+      <div className="flex-1 overflow-hidden px-4 py-3 flex flex-col gap-2 min-h-0">
+        <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          共 {logs.length} 条{search && `，已过滤显示 ${filteredLogs.length} 条（关键词：「${search}」）`}
+        </div>
 
-      <div className="rounded-lg overflow-hidden border" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
-        {filteredLogs.length === 0 ? (
-          <div className="p-8 text-center" style={{ color: 'var(--app-text-muted)' }}>
-            No logs found{search ? ' for search query' : ''}
-          </div>
-        ) : (
-          <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
-            {filteredLogs.map((log) => (
-              <div
-                key={log.id}
-                className="grid grid-cols-[88px_72px_1fr] gap-3 px-4 py-3 border-b"
-                style={{ borderColor: 'var(--app-border)' }}
-              >
-                <div className="text-xs pt-1" style={{ color: 'var(--app-text-muted)' }}>
-                  {getTimeString(log.timestamp)}
+        <div className="flex-1 rounded-2xl overflow-hidden border min-h-0" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
+          {filteredLogs.length === 0 ? (
+            <div className="p-8 text-center" style={{ color: 'var(--app-text-muted)' }}>
+              {search ? `没有包含「${search}」的日志` : '暂无日志'}
+            </div>
+          ) : (
+            <div className="h-full overflow-y-auto">
+              {filteredLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="grid grid-cols-[88px_72px_1fr] gap-3 px-4 py-3 border-b"
+                  style={{ borderColor: 'var(--app-border)' }}
+                >
+                  <div className="text-xs pt-1" style={{ color: 'var(--app-text-muted)' }}>
+                    {getTimeString(log.timestamp)}
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="mt-1" title={log.level}>{levelIcons[log.level] || <Info className="w-4 h-4 text-blue-500" />}</span>
+                    {/* 日志级别 badge */}
+                    <AppBadge
+                      variant={levelVariant[log.level] ?? 'neutral'}
+                      size="sm"
+                      className="uppercase tracking-wide"
+                    >
+                      {log.level}
+                    </AppBadge>
+                  </div>
+                  <pre
+                    className="font-mono text-sm whitespace-pre-wrap break-words leading-6 m-0"
+                    style={{ color: 'var(--app-text)' }}
+                    dangerouslySetInnerHTML={{ __html: escapeHtml(log.raw) }}
+                  />
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="mt-1" title={log.level}>{levelIcons[log.level] || <Info className="w-4 h-4 text-blue-500" />}</span>
-                  <span
-                    className="px-2 py-1 rounded text-[11px] uppercase tracking-wide"
-                    style={{
-                      backgroundColor: (levelColors[log.level] || levelColors.info).badge,
-                      color: (levelColors[log.level] || levelColors.info).text,
-                    }}
-                  >
-                    {log.level}
-                  </span>
-                </div>
-                <pre
-                  className="font-mono text-sm whitespace-pre-wrap break-words leading-6 m-0"
-                  style={{ color: 'var(--app-text)' }}
-                  dangerouslySetInnerHTML={{ __html: escapeHtml(log.raw) }}
-                />
-              </div>
-            ))}
-            <div ref={logsEndRef} />
-          </div>
-        )}
-      </div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          )}
+        </div>
 
-      <div className="mt-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-        Logs from: ~/.openclaw/logs/gateway.log
+        <div className="text-xs shrink-0" style={{ color: 'var(--app-text-muted)' }}>
+          来源：~/.openclaw/logs/gateway.log
+        </div>
       </div>
     </div>
   );

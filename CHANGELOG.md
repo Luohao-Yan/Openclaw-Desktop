@@ -6,6 +6,45 @@
 
 ---
 
+## [0.3.13-preview-8] - 2026-03-22
+
+### ✨ 新增 (Features)
+
+- **Skills 管理完整功能**：Skills 页面全面重构，新增技能详情面板（SkillDetailPanel）、技能配置编辑器（SkillConfigEditor）、创建/编辑/删除对话框（CreateSkillDialog / EditSkillDialog / DeleteSkillConfirm）、插件 Tab（PluginsTab）、诊断面板（DiagnosticsPanel）
+- **AppModal 通用弹窗组件**：新增统一模态对话框组件，支持 default/danger/info/success/warning 五种语义变体、自定义头部图标、底部操作栏、Escape 关闭、遮罩关闭、焦点陷阱等
+- **AppBadge 徽章组件**：新增通用徽章/标签组件，统一替换各页面散落的状态标签
+- **Skills IPC 完整实现**：`skillsLogic.ts` 新增技能增删改查、插件管理、诊断检查等完整 IPC 逻辑，配套 PBT 属性测试和单元测试
+- **AppConfig IPC 扩展**：`appConfig.ts` 新增应用配置读写相关 IPC 处理器
+- **Channels IPC 扩展**：`channels.ts` 新增渠道相关 IPC 处理器
+- **i18n 大幅扩充**：`translations.ts` 新增 Skills 管理、模型提供商、会话、Agent 工作区等模块的中英文翻译条目（约 289 行新增）
+
+### 🎨 界面优化 (UI/UX)
+
+- **AgentWorkspace 大幅重构**：Agent 工作区页面重构，优化布局与交互体验
+- **多页面 UI 统一升级**：Agents、Instances、Logs、Sessions、Tasks、Skills 等页面顶部卡片、统计区域、操作栏统一升级为玻璃液态风格
+- **ExportAgentDialog / ImportAgentDialog 精简重构**：导出/导入对话框代码大幅精简，改用 AppModal 组件
+- **ExportHistoryPanel 重构**：导出历史面板改用 AppModal 组件，优化列表展示
+- **CreateAgentWizard 优化**：创建 Agent 向导流程优化
+- **SetupCreateAgentPage 重构**：Setup 流程中创建 Agent 页面重构
+- **Sessions 页面优化**：CreateSessionModal、SessionChatPanel 交互优化
+- **Settings 子页面优化**：AddChannelModal、BroadcastGroupsConfig、ChannelConfigModal、ChannelRoutingConfig、GroupsManager、LocationParsingConfig、PairingManager、SettingsHomeView 等多个设置子页面 UI 优化
+- **AppButton 增强**：新增更多交互状态和样式变体支持
+- **GlobalLoading 优化**：进一步优化加载动画细节
+
+### 🔧 重构 (Refactor)
+
+- **IPC 类型定义扩展**：`src/types/electron.ts` 和 `types/electron.ts` 新增 Skills、AppConfig 等模块的完整类型定义
+- **preload.cjs 扩展**：新增 Skills、AppConfig、Channels 相关 API 暴露
+- **tsconfig.node.json 调整**：编译配置优化
+- **agentCreation 工具函数补充**：`agentCreation.ts` 补充工具函数
+
+### 🧪 测试 (Tests)
+
+- 新增 `skillsLogic.pbt.test.ts` 属性测试（技能 CRUD、插件管理、诊断逻辑等正确性属性）
+- 新增 `skillsLogic.unit.test.ts` 单元测试（完整技能管理流程覆盖）
+
+---
+
 ## [0.3.13-preview-7] - 2026-03-21
 
 ### 🎨 界面优化 (UI/UX)

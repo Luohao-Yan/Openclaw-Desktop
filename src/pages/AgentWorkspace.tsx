@@ -14,7 +14,6 @@ import {
   RotateCcw,
   Save,
   Trash2,
-  X,
 } from 'lucide-react';
 import type {
   AgentGlobalConfigOverview,
@@ -29,6 +28,8 @@ import type {
   AgentWorkspaceTrashEntry,
 } from '../../types/electron';
 import AppButton from '../components/AppButton';
+import AppModal from '../components/AppModal';
+import AppBadge from '../components/AppBadge';
 import AppSelect, { type AppSelectOption } from '../components/AppSelect';
 import JsonFormEditor, { type JsonFormSchema, type JsonFormTabItem } from '../components/JsonFormEditor';
 import AppTable from '../components/AppTable';
@@ -1753,32 +1754,24 @@ const AgentWorkspace: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
+            {/* 重启 Gateway 按钮：loading 时自动显示 spinner */}
+            <AppButton
+              variant="primary"
               onClick={handleGatewayRestart}
-              disabled={restartingGateway}
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-active-bg)',
-                border: '1px solid var(--app-active-border)',
-                color: 'var(--app-active-text)',
-              }}
+              loading={restartingGateway}
+              icon={<RotateCcw className="w-4 h-4" />}
             >
-              <RotateCcw className={`w-4 h-4 mr-2 ${restartingGateway ? 'animate-spin' : ''}`} />
-              {restartingGateway ? '重启中...' : '重启 Gateway'}
-            </button>
-            <button
+              重启 Gateway
+            </AppButton>
+            {/* 刷新工作区按钮 */}
+            <AppButton
+              variant="secondary"
               onClick={loadWorkspace}
-              disabled={loading}
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text)',
-              }}
+              loading={loading}
+              icon={<RefreshCw className="w-4 h-4" />}
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               刷新
-            </button>
+            </AppButton>
           </div>
         </div>
 
@@ -1905,18 +1898,13 @@ const AgentWorkspace: React.FC = () => {
                               当前状态
                             </div>
                             <div className="mt-3 flex items-center gap-3 flex-wrap">
-                              <div
-                                className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold"
-                                style={{
-                                  backgroundColor: skillsOverview?.nativeSkillsEnabled ? 'rgba(16, 185, 129, 0.16)' : 'rgba(148, 163, 184, 0.14)',
-                                  border: skillsOverview?.nativeSkillsEnabled ? '1px solid rgba(16, 185, 129, 0.24)' : '1px solid rgba(148, 163, 184, 0.18)',
-                                  color: skillsOverview?.nativeSkillsEnabled ? '#059669' : 'var(--app-text-muted)',
-                                  boxShadow: skillsOverview?.nativeSkillsEnabled ? '0 8px 24px rgba(16, 185, 129, 0.10)' : 'none',
-                                }}
+                              {/* Native Skills 启用状态 badge */}
+                              <AppBadge
+                                variant={skillsOverview?.nativeSkillsEnabled ? 'success' : 'neutral'}
+                                icon={<CheckCircle2 className="w-4 h-4" />}
                               >
-                                <CheckCircle2 className="w-4 h-4" />
                                 {skillsOverview?.nativeSkillsEnabled ? 'Native Skills 已启用' : 'Native Skills 已关闭'}
-                              </div>
+                              </AppBadge>
                               <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
                                 模式：
                                 <span className="font-semibold" style={{ color: 'var(--app-text)' }}>
@@ -2040,15 +2028,8 @@ const AgentWorkspace: React.FC = () => {
                                         {fallback}
                                       </div>
                                     </div>
-                                    <span
-                                      className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
-                                      style={{
-                                        color: 'var(--app-text-muted)',
-                                        backgroundColor: 'var(--app-bg-subtle)',
-                                      }}
-                                    >
-                                      备选
-                                    </span>
+                                    {/* 备选模型标记 badge */}
+                                    <AppBadge variant="neutral" size="sm">备选</AppBadge>
                                   </div>
                                 </div>
                               ))}
@@ -2126,24 +2107,18 @@ const AgentWorkspace: React.FC = () => {
                             <div className="flex items-start justify-between gap-4">
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                                  <span
-                                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
-                                    style={{ backgroundColor: 'rgba(14, 165, 233, 0.12)', color: '#0369A1' }}
-                                  >
+                                  {/* 渠道 badge */}
+                                  <AppBadge variant="info">
                                     {t('binding.channelLabel')} · {item.channel || '-'}
-                                  </span>
-                                  <span
-                                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
-                                    style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#047857' }}
-                                  >
+                                  </AppBadge>
+                                  {/* 账号 badge */}
+                                  <AppBadge variant="success">
                                     {t('binding.accountIdLabel')} · {item.accountId || '-'}
-                                  </span>
-                                  <span
-                                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
-                                    style={{ backgroundColor: 'rgba(139, 92, 246, 0.12)', color: '#7C3AED' }}
-                                  >
+                                  </AppBadge>
+                                  {/* 账号配置状态 badge */}
+                                  <AppBadge variant={item.accountConfig ? 'default' : 'neutral'}>
                                     {item.accountConfig ? '已关联账号配置' : '未找到账号配置'}
-                                  </span>
+                                  </AppBadge>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                   <div className="rounded-xl px-3 py-3" style={{ backgroundColor: 'var(--app-bg)' }}>
@@ -2476,28 +2451,17 @@ const AgentWorkspace: React.FC = () => {
                             </div>
                           </div>
                           <div className="shrink-0 self-start">
-                            <span
-                              className="inline-flex items-center justify-center whitespace-nowrap min-w-[56px] px-3 py-1.5 rounded-full text-[11px] font-semibold leading-none"
-                              style={{
-                                backgroundColor: entry.name === 'sessions.json'
-                                  ? 'rgba(14, 165, 233, 0.14)'
-                                  : entry.name.endsWith('.jsonl')
-                                    ? 'rgba(139, 92, 246, 0.14)'
-                                    : 'rgba(148, 163, 184, 0.14)',
-                                color: entry.name === 'sessions.json'
-                                  ? '#38BDF8'
-                                  : entry.name.endsWith('.jsonl')
-                                    ? '#A78BFA'
-                                    : 'var(--app-text-muted)',
-                                border: entry.name === 'sessions.json'
-                                  ? '1px solid rgba(14, 165, 233, 0.22)'
-                                  : entry.name.endsWith('.jsonl')
-                                    ? '1px solid rgba(139, 92, 246, 0.22)'
-                                    : '1px solid rgba(148, 163, 184, 0.18)',
-                              }}
+                            {/* 文件类型 badge */}
+                            <AppBadge
+                              size="sm"
+                              variant={
+                                entry.name === 'sessions.json' ? 'info'
+                                : entry.name.endsWith('.jsonl') ? 'default'
+                                : 'neutral'
+                              }
                             >
                               {entry.name === 'sessions.json' ? '会话索引' : entry.name.endsWith('.jsonl') ? '会话日志' : entry.kind === 'directory' ? '目录' : '文件'}
-                            </span>
+                            </AppBadge>
                           </div>
                         </div>
                       </button>
@@ -2541,659 +2505,625 @@ const AgentWorkspace: React.FC = () => {
         </div>
       </div>
 
-      {editorOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.62)' }}>
-          <div className="w-full max-w-6xl max-h-[90vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-2xl font-semibold">{activeFile}</h2>
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: currentSummary?.exists ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)', color: currentSummary?.exists ? '#10B981' : '#3B82F6' }}>
-                    {currentSummary?.exists ? '已存在' : '待创建'}
-                  </span>
-                  {isDirty && (
-                    <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)', color: '#F59E0B' }}>
-                      未保存修改
-                    </span>
-                  )}
-                </div>
-                <div className="mt-2 text-sm break-all" style={{ color: 'var(--app-text-muted)' }}>
-                  {currentSummary?.path || '等待读取文件路径'}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  <span>大小：{formatBytes(currentSummary?.size || 0)}</span>
-                  <span>更新时间：{formatTimestamp(currentSummary?.updatedAt)}</span>
-                </div>
-              </div>
-              <button
-                onClick={closeEditor}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
+      {/* ── 文件编辑器 modal ─────────────────────────────────────────────── */}
+      <AppModal
+        open={editorOpen}
+        onClose={closeEditor}
+        size="2xl"
+        noPadding
+        title={
+          <div className="flex items-center gap-3 flex-wrap">
+            <span>{activeFile}</span>
+            {/* 文件存在状态 pill */}
+            <span className="text-xs px-2 py-1 rounded-full" style={{
+              backgroundColor: currentSummary?.exists ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+              color: currentSummary?.exists ? 'var(--color-success, #10B981)' : 'var(--color-info, #3B82F6)',
+            }}>
+              {currentSummary?.exists ? '已存在' : '待创建'}
+            </span>
+            {/* 未保存修改 pill */}
+            {isDirty && (
+              <span className="text-xs px-2 py-1 rounded-full" style={{
+                backgroundColor: 'rgba(245, 158, 11, 0.14)',
+                color: 'var(--color-warning, #F59E0B)',
+              }}>
+                未保存修改
+              </span>
+            )}
+          </div>
+        }
+        footer={
+          <>
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {isDirty ? '你有未保存的修改' : '当前内容已同步到本地'}
+            </div>
+            <div className="flex items-center gap-3">
+              <AppButton onClick={closeEditor} variant="secondary">取消</AppButton>
+              <AppButton
+                onClick={handleSave}
+                disabled={saving || fileLoading}
+                loading={saving}
+                icon={<Save className="w-4 h-4" />}
+                variant={isDirty ? 'primary' : 'success'}
               >
-                <X className="w-5 h-5" />
-              </button>
+                {isDirty ? '保存变更' : '已保存'}
+              </AppButton>
             </div>
+          </>
+        }
+        footerJustify="between"
+      >
+        {/* 文件元信息 */}
+        <div className="px-6 pt-1 pb-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          <div className="break-all">{currentSummary?.path || '等待读取文件路径'}</div>
+          <div className="mt-1 flex flex-wrap gap-4">
+            <span>大小：{formatBytes(currentSummary?.size || 0)}</span>
+            <span>更新时间：{formatTimestamp(currentSummary?.updatedAt)}</span>
+          </div>
+        </div>
+        {/* 提示栏 */}
+        <div className="px-6 py-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          推荐：修改完成后先保存，再根据内容变更决定是否点击页面右上角的 `重启 Gateway`。
+        </div>
+        {/* 编辑区 */}
+        <div className="p-6">
+          <textarea
+            value={currentDraft}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setDrafts((current) => ({ ...current, [activeFile]: nextValue }));
+            }}
+            spellCheck={false}
+            className="w-full min-h-[56vh] rounded-2xl p-5 font-mono text-sm outline-none resize-y"
+            style={{
+              backgroundColor: 'var(--app-bg)',
+              color: 'var(--app-text)',
+              border: '1px solid var(--app-border)',
+            }}
+          />
+          {fileLoading && (
+            <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>正在加载文件内容...</div>
+          )}
+        </div>
+      </AppModal>
 
-            <div className="px-6 py-4 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
-              推荐：修改完成后先保存，再根据内容变更决定是否点击页面右上角的 `重启 Gateway`。
+      {/* ── Skills 原始配置只读预览 modal ────────────────────────────────── */}
+      <AppModal
+        open={skillsConfigPreviewOpen}
+        onClose={() => setSkillsConfigPreviewOpen(false)}
+        size="2xl"
+        noPadding
+        className="z-[60]"
+        title="Skills 原始配置"
+      >
+        {/* 副标题说明 */}
+        <div className="px-6 py-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          基于全局配置中当前 Agent 对应的 Skills 相关片段生成，只读预览。
+        </div>
+        {/* 只读预览区 */}
+        <div className="p-6 overflow-auto" style={{ maxHeight: '70vh' }}>
+          <pre
+            className="w-full rounded-2xl p-5 text-sm font-mono whitespace-pre-wrap break-words"
+            style={{
+              backgroundColor: 'var(--app-bg)',
+              color: 'var(--app-text)',
+              border: '1px solid var(--app-border)',
+            }}
+          >
+            {skillsConfigPreview}
+          </pre>
+        </div>
+      </AppModal>
+
+      {/* ── 编辑全局 Agent 配置 modal ─────────────────────────────────────── */}
+      <AppModal
+        open={globalAgentConfigOpen}
+        onClose={() => setGlobalAgentConfigOpen(false)}
+        size="2xl"
+        noPadding
+        className="z-[60]"
+        title="编辑全局 Agent 配置"
+        footer={
+          <>
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              这里编辑的是全局核心配置，不是派生的 `models.json` / `auth-profiles.json`。
             </div>
-
-            <div className="flex-1 p-6 overflow-auto">
-              <textarea
-                value={currentDraft}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setDrafts((current) => ({
-                    ...current,
-                    [activeFile]: nextValue,
-                  }));
-                }}
-                spellCheck={false}
-                className="w-full min-h-[56vh] rounded-2xl p-5 font-mono text-sm outline-none resize-y"
-                style={{
-                  backgroundColor: 'var(--app-bg)',
-                  color: 'var(--app-text)',
-                  border: '1px solid var(--app-border)',
-                }}
-              />
-              {fileLoading && (
-                <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  正在加载文件内容...
-                </div>
-              )}
+            <div className="flex items-center gap-3">
+              <AppButton onClick={() => setGlobalAgentConfigOpen(false)} variant="secondary">取消</AppButton>
+              <AppButton
+                onClick={handleSaveGlobalAgentConfig}
+                disabled={globalAgentConfigSaving}
+                icon={<Save className="w-4 h-4" />}
+              >
+                {globalAgentConfigSaving ? '保存中...' : '保存全局配置'}
+              </AppButton>
             </div>
+          </>
+        }
+        footerJustify="between"
+      >
+        {/* 副标题说明 */}
+        <div className="px-6 py-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          直接修改 `openclaw.json` 中当前 Agent 对应的 `agents.list[]` 条目。保存后建议重启 Gateway，让派生配置重新生成。
+        </div>
+        {/* JSON 表单编辑器 */}
+        <div style={{ height: '62vh' }}>
+          <JsonFormEditor
+            emptyText="当前全局 Agent 配置没有可展示的顶层分组。"
+            onChange={setGlobalAgentConfigDraft}
+            rawPreviewTitle="全局 Agent 原始配置"
+            showRawPreview
+            tabs={globalAgentConfigTabs}
+            value={globalAgentConfigDraft || {}}
+          />
+        </div>
+      </AppModal>
 
-            <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {isDirty ? '你有未保存的修改' : '当前内容已同步到本地'}
+      {/* ── 绑定配置编辑器 modal ──────────────────────────────────────────── */}
+      <AppModal
+        open={!!globalBindingEditor}
+        onClose={closeGlobalBindingEditor}
+        size="2xl"
+        noPadding
+        className="z-[60]"
+        title={
+          <div className="flex flex-col gap-2">
+            <span>{globalBindingEditor?.mode === 'add' ? t('binding.addBinding') : t('binding.editBinding')}</span>
+            {/* 通道 / 账号 badge 标签 */}
+            <div className="flex flex-wrap gap-2">
+              <AppBadge variant="info">
+                {t('binding.channelLabel')} · {globalBindingEditor?.channel || '-'}
+              </AppBadge>
+              <AppBadge variant="success">
+                {t('binding.accountIdLabel')} · {globalBindingEditor?.accountId || '-'}
+              </AppBadge>
+            </div>
+          </div>
+        }
+        footer={
+          <>
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              保存后会直接更新全局配置文件，重启 Gateway 后生效。
+            </div>
+            <div className="flex items-center gap-3">
+              <AppButton onClick={closeGlobalBindingEditor} variant="secondary">{t('common.cancel')}</AppButton>
+              <AppButton
+                onClick={handleSaveGlobalBindingConfig}
+                disabled={globalBindingSaving}
+                icon={<Save className="w-4 h-4" />}
+              >
+                {globalBindingSaving ? t('binding.saving') : t('common.save')}
+              </AppButton>
+            </div>
+          </>
+        }
+        footerJustify="between"
+      >
+        {/* 副标题说明 */}
+        <div className="px-6 py-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          配置当前 Agent 的消息路由规则：选择通道和账号，决定哪些消息会被路由到此 Agent。
+        </div>
+        {/* JSON 表单编辑器 */}
+        <div style={{ height: '62vh' }}>
+          <JsonFormEditor
+            emptyText="当前没有可展示的 binding 配置分组。"
+            onChange={setGlobalBindingDraft}
+            rawPreviewTitle="Channel / Binding 原始配置"
+            schema={globalBindingSchema}
+            showRawPreview
+            tabs={globalBindingTabs}
+            value={globalBindingDraft || {}}
+          />
+        </div>
+      </AppModal>
+
+      {/* ── 事件详情 modal ────────────────────────────────────────────────── */}
+      <AppModal
+        open={managedFileOpen && !!selectedSessionEvent}
+        onClose={() => setSelectedSessionEvent(null)}
+        size="xl"
+        noPadding
+        className="z-[60]"
+        title={
+          <div className="flex items-center gap-3 flex-wrap">
+            <span>事件详情</span>
+            <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
+              {selectedSessionEvent?.type || '事件'}
+            </span>
+          </div>
+        }
+      >
+        {/* 时间 / 角色元信息 */}
+        <div className="px-6 py-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          {formatTimestamp(selectedSessionEvent?.timestamp)}
+          {selectedSessionEvent?.role ? ` · ${selectedSessionEvent.role}` : ''}
+        </div>
+        {/* 事件内容 */}
+        <div className="p-6 space-y-4 overflow-auto" style={{ maxHeight: '65vh' }}>
+          <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
+            <div className="text-sm font-medium mb-2">可读详情</div>
+            <div className="text-sm whitespace-pre-wrap break-words leading-6" style={{ color: 'var(--app-text)' }}>
+              {selectedSessionEvent?.detail || '暂无详情'}
+            </div>
+          </div>
+          <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
+            <div className="text-sm font-medium mb-2">原始事件 JSON</div>
+            <pre className="text-xs whitespace-pre-wrap break-words font-mono" style={{ color: 'var(--app-text-muted)' }}>
+              {JSON.stringify(selectedSessionEvent?.raw, null, 2)}
+            </pre>
+          </div>
+        </div>
+      </AppModal>
+
+      {/* ── 文件浏览器 modal ──────────────────────────────────────────────── */}
+      <AppModal
+        open={!!entryBrowserOpen}
+        onClose={closeEntryBrowser}
+        size="2xl"
+        noPadding
+        title={
+          <div className="flex items-center gap-3">
+            <span>
+              {entryBrowserOpen === 'workspace' ? '浏览 Workspace'
+                : entryBrowserOpen === 'config' ? '浏览 Agent 配置'
+                : '浏览 Sessions'}
+            </span>
+            {/* 返回上级按钮（仅 workspace 模式） */}
+            {entryBrowserOpen === 'workspace' && workspaceCanGoUp && workspaceParentPath && (
+              <AppButton onClick={() => browseWorkspacePath(workspaceParentPath)} size="sm" variant="secondary">
+                返回上级
+              </AppButton>
+            )}
+          </div>
+        }
+      >
+        {/* 当前路径信息栏 */}
+        <div className="px-6 py-3 border-b text-sm break-all" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          {entryBrowserOpen === 'workspace'
+            ? workspaceBrowse?.currentPath || details?.workspaceRoot
+            : entryBrowserOpen === 'config'
+              ? details?.agentConfigRoot
+              : details?.sessionsRoot}
+        </div>
+        {/* 路径 + 条目数统计栏 */}
+        <div className="px-6 py-3 border-b" style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>当前路径</div>
+              <div className="mt-1 text-sm break-all" style={{ color: 'var(--app-text)' }}>
+                {entryBrowserOpen === 'workspace'
+                  ? workspaceBrowse?.currentPath || details?.workspaceRoot
+                  : entryBrowserOpen === 'config'
+                    ? details?.agentConfigRoot
+                    : details?.sessionsRoot}
               </div>
-              <div className="flex items-center gap-3">
-                <AppButton
-                  onClick={closeEditor}
-                  variant="secondary"
-                >
-                  取消
-                </AppButton>
-                <AppButton
-                  onClick={handleSave}
-                  disabled={saving || fileLoading}
-                  icon={<Save className="w-4 h-4" />}
-                  variant={isDirty ? 'primary' : 'success'}
-                >
-                  {saving ? '保存中...' : isDirty ? '保存变更' : '已保存'}
-                </AppButton>
-              </div>
+            </div>
+            <div className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              {entryBrowserOpen === 'workspace'
+                ? `${workspaceBrowse?.entries.length || 0} 个条目`
+                : entryBrowserOpen === 'sessions'
+                  ? `${details?.sessionEntries.length || 0} 个条目`
+                  : `${details?.agentConfigEntries.length || 0} 个条目`}
             </div>
           </div>
         </div>
-      )}
-
-      {skillsConfigPreviewOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.58)' }}>
-          <div className="w-full max-w-5xl h-[76vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <h3 className="text-xl font-semibold">Skills 原始配置</h3>
-                <div className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  基于全局配置中当前 Agent 对应的 Skills 相关片段生成，只读预览。
-                </div>
-              </div>
-              <button
-                onClick={() => setSkillsConfigPreviewOpen(false)}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto p-6">
-              <pre
-                className="w-full h-full rounded-2xl p-5 text-sm font-mono whitespace-pre-wrap break-words"
-                style={{
-                  backgroundColor: 'var(--app-bg)',
-                  color: 'var(--app-text)',
-                  border: '1px solid var(--app-border)',
-                }}
-              >
-                {skillsConfigPreview}
-              </pre>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {globalAgentConfigOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.58)' }}>
-          <div className="w-full max-w-5xl h-[78vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <h3 className="text-xl font-semibold">编辑全局 Agent 配置</h3>
-                <div className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  直接修改 `openclaw.json` 中当前 Agent 对应的 `agents.list[]` 条目。保存后建议重启 Gateway，让派生配置重新生成。
-                </div>
-              </div>
-              <button
-                onClick={() => setGlobalAgentConfigOpen(false)}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <JsonFormEditor
-                emptyText="当前全局 Agent 配置没有可展示的顶层分组。"
-                onChange={setGlobalAgentConfigDraft}
-                rawPreviewTitle="全局 Agent 原始配置"
-                showRawPreview
-                tabs={globalAgentConfigTabs}
-                value={globalAgentConfigDraft || {}}
-              />
-            </div>
-
-            <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                这里编辑的是全局核心配置，不是派生的 `models.json` / `auth-profiles.json`。
-              </div>
-              <div className="flex items-center gap-3">
-                <AppButton onClick={() => setGlobalAgentConfigOpen(false)} variant="secondary">
-                  取消
-                </AppButton>
-                <AppButton
-                  onClick={handleSaveGlobalAgentConfig}
-                  disabled={globalAgentConfigSaving}
-                  icon={<Save className="w-4 h-4" />}
-                >
-                  {globalAgentConfigSaving ? '保存中...' : '保存全局配置'}
-                </AppButton>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {globalBindingEditor && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.58)' }}>
-          <div className="w-full max-w-5xl h-[78vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <h3 className="text-xl font-semibold">{globalBindingEditor?.mode === 'add' ? t('binding.addBinding') : t('binding.editBinding')}</h3>
-                <div className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  配置当前 Agent 的消息路由规则：选择通道和账号，决定哪些消息会被路由到此 Agent。
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: 'rgba(14, 165, 233, 0.12)', color: '#0369A1' }}>
-                    {t('binding.channelLabel')} · {globalBindingEditor.channel || '-'}
-                  </span>
-                  <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#047857' }}>
-                    {t('binding.accountIdLabel')} · {globalBindingEditor.accountId || '-'}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={closeGlobalBindingEditor}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <JsonFormEditor
-                emptyText="当前没有可展示的 binding 配置分组。"
-                onChange={setGlobalBindingDraft}
-                rawPreviewTitle="Channel / Binding 原始配置"
-                schema={globalBindingSchema}
-                showRawPreview
-                tabs={globalBindingTabs}
-                value={globalBindingDraft || {}}
-              />
-            </div>
-
-            <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                保存后会直接更新全局配置文件，重启 Gateway 后生效。
-              </div>
-              <div className="flex items-center gap-3">
-                <AppButton onClick={closeGlobalBindingEditor} variant="secondary">
-                  {t('common.cancel')}
-                </AppButton>
-                <AppButton
-                  onClick={handleSaveGlobalBindingConfig}
-                  disabled={globalBindingSaving}
-                  icon={<Save className="w-4 h-4" />}
-                >
-                  {globalBindingSaving ? t('binding.saving') : t('common.save')}
-                </AppButton>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {managedFileOpen && selectedSessionEvent && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.58)' }}>
-          <div className="w-full max-w-4xl max-h-[82vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h3 className="text-xl font-semibold">事件详情</h3>
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
-                    {selectedSessionEvent.type || '事件'}
-                  </span>
-                </div>
-                <div className="mt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  {formatTimestamp(selectedSessionEvent.timestamp)}
-                  {selectedSessionEvent.role ? ` · ${selectedSessionEvent.role}` : ''}
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedSessionEvent(null)}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto p-6 space-y-4">
-              <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                <div className="text-sm font-medium mb-2">可读详情</div>
-                <div className="text-sm whitespace-pre-wrap break-words leading-6" style={{ color: 'var(--app-text)' }}>
-                  {selectedSessionEvent.detail || '暂无详情'}
-                </div>
-              </div>
-              <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}>
-                <div className="text-sm font-medium mb-2">原始事件 JSON</div>
-                <pre className="text-xs whitespace-pre-wrap break-words font-mono" style={{ color: 'var(--app-text-muted)' }}>
-                  {JSON.stringify(selectedSessionEvent.raw, null, 2)}
-                </pre>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {entryBrowserOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.62)' }}>
-          <div className="w-full max-w-5xl h-[82vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div>
-                <h3 className="text-2xl font-semibold">{entryBrowserOpen === 'workspace' ? '浏览 Workspace' : entryBrowserOpen === 'config' ? '浏览 Agent 配置' : '浏览 Sessions'}</h3>
-                <div className="text-sm mt-2 break-all" style={{ color: 'var(--app-text-muted)' }}>
-                  {entryBrowserOpen === 'workspace'
-                    ? workspaceBrowse?.currentPath || details?.workspaceRoot
-                    : entryBrowserOpen === 'config'
-                      ? details?.agentConfigRoot
-                      : details?.sessionsRoot}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {entryBrowserOpen === 'workspace' && workspaceCanGoUp && workspaceParentPath && (
-                  <AppButton onClick={() => browseWorkspacePath(workspaceParentPath)} size="sm" variant="secondary">
-                    返回上级
-                  </AppButton>
-                )}
-                <button
-                  onClick={closeEntryBrowser}
-                  className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-b" style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}>
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--app-text-muted)' }}>
-                    当前路径
-                  </div>
-                  <div className="mt-1 text-sm break-all" style={{ color: 'var(--app-text)' }}>
-                    {entryBrowserOpen === 'workspace'
-                      ? workspaceBrowse?.currentPath || details?.workspaceRoot
-                      : entryBrowserOpen === 'config'
-                        ? details?.agentConfigRoot
-                        : details?.sessionsRoot}
-                  </div>
-                </div>
-                <div className="shrink-0 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {entryBrowserOpen === 'workspace'
-                    ? `${workspaceBrowse?.entries.length || 0} 个条目`
-                    : entryBrowserOpen === 'sessions'
-                      ? `${details?.sessionEntries.length || 0} 个条目`
-                      : `${details?.agentConfigEntries.length || 0} 个条目`}
-                </div>
-              </div>
-            </div>
-            <div className="flex-1 min-h-0 overflow-hidden p-6">
-              {entryBrowserOpen === 'workspace' ? (
-                <AppTable
-                  className="h-full"
-                  stickyHeader
-                  rows={workspaceBrowse?.entries || []}
-                  columns={[
-                    {
-                      key: 'name',
-                      label: '名称',
-                      width: '320px',
-                      render: (entry) => (
-                        <div className="min-w-0 flex items-center gap-3">
-                          <span
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl shrink-0"
-                            style={{
-                              backgroundColor: entry.kind === 'directory' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                              color: entry.kind === 'directory' ? '#60A5FA' : '#34D399',
-                              border: entry.kind === 'directory' ? '1px solid rgba(59, 130, 246, 0.18)' : '1px solid rgba(16, 185, 129, 0.18)',
-                            }}
-                          >
-                            {entry.kind === 'directory'
-                              ? <Folder className="w-4 h-4" />
-                              : <FileText className="w-4 h-4" />}
-                          </span>
-                          <div className="min-w-0">
-                            <div className="font-medium truncate" title={entry.name}>{entry.name}</div>
-                            <div className="text-xs mt-1" style={{ color: 'var(--app-table-cell-muted-text)' }}>
-                              {entry.kind === 'directory' ? '文件夹' : '文件内容'}
-                            </div>
-                          </div>
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'kind',
-                      label: '类型',
-                      width: '120px',
-                      nowrap: true,
-                      render: (entry) => (
-                        <span
-                          className="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                          style={{
-                            backgroundColor: entry.kind === 'directory' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                            color: entry.kind === 'directory' ? '#60A5FA' : '#34D399',
-                            border: entry.kind === 'directory' ? '1px solid rgba(59, 130, 246, 0.18)' : '1px solid rgba(16, 185, 129, 0.18)',
-                          }}
-                        >
-                          {entry.kind === 'directory' ? '目录' : '文件'}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: 'relativePath',
-                      label: '相对路径',
-                      lineClamp: 2,
-                      render: (entry) => (
-                        <span title={entry.relativePath} style={{ color: 'var(--app-table-cell-muted-text)' }}>
-                          {entry.relativePath}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: 'action',
-                      label: '操作',
-                      width: '104px',
-                      align: 'right',
-                      nowrap: true,
-                      render: (entry) => (
-                        <div className="flex justify-end">
-                          <AppButton
-                            onClick={() => openWorkspaceEntry(entry)}
-                            variant="secondary"
-                            size="sm"
-                          >
-                            {entry.kind === 'directory' ? '浏览' : '打开'}
-                          </AppButton>
-                        </div>
-                      ),
-                    },
-                  ]}
-                  emptyText="当前目录下没有可展示的 Workspace 条目"
-                />
-              ) : entryBrowserOpen === 'sessions' ? (
-                <AppTable
-                  className="h-full"
-                  stickyHeader
-                  rows={details?.sessionEntries || []}
-                  columns={[
-                    {
-                      key: 'name',
-                      label: '名称',
-                      width: '260px',
-                      truncate: true,
-                      render: (entry) => (
-                        <div className="min-w-0">
-                          <div className="font-medium truncate" title={entry.name}>{entry.name}</div>
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'kind',
-                      label: '类型',
-                      width: '120px',
-                      nowrap: true,
-                      render: (entry) => (
-                        <span style={{ color: 'var(--app-table-cell-muted-text)' }}>
-                          {getEntryKindLabel(entry)}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: 'relativePath',
-                      label: '相对路径',
-                      lineClamp: 2,
-                      render: (entry) => (
-                        <span title={entry.relativePath} style={{ color: 'var(--app-table-cell-muted-text)' }}>
-                          {entry.relativePath}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: 'action',
-                      label: '操作',
-                      width: '104px',
-                      align: 'right',
-                      nowrap: true,
-                      render: (entry) => (
-                        <div className="flex justify-end">
-                          <AppButton
-                            onClick={() => openManagedFile(entry.path)}
-                            variant="secondary"
-                            size="sm"
-                          >
-                            打开
-                          </AppButton>
-                        </div>
-                      ),
-                    },
-                  ]}
-                  emptyText="当前未检测到 Sessions 条目"
-                />
-              ) : (
-                <div className="h-full overflow-auto space-y-3">
-                  {(details?.agentConfigEntries || []).map((entry) => (
-                    <button
-                      key={entry.path}
-                      onClick={() => openManagedFile(entry.path)}
-                      className="w-full rounded-2xl border p-4 interactive-card text-left"
-                      style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{entry.name}</div>
-                          <div className="text-xs mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                            {getEntryKindLabel(entry)} · {entry.relativePath}
-                          </div>
-                          <div className="text-xs mt-2 truncate" style={{ color: 'var(--app-text-muted)' }} title={entry.path}>
-                            {entry.path}
-                          </div>
-                        </div>
-                        <AppButton variant="secondary" size="sm">打开</AppButton>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {globalModelEditorOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.58)' }}>
-          <div className="w-full max-w-3xl max-h-[82vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-4 border-b flex items-start justify-between gap-4 shrink-0" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <h3 className="text-xl font-semibold">编辑模型配置</h3>
-                <div className="mt-1.5 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  你可以为当前 Agent 切换主模型，并设置备选模型列表。模型选项来自 `openclaw.json` 中的模型注册表。
-                </div>
-              </div>
-              <button
-                onClick={closeGlobalModelEditor}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
-              <div className="space-y-2">
-                <div className="text-sm font-medium mb-2" style={{ color: 'var(--app-text)' }}>
-                  当前模型
-                </div>
-                <AppSelect
-                  options={globalModelSelectOptions}
-                  placeholder="请选择主模型"
-                  searchPlaceholder="搜索主模型"
-                  size="sm"
-                  value={globalModelEditor.primary}
-                  onChange={(nextValue) => {
-                    const nextPrimary = Array.isArray(nextValue) ? '' : nextValue;
-                    setGlobalModelEditor((current) => ({
-                      ...current,
-                      primary: nextPrimary,
-                      fallbacks: current.fallbacks.filter((item) => item !== nextPrimary),
-                    }));
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                    备选模型
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                    可多选；保存时会自动创建 `fallbacks` 数组
-                  </div>
-                </div>
-                <AppSelect
-                  emptyText="没有匹配的备选模型。"
-                  multiple
-                  options={globalModelSelectOptions.filter((option) => option.value !== globalModelEditor.primary)}
-                  placeholder="请选择备选模型"
-                  searchPlaceholder="搜索备选模型"
-                  size="sm"
-                  value={globalModelEditor.fallbacks}
-                  onChange={(nextValue) => {
-                    setGlobalModelEditor((current) => ({
-                      ...current,
-                      fallbacks: Array.isArray(nextValue) ? nextValue : [],
-                    }));
-                  }}
-                />
-                {globalModelEditor.fallbacks.length ? (
-                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {globalModelEditor.fallbacks.map((fallback) => (
-                      <div
-                        key={fallback}
-                        className="rounded-xl border px-3.5 py-3"
+        {/* 条目列表 */}
+        <div className="p-6 overflow-hidden" style={{ height: '60vh' }}>
+          {entryBrowserOpen === 'workspace' ? (
+            <AppTable
+              className="h-full"
+              stickyHeader
+              rows={workspaceBrowse?.entries || []}
+              columns={[
+                {
+                  key: 'name',
+                  label: '名称',
+                  width: '320px',
+                  render: (entry) => (
+                    <div className="min-w-0 flex items-center gap-3">
+                      <span
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl shrink-0"
                         style={{
-                          backgroundColor: 'var(--app-bg)',
-                          borderColor: 'rgba(148, 163, 184, 0.18)',
-                          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
+                          backgroundColor: entry.kind === 'directory' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                          color: entry.kind === 'directory' ? '#60A5FA' : '#34D399',
+                          border: entry.kind === 'directory' ? '1px solid rgba(59, 130, 246, 0.18)' : '1px solid rgba(16, 185, 129, 0.18)',
                         }}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold truncate" style={{ color: 'var(--app-text)' }}>
-                              {globalModelOptionMap[fallback] || fallback}
-                            </div>
-                            <div className="mt-1 text-xs break-all" style={{ color: 'var(--app-text-muted)' }}>
-                              {fallback}
-                            </div>
-                          </div>
-                          <span
-                            className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium"
-                            style={{
-                              color: 'var(--app-text-muted)',
-                              backgroundColor: 'var(--app-bg-subtle)',
-                            }}
-                          >
-                            已选
-                          </span>
+                        {entry.kind === 'directory' ? <Folder className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate" title={entry.name}>{entry.name}</div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--app-table-cell-muted-text)' }}>
+                          {entry.kind === 'directory' ? '文件夹' : '文件内容'}
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'kind',
+                  label: '类型',
+                  width: '120px',
+                  nowrap: true,
+                  render: (entry) => (
+                    /* 目录/文件类型 badge */
+                    <AppBadge
+                      size="sm"
+                      variant={entry.kind === 'directory' ? 'info' : 'success'}
+                    >
+                      {entry.kind === 'directory' ? '目录' : '文件'}
+                    </AppBadge>
+                  ),
+                },
+                {
+                  key: 'relativePath',
+                  label: '相对路径',
+                  lineClamp: 2,
+                  render: (entry) => (
+                    <span title={entry.relativePath} style={{ color: 'var(--app-table-cell-muted-text)' }}>
+                      {entry.relativePath}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'action',
+                  label: '操作',
+                  width: '104px',
+                  align: 'right',
+                  nowrap: true,
+                  render: (entry) => (
+                    <div className="flex justify-end">
+                      <AppButton onClick={() => openWorkspaceEntry(entry)} variant="secondary" size="sm">
+                        {entry.kind === 'directory' ? '浏览' : '打开'}
+                      </AppButton>
+                    </div>
+                  ),
+                },
+              ]}
+              emptyText="当前目录下没有可展示的 Workspace 条目"
+            />
+          ) : entryBrowserOpen === 'sessions' ? (
+            <AppTable
+              className="h-full"
+              stickyHeader
+              rows={details?.sessionEntries || []}
+              columns={[
+                {
+                  key: 'name',
+                  label: '名称',
+                  width: '260px',
+                  truncate: true,
+                  render: (entry) => (
+                    <div className="min-w-0">
+                      <div className="font-medium truncate" title={entry.name}>{entry.name}</div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'kind',
+                  label: '类型',
+                  width: '120px',
+                  nowrap: true,
+                  render: (entry) => (
+                    <span style={{ color: 'var(--app-table-cell-muted-text)' }}>{getEntryKindLabel(entry)}</span>
+                  ),
+                },
+                {
+                  key: 'relativePath',
+                  label: '相对路径',
+                  lineClamp: 2,
+                  render: (entry) => (
+                    <span title={entry.relativePath} style={{ color: 'var(--app-table-cell-muted-text)' }}>
+                      {entry.relativePath}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'action',
+                  label: '操作',
+                  width: '104px',
+                  align: 'right',
+                  nowrap: true,
+                  render: (entry) => (
+                    <div className="flex justify-end">
+                      <AppButton onClick={() => openManagedFile(entry.path)} variant="secondary" size="sm">打开</AppButton>
+                    </div>
+                  ),
+                },
+              ]}
+              emptyText="当前未检测到 Sessions 条目"
+            />
+          ) : (
+            <div className="h-full overflow-auto space-y-3">
+              {(details?.agentConfigEntries || []).map((entry) => (
+                <button
+                  key={entry.path}
+                  onClick={() => openManagedFile(entry.path)}
+                  className="w-full rounded-2xl border p-4 interactive-card text-left"
+                  style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium truncate">{entry.name}</div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--app-text-muted)' }}>
+                        {getEntryKindLabel(entry)} · {entry.relativePath}
+                      </div>
+                      <div className="text-xs mt-2 truncate" style={{ color: 'var(--app-text-muted)' }} title={entry.path}>
+                        {entry.path}
+                      </div>
+                    </div>
+                    <AppButton variant="secondary" size="sm">打开</AppButton>
                   </div>
-                ) : (
-                  <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                    当前未选择备选模型，保存后会写入空的 `fallbacks: []`。
-                  </div>
-                )}
-              </div>
+                </button>
+              ))}
             </div>
-            <div className="px-6 py-4 border-t flex items-center justify-between gap-4 shrink-0" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                保存后会直接更新当前 Agent 在 `openclaw.json` 中的 `agents.list[]` 条目。
-              </div>
-              <div className="flex items-center gap-3">
-                <AppButton onClick={closeGlobalModelEditor} variant="secondary">
-                  取消
-                </AppButton>
-                <AppButton onClick={handleSaveGlobalModelConfig} disabled={globalModelSaving} icon={<Save className="w-4 h-4" />}>
-                  {globalModelSaving ? '保存中...' : '保存模型配置'}
-                </AppButton>
-              </div>
+          )}
+        </div>
+      </AppModal>
+
+      {/* ── 模型配置编辑器 modal ──────────────────────────────────────────── */}
+      <AppModal
+        open={globalModelEditorOpen}
+        onClose={closeGlobalModelEditor}
+        size="lg"
+        className="z-[60]"
+        title="编辑模型配置"
+        footer={
+          <>
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              保存后会直接更新当前 Agent 在 `openclaw.json` 中的 `agents.list[]` 条目。
+            </div>
+            <div className="flex items-center gap-3">
+              <AppButton onClick={closeGlobalModelEditor} variant="secondary">取消</AppButton>
+              <AppButton
+                onClick={handleSaveGlobalModelConfig}
+                disabled={globalModelSaving}
+                icon={<Save className="w-4 h-4" />}
+              >
+                {globalModelSaving ? '保存中...' : '保存模型配置'}
+              </AppButton>
+            </div>
+          </>
+        }
+        footerJustify="between"
+      >
+        {/* 副标题说明 */}
+        <div className="-mt-2 mb-4 text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+          你可以为当前 Agent 切换主模型，并设置备选模型列表。模型选项来自 `openclaw.json` 中的模型注册表。
+        </div>
+        {/* 主模型选择 */}
+        <div className="space-y-2 mb-4">
+          <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>当前模型</div>
+          <AppSelect
+            options={globalModelSelectOptions}
+            placeholder="请选择主模型"
+            searchPlaceholder="搜索主模型"
+            size="sm"
+            value={globalModelEditor.primary}
+            onChange={(nextValue) => {
+              const nextPrimary = Array.isArray(nextValue) ? '' : nextValue;
+              setGlobalModelEditor((current) => ({
+                ...current,
+                primary: nextPrimary,
+                fallbacks: current.fallbacks.filter((item) => item !== nextPrimary),
+              }));
+            }}
+          />
+        </div>
+        {/* 备选模型选择 */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>备选模型</div>
+            <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              可多选；保存时会自动创建 `fallbacks` 数组
             </div>
           </div>
-        </div>
-      )}
-
-      {managedFileOpen && managedFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.62)' }}>
-          <div className="w-full max-w-6xl h-[88vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-2xl font-semibold">{managedFile.name}</h2>
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
-                    {isManagedSessionLog ? '会话日志' : isManagedJson ? '动态表单' : '文本内容'}
-                  </span>
-                  {isManagedDirty && (
-                    <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)', color: '#F59E0B' }}>
-                      未保存修改
-                    </span>
-                  )}
+          <AppSelect
+            emptyText="没有匹配的备选模型。"
+            multiple
+            options={globalModelSelectOptions.filter((option) => option.value !== globalModelEditor.primary)}
+            placeholder="请选择备选模型"
+            searchPlaceholder="搜索备选模型"
+            size="sm"
+            value={globalModelEditor.fallbacks}
+            onChange={(nextValue) => {
+              setGlobalModelEditor((current) => ({
+                ...current,
+                fallbacks: Array.isArray(nextValue) ? nextValue : [],
+              }));
+            }}
+          />
+          {/* 已选备选模型列表 */}
+          {globalModelEditor.fallbacks.length ? (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {globalModelEditor.fallbacks.map((fallback) => (
+                <div
+                  key={fallback}
+                  className="rounded-xl border px-3.5 py-3"
+                  style={{
+                    backgroundColor: 'var(--app-bg)',
+                    borderColor: 'var(--app-border)',
+                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.03)',
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold truncate" style={{ color: 'var(--app-text)' }}>
+                        {globalModelOptionMap[fallback] || fallback}
+                      </div>
+                      <div className="mt-1 text-xs break-all" style={{ color: 'var(--app-text-muted)' }}>
+                        {fallback}
+                      </div>
+                    </div>
+                    {/* 已选备选模型标记 badge */}
+                    <AppBadge variant="neutral" size="sm">已选</AppBadge>
+                  </div>
                 </div>
-                <div className="mt-2 text-sm break-all" style={{ color: 'var(--app-text-muted)' }}>
-                  {managedFile.path}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  <span>大小：{formatBytes(managedFile.size || 0)}</span>
-                  <span>更新时间：{formatTimestamp(managedFile.updatedAt)}</span>
-                </div>
-              </div>
-              <button
-                onClick={closeManagedFile}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
+              ))}
             </div>
-            <div className="px-6 py-4 border-b text-sm flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          ) : (
+            <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              当前未选择备选模型，保存后会写入空的 `fallbacks: []`。
+            </div>
+          )}
+        </div>
+      </AppModal>
+
+      {/* ── 文件内容编辑器 modal（JSON / 文本 / 会话日志） ─────────────────── */}
+      <AppModal
+        open={managedFileOpen && !!managedFile}
+        onClose={closeManagedFile}
+        size="2xl"
+        noPadding
+        title={
+          managedFile ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span>{managedFile.name}</span>
+              {/* 文件类型 pill */}
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-success, #10B981)' }}>
+                {isManagedSessionLog ? '会话日志' : isManagedJson ? '动态表单' : '文本内容'}
+              </span>
+              {/* 未保存修改 pill */}
+              {isManagedDirty && (
+                <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)', color: 'var(--color-warning, #F59E0B)' }}>
+                  未保存修改
+                </span>
+              )}
+            </div>
+          ) : null
+        }
+        footer={
+          <>
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {isManagedDirty ? '你有未保存的修改' : '当前内容已同步到本地'}
+            </div>
+            <div className="flex items-center gap-3">
+              <AppButton onClick={closeManagedFile} variant="secondary">关闭</AppButton>
+              <AppButton
+                onClick={handleSaveManagedFile}
+                disabled={managedSaving || managedLoading}
+                icon={<Save className="w-4 h-4" />}
+                variant={isManagedDirty ? 'primary' : 'success'}
+              >
+                {managedSaving ? '保存中...' : isManagedDirty ? '保存修改' : '已保存'}
+              </AppButton>
+            </div>
+          </>
+        }
+        footerJustify="between"
+      >
+        {managedFile && (
+          <>
+            {/* 文件元信息 */}
+            <div className="px-6 pt-1 pb-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+              <div className="break-all">{managedFile.path}</div>
+              <div className="mt-1 flex flex-wrap gap-4">
+                <span>大小：{formatBytes(managedFile.size || 0)}</span>
+                <span>更新时间：{formatTimestamp(managedFile.updatedAt)}</span>
+              </div>
+            </div>
+            {/* 工具栏：说明文字 + 视图切换（会话日志模式） */}
+            <div className="px-6 py-3 border-b text-sm flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
               <div className="min-w-0">
                 {isManagedSessionLog
                   ? '会话日志已支持会话视图、事件表格和原始文本三种模式切换。'
@@ -3202,6 +3132,7 @@ const AgentWorkspace: React.FC = () => {
                   : '文本内容按原始文本方式编辑，保存前不会改动文件。'}
               </div>
               {isManagedSessionLog ? (
+                /* 会话日志视图切换按钮组 */
                 <div className="flex items-center gap-2 shrink-0">
                   {([
                     { key: 'conversation', label: '会话视图' },
@@ -3213,17 +3144,8 @@ const AgentWorkspace: React.FC = () => {
                       onClick={() => setManagedViewMode(item.key)}
                       className="px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200"
                       style={managedViewMode === item.key
-                        ? {
-                            background: 'var(--app-selected-card-bg)',
-                            border: '1px solid var(--app-selected-card-border)',
-                            color: 'var(--app-text)',
-                            boxShadow: 'var(--app-selected-card-shadow)',
-                          }
-                        : {
-                            backgroundColor: 'var(--app-bg-subtle)',
-                            border: '1px solid var(--app-border)',
-                            color: 'var(--app-text-muted)',
-                          }}
+                        ? { background: 'var(--app-selected-card-bg)', border: '1px solid var(--app-selected-card-border)', color: 'var(--app-text)', boxShadow: 'var(--app-selected-card-shadow)' }
+                        : { backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
                     >
                       {item.label}
                     </button>
@@ -3235,17 +3157,18 @@ const AgentWorkspace: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
+            {/* 内容区 */}
+            <div style={{ height: '60vh', overflow: 'hidden' }}>
               {isManagedSessionLog && managedViewMode !== 'raw' ? (
                 <div className="h-full min-h-0 overflow-auto p-6">
                   {managedViewMode === 'conversation' ? (
+                    /* 会话视图 */
                     <div className="space-y-3 pb-6">
                       {managedSessionEvents.map((event, index) => {
                         const tone = getSessionEventTone(event);
                         const messageText = event.type === 'message'
                           ? String(event.raw?.message?.content?.text || event.raw?.message?.content || event.summary || '')
                           : event.summary;
-
                         return (
                           <div
                             key={`${event.id || event.timestamp || event.type || 'event'}-${index}`}
@@ -3253,16 +3176,13 @@ const AgentWorkspace: React.FC = () => {
                             style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
                           >
                             <div className="flex items-center justify-between gap-3 mb-3">
-                              <span
-                                className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold"
-                                style={{
-                                  backgroundColor: tone.bg,
-                                  border: `1px solid ${tone.border}`,
-                                  color: tone.text,
-                                }}
+                              {/* 会话事件类型 badge：tone 提供动态颜色 */}
+                              <AppBadge
+                                size="sm"
+                                style={{ backgroundColor: tone.bg, borderColor: tone.border, color: tone.text }}
                               >
                                 {tone.label}
-                              </span>
+                              </AppBadge>
                               <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
                                 {formatTimestamp(event.timestamp)}
                               </span>
@@ -3277,11 +3197,7 @@ const AgentWorkspace: React.FC = () => {
                               <button
                                 onClick={() => setSelectedSessionEvent(event)}
                                 className="px-2.5 py-1 rounded-lg border transition-all duration-200"
-                                style={{
-                                  backgroundColor: 'var(--app-bg-subtle)',
-                                  borderColor: 'var(--app-border)',
-                                  color: 'var(--app-text)',
-                                }}
+                                style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                               >
                                 查看详情
                               </button>
@@ -3291,61 +3207,21 @@ const AgentWorkspace: React.FC = () => {
                       })}
                     </div>
                   ) : (
+                    /* 事件表格视图 */
                     <AppTable
                       className="max-h-full"
                       rows={managedSessionEvents}
                       stickyHeader
                       columns={[
+                        { key: 'type', label: '类型', width: '120px', render: (event) => <span className="truncate block">{event.type || '-'}</span> },
+                        { key: 'timestamp', label: '时间', width: '180px', render: (event) => <span className="truncate block" style={{ color: 'var(--app-text-muted)' }}>{formatTimestamp(event.timestamp)}</span> },
+                        { key: 'role', label: '角色', width: '100px', render: (event) => <span className="truncate block" style={{ color: 'var(--app-text-muted)' }}>{event.role || '-'}</span> },
+                        { key: 'summary', label: '摘要', cellClassName: 'min-w-0', render: (event) => <span className="line-clamp-2 block leading-6" title={event.detail}>{event.summary || '-'}</span> },
                         {
-                          key: 'type',
-                          label: '类型',
-                          width: '120px',
-                          render: (event) => (
-                            <span className="truncate block">{event.type || '-'}</span>
-                          ),
-                        },
-                        {
-                          key: 'timestamp',
-                          label: '时间',
-                          width: '180px',
-                          render: (event) => (
-                            <span className="truncate block" style={{ color: 'var(--app-text-muted)' }}>
-                              {formatTimestamp(event.timestamp)}
-                            </span>
-                          ),
-                        },
-                        {
-                          key: 'role',
-                          label: '角色',
-                          width: '100px',
-                          render: (event) => (
-                            <span className="truncate block" style={{ color: 'var(--app-text-muted)' }}>
-                              {event.role || '-'}
-                            </span>
-                          ),
-                        },
-                        {
-                          key: 'summary',
-                          label: '摘要',
-                          cellClassName: 'min-w-0',
-                          render: (event) => (
-                            <span className="line-clamp-2 block leading-6" title={event.detail}>{event.summary || '-'}</span>
-                          ),
-                        },
-                        {
-                          key: 'action',
-                          label: '详情',
-                          width: '104px',
-                          align: 'right',
+                          key: 'action', label: '详情', width: '104px', align: 'right',
                           render: (event) => (
                             <div className="flex justify-end">
-                              <AppButton
-                                onClick={() => setSelectedSessionEvent(event)}
-                                size="sm"
-                                variant="secondary"
-                              >
-                                查看
-                              </AppButton>
+                              <AppButton onClick={() => setSelectedSessionEvent(event)} size="sm" variant="secondary">查看</AppButton>
                             </div>
                           ),
                         },
@@ -3355,6 +3231,7 @@ const AgentWorkspace: React.FC = () => {
                   )}
                 </div>
               ) : isManagedJson && managedJsonDraft !== null ? (
+                /* JSON 动态表单编辑器 */
                 <JsonFormEditor
                   emptyText="当前 JSON 没有可展示的顶层分组。"
                   onChange={setManagedJsonDraft}
@@ -3364,362 +3241,310 @@ const AgentWorkspace: React.FC = () => {
                   value={managedJsonDraft}
                 />
               ) : (
+                /* 纯文本编辑器 */
                 <div className="h-full min-h-0 p-6 overflow-auto">
                   <textarea
                     value={managedDraft}
                     onChange={(event) => setManagedDraft(event.target.value)}
                     spellCheck={false}
                     className="w-full min-h-[60vh] rounded-2xl p-5 font-mono text-sm outline-none resize-y"
-                    style={{
-                      backgroundColor: 'var(--app-bg)',
-                      color: 'var(--app-text)',
-                      border: '1px solid var(--app-border)',
-                    }}
+                    style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
                   />
                 </div>
               )}
+              {/* 加载提示 */}
               {managedLoading && (
-                <div className="px-6 pb-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  正在加载内容...
-                </div>
+                <div className="px-6 pb-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>正在加载内容...</div>
               )}
             </div>
-            <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {isManagedDirty ? '你有未保存的修改' : '当前内容已同步到本地'}
-              </div>
-              <div className="flex items-center gap-3">
-                <AppButton onClick={closeManagedFile} variant="secondary">关闭</AppButton>
-                <AppButton onClick={handleSaveManagedFile} disabled={managedSaving || managedLoading} icon={<Save className="w-4 h-4" />} variant={isManagedDirty ? 'primary' : 'success'}>
-                  {managedSaving ? '保存中...' : isManagedDirty ? '保存修改' : '已保存'}
-                </AppButton>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </AppModal>
 
-      {memoryEditorOpen && memoryFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.62)' }}>
-          <div className="w-full max-w-5xl max-h-[88vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h2 className="text-2xl font-semibold">{memoryFile.name}</h2>
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
-                    记忆文件
-                  </span>
-                  {isMemoryDirty && (
-                    <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)', color: '#F59E0B' }}>
-                      未保存修改
-                    </span>
-                  )}
-                </div>
-                <div className="mt-2 text-sm break-all" style={{ color: 'var(--app-text-muted)' }}>
-                  {memoryFile.path}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  <span>大小：{formatBytes(memoryFile.size || 0)}</span>
-                  <span>更新时间：{formatTimestamp(memoryFile.updatedAt)}</span>
-                </div>
-              </div>
-              <button
-                onClick={closeMemoryEditor}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
+      {/* ── 记忆文件编辑器 modal ──────────────────────────────────────────── */}
+      <AppModal
+        open={memoryEditorOpen && !!memoryFile}
+        onClose={closeMemoryEditor}
+        size="2xl"
+        noPadding
+        title={
+          memoryFile ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span>{memoryFile.name}</span>
+              {/* 记忆文件类型 pill */}
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: 'var(--color-success, #10B981)' }}>
+                记忆文件
+              </span>
+              {/* 未保存修改 pill */}
+              {isMemoryDirty && (
+                <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: 'rgba(245, 158, 11, 0.14)', color: 'var(--color-warning, #F59E0B)' }}>
+                  未保存修改
+                </span>
+              )}
+            </div>
+          ) : null
+        }
+        footer={
+          <>
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              {isMemoryDirty ? '你有未保存的记忆修改' : '当前记忆内容已同步到本地'}
+            </div>
+            <div className="flex items-center gap-3">
+              <AppButton onClick={handleClearMemory} disabled={memorySaving || memoryClearing} variant="danger">
+                {memoryClearing ? '清空中...' : '清除记忆'}
+              </AppButton>
+              <AppButton onClick={closeMemoryEditor} variant="secondary">关闭</AppButton>
+              <AppButton
+                onClick={handleSaveMemory}
+                disabled={memorySaving || memoryClearing}
+                icon={<Save className="w-4 h-4" />}
+                variant={isMemoryDirty ? 'primary' : 'success'}
               >
-                <X className="w-5 h-5" />
-              </button>
+                {memorySaving ? '保存中...' : isMemoryDirty ? '保存修改' : '已保存'}
+              </AppButton>
             </div>
-
-            <div className="px-6 py-4 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          </>
+        }
+        footerJustify="between"
+      >
+        {memoryFile && (
+          <>
+            {/* 文件元信息 */}
+            <div className="px-6 pt-1 pb-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+              <div className="break-all">{memoryFile.path}</div>
+              <div className="mt-1 flex flex-wrap gap-4">
+                <span>大小：{formatBytes(memoryFile.size || 0)}</span>
+                <span>更新时间：{formatTimestamp(memoryFile.updatedAt)}</span>
+              </div>
+            </div>
+            {/* 操作说明 */}
+            <div className="px-6 py-3 border-b text-sm" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
               你可以在这里查看、修改或清空智能体记忆内容。关闭前若存在未保存修改，会提示确认。
             </div>
-
-            <div className="flex-1 p-6 overflow-auto">
+            {/* 编辑区 */}
+            <div className="p-6">
               <textarea
                 value={memoryDraft}
                 onChange={(event) => setMemoryDraft(event.target.value)}
                 spellCheck={false}
                 className="w-full min-h-[52vh] rounded-2xl p-5 font-mono text-sm outline-none resize-y"
-                style={{
-                  backgroundColor: 'var(--app-bg)',
-                  color: 'var(--app-text)',
-                  border: '1px solid var(--app-border)',
-                }}
+                style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
               />
               {memoryLoading && (
-                <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  正在加载记忆内容...
-                </div>
+                <div className="mt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>正在加载记忆内容...</div>
               )}
             </div>
+          </>
+        )}
+      </AppModal>
 
-            <div className="px-6 py-5 border-t flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                {isMemoryDirty ? '你有未保存的记忆修改' : '当前记忆内容已同步到本地'}
-              </div>
-              <div className="flex items-center gap-3">
-                <AppButton
-                  onClick={handleClearMemory}
-                  disabled={memorySaving || memoryClearing}
-                  variant="danger"
-                >
-                  {memoryClearing ? '清空中...' : '清除记忆'}
-                </AppButton>
-                <AppButton
-                  onClick={closeMemoryEditor}
-                  variant="secondary"
-                >
-                  关闭
-                </AppButton>
-                <AppButton
-                  onClick={handleSaveMemory}
-                  disabled={memorySaving || memoryClearing}
-                  icon={<Save className="w-4 h-4" />}
-                  variant={isMemoryDirty ? 'primary' : 'success'}
-                >
-                  {memorySaving ? '保存中...' : isMemoryDirty ? '保存修改' : '已保存'}
-                </AppButton>
-              </div>
+      {/* ── 重命名对话框 modal ────────────────────────────────────────────── */}
+      <AppModal
+        open={!!renamingEntry}
+        onClose={() => setRenamingEntry(null)}
+        size="md"
+        title={renamingEntry ? `重命名：${renamingEntry.name}` : '重命名'}
+        footer={
+          <>
+            <AppButton onClick={() => setRenamingEntry(null)} variant="secondary">取消</AppButton>
+            <AppButton
+              onClick={handleRenameSubmit}
+              disabled={renameSaving || !renameValue.trim()}
+            >
+              {renameSaving ? '保存中...' : '确认重命名'}
+            </AppButton>
+          </>
+        }
+      >
+        {/* 说明文字 */}
+        <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          只修改当前层级名称，不会移动到别的目录。
+        </div>
+        {/* 重命名输入框 */}
+        <input
+          value={renameValue}
+          onChange={(event) => setRenameValue(event.target.value)}
+          className="w-full rounded-xl px-4 py-3 outline-none"
+          style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
+        />
+      </AppModal>
+
+      {/* ── 删除确认 modal ────────────────────────────────────────────────── */}
+      <AppModal
+        open={!!deletingEntry}
+        onClose={() => setDeletingEntry(null)}
+        size="md"
+        variant="danger"
+        title="安全删除确认"
+        footer={
+          <>
+            <AppButton onClick={() => setDeletingEntry(null)} variant="secondary">取消</AppButton>
+            <AppButton onClick={handleDeleteSubmit} disabled={deleteSaving} variant="danger">
+              {deleteSaving ? '移动中...' : '移入回收站'}
+            </AppButton>
+          </>
+        }
+      >
+        {/* 说明文字 */}
+        <div className="mb-4 text-sm" style={{ color: 'var(--app-text-muted)' }}>
+          删除不会直接移除，而是放入回收站，可稍后恢复。
+        </div>
+        {/* 待删除条目信息卡 */}
+        {deletingEntry && (
+          <div className="rounded-2xl border p-4" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
+            <div className="font-semibold">{deletingEntry.name}</div>
+            <div className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
+              {deletingEntry.kind === 'directory' ? '目录' : '文件'} · {deletingEntry.relativePath}
+            </div>
+            <div className="text-xs mt-2 break-all" style={{ color: 'var(--app-text-muted)' }}>
+              {deletingEntry.path}
+            </div>
+          </div>
+        )}
+      </AppModal>
+
+      {/* ── 回收站 modal ──────────────────────────────────────────────────── */}
+      <AppModal
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        size="2xl"
+        noPadding
+        title={
+          <div className="flex items-center gap-3">
+            <span>Workspace 回收站</span>
+            {/* 刷新按钮放在标题区右侧 */}
+            <AppButton
+              onClick={loadTrashEntries}
+              loading={trashLoading}
+              size="sm"
+              variant="secondary"
+              icon={<RefreshCw className="w-4 h-4" />}
+            >
+              刷新
+            </AppButton>
+          </div>
+        }
+      >
+        {/* 回收站路径 */}
+        <div className="px-6 py-3 border-b text-sm break-all" style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+          {trashRoot || '回收站路径加载中'}
+        </div>
+        {/* 批量操作工具栏 */}
+        <div className="px-6 py-3 border-b" style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              已选择 {selectedTrashEntryIds.length} / {trashEntries.length} 个条目
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* 全选 / 取消全选 */}
+              <AppButton
+                onClick={handleSelectAllTrashEntries}
+                disabled={!trashEntries.length}
+                size="sm"
+                variant="secondary"
+              >
+                {selectedTrashEntryIds.length === trashEntries.length && trashEntries.length ? '取消全选' : '全选'}
+              </AppButton>
+              {/* 批量恢复 */}
+              <AppButton
+                onClick={handleRestoreSelectedTrashEntries}
+                disabled={!selectedTrashEntryIds.length || trashBatchAction !== null}
+                size="sm"
+                variant="secondary"
+                icon={<ArchiveRestore className="w-4 h-4" />}
+              >
+                {trashBatchAction === 'restore' ? '批量恢复中...' : '批量恢复'}
+              </AppButton>
+              {/* 批量永久删除 */}
+              <AppButton
+                onClick={handleDeleteSelectedTrashEntries}
+                disabled={!selectedTrashEntryIds.length || trashBatchAction !== null}
+                size="sm"
+                variant="danger"
+                icon={<Trash2 className="w-4 h-4" />}
+              >
+                {trashBatchAction === 'delete' ? '批量删除中...' : '批量永久删除'}
+              </AppButton>
+              {/* 一键清空 */}
+              <AppButton
+                onClick={handleClearTrash}
+                disabled={!trashEntries.length || trashBatchAction !== null}
+                size="sm"
+                variant="danger"
+                icon={<Trash2 className="w-4 h-4" />}
+              >
+                {trashBatchAction === 'clear' ? '清空中...' : '一键清空回收站'}
+              </AppButton>
             </div>
           </div>
         </div>
-      )}
-
-      {renamingEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
-          <div className="w-full max-w-lg rounded-3xl border overflow-hidden" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div>
-                <h3 className="text-xl font-semibold">重命名</h3>
-                <div className="text-sm mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                  当前条目：{renamingEntry.name}
-                </div>
-              </div>
-              <button
-                onClick={() => setRenamingEntry(null)}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
+        {/* 回收站条目列表 */}
+        <div className="p-6 overflow-auto" style={{ maxHeight: '60vh' }}>
+          <div className="space-y-3">
+            {trashEntries.length ? trashEntries.map((entry) => (
+              <div
+                key={entry.id}
+                className="rounded-2xl border p-4"
+                style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-4">
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                只修改当前层级名称，不会移动到别的目录。
-              </div>
-              <input
-                value={renameValue}
-                onChange={(event) => setRenameValue(event.target.value)}
-                className="w-full rounded-xl px-4 py-3 outline-none"
-                style={{
-                  backgroundColor: 'var(--app-bg)',
-                  border: '1px solid var(--app-border)',
-                  color: 'var(--app-text)',
-                }}
-              />
-            </div>
-            <div className="px-6 py-5 border-t flex items-center justify-end gap-3" style={{ borderColor: 'var(--app-border)' }}>
-              <button
-                onClick={() => setRenamingEntry(null)}
-                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleRenameSubmit}
-                disabled={renameSaving || !renameValue.trim()}
-                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: 'var(--app-active-bg)', border: '1px solid var(--app-active-border)', color: 'var(--app-active-text)' }}
-              >
-                {renameSaving ? '保存中...' : '确认重命名'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deletingEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
-          <div className="w-full max-w-xl rounded-3xl border overflow-hidden" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div>
-                <h3 className="text-xl font-semibold">安全删除确认</h3>
-                <div className="text-sm mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                  删除不会直接移除，而是放入回收站，可稍后恢复。
-                </div>
-              </div>
-              <button
-                onClick={() => setDeletingEntry(null)}
-                className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-3">
-              <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>即将移入回收站的条目</div>
-              <div className="rounded-2xl border p-4" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
-                <div className="font-semibold">{deletingEntry.name}</div>
-                <div className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                  {deletingEntry.kind === 'directory' ? '目录' : '文件'} · {deletingEntry.relativePath}
-                </div>
-                <div className="text-xs mt-2 break-all" style={{ color: 'var(--app-text-muted)' }}>
-                  {deletingEntry.path}
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-5 border-t flex items-center justify-end gap-3" style={{ borderColor: 'var(--app-border)' }}>
-              <button
-                onClick={() => setDeletingEntry(null)}
-                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
-                style={{ backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleDeleteSubmit}
-                disabled={deleteSaving}
-                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: 'rgba(239, 68, 68, 0.10)', border: '1px solid rgba(239, 68, 68, 0.20)', color: '#EF4444' }}
-              >
-                {deleteSaving ? '移动中...' : '移入回收站'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {trashOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.62)' }}>
-          <div className="w-full max-w-5xl max-h-[88vh] rounded-3xl border overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}>
-            <div className="px-6 py-5 border-b flex items-start justify-between gap-4" style={{ borderColor: 'var(--app-border)' }}>
-              <div>
-                <h3 className="text-2xl font-semibold">Workspace 回收站</h3>
-                <div className="text-sm mt-2 break-all" style={{ color: 'var(--app-text-muted)' }}>
-                  {trashRoot || '回收站路径加载中'}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={loadTrashEntries}
-                  disabled={trashLoading}
-                  className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${trashLoading ? 'animate-spin' : ''}`} />
-                  刷新回收站
-                </button>
-                <button
-                  onClick={() => setTrashOpen(false)}
-                  className="p-2 rounded-lg transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 p-6 overflow-auto">
-              <div className="mb-4 rounded-2xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
-                <div className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                  已选择 {selectedTrashEntryIds.length} / {trashEntries.length} 个条目
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={handleSelectAllTrashEntries}
-                    disabled={!trashEntries.length}
-                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                  >
-                    {selectedTrashEntryIds.length === trashEntries.length && trashEntries.length ? '取消全选' : '全选'}
-                  </button>
-                  <button
-                    onClick={handleRestoreSelectedTrashEntries}
-                    disabled={!selectedTrashEntryIds.length || trashBatchAction !== null}
-                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: 'var(--app-active-bg)', border: '1px solid var(--app-active-border)', color: 'var(--app-active-text)' }}
-                  >
-                    <ArchiveRestore className="w-4 h-4 mr-2" />
-                    {trashBatchAction === 'restore' ? '批量恢复中...' : '批量恢复'}
-                  </button>
-                  <button
-                    onClick={handleDeleteSelectedTrashEntries}
-                    disabled={!selectedTrashEntryIds.length || trashBatchAction !== null}
-                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: 'rgba(239, 68, 68, 0.10)', border: '1px solid rgba(239, 68, 68, 0.20)', color: '#EF4444' }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {trashBatchAction === 'delete' ? '批量删除中...' : '批量永久删除'}
-                  </button>
-                  <button
-                    onClick={handleClearTrash}
-                    disabled={!trashEntries.length || trashBatchAction !== null}
-                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ backgroundColor: 'rgba(239, 68, 68, 0.10)', border: '1px solid rgba(239, 68, 68, 0.20)', color: '#EF4444' }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    {trashBatchAction === 'clear' ? '清空中...' : '一键清空回收站'}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {trashEntries.length ? trashEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-2xl border p-4"
-                    style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <label className="pt-1">
-                        <input
-                          type="checkbox"
-                          checked={selectedTrashEntryIds.includes(entry.id)}
-                          onChange={() => toggleTrashEntrySelection(entry.id)}
-                          className="h-4 w-4"
-                        />
-                      </label>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="font-semibold">{entry.name}</div>
-                          <span className="text-[11px] px-2 py-1 rounded-full" style={{ backgroundColor: entry.kind === 'directory' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.12)', color: entry.kind === 'directory' ? '#3B82F6' : '#10B981' }}>
-                            {entry.kind === 'directory' ? '目录' : '文件'}
-                          </span>
-                        </div>
-                        <div className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                          删除时间 · {formatTimestamp(entry.deletedAt)}
-                        </div>
-                        <div className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                          原始位置 · {entry.originalRelativePath}
-                        </div>
-                        <div className="text-xs mt-2 break-all" style={{ color: 'var(--app-text-muted)' }}>
-                          回收站位置 · {entry.path}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleRestoreTrashEntry(entry.id)}
-                          disabled={trashRestoringId === entry.id || trashBatchAction !== null}
-                          className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{ backgroundColor: 'var(--app-active-bg)', border: '1px solid var(--app-active-border)', color: 'var(--app-active-text)' }}
-                        >
-                          <ArchiveRestore className="w-4 h-4 mr-2" />
-                          {trashRestoringId === entry.id ? '恢复中...' : '恢复'}
-                        </button>
-                      </div>
+                <div className="flex items-start justify-between gap-4">
+                  {/* 复选框 */}
+                  <label className="pt-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedTrashEntryIds.includes(entry.id)}
+                      onChange={() => toggleTrashEntrySelection(entry.id)}
+                      className="h-4 w-4"
+                    />
+                  </label>
+                  {/* 条目信息 */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold">{entry.name}</div>
+                      {/* 类型 pill */}
+                      <span
+                        className="text-[11px] px-2 py-1 rounded-full"
+                        style={{
+                          backgroundColor: entry.kind === 'directory' ? 'rgba(59,130,246,0.12)' : 'rgba(16,185,129,0.12)',
+                          color: entry.kind === 'directory' ? '#3B82F6' : '#10B981',
+                        }}
+                      >
+                        {entry.kind === 'directory' ? '目录' : '文件'}
+                      </span>
+                    </div>
+                    <div className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
+                      删除时间 · {formatTimestamp(entry.deletedAt)}
+                    </div>
+                    <div className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
+                      原始位置 · {entry.originalRelativePath}
+                    </div>
+                    <div className="text-xs mt-2 break-all" style={{ color: 'var(--app-text-muted)' }}>
+                      回收站位置 · {entry.path}
                     </div>
                   </div>
-                )) : (
-                  <div className="rounded-2xl border p-6 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
-                    {trashLoading ? '正在加载回收站...' : '回收站当前为空。'}
+                  {/* 单条恢复按钮 */}
+                  <div className="flex items-center gap-2">
+                    <AppButton
+                      onClick={() => handleRestoreTrashEntry(entry.id)}
+                      disabled={trashRestoringId === entry.id || trashBatchAction !== null}
+                      size="sm"
+                      variant="secondary"
+                      icon={<ArchiveRestore className="w-4 h-4" />}
+                    >
+                      {trashRestoringId === entry.id ? '恢复中...' : '恢复'}
+                    </AppButton>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            )) : (
+              /* 空状态 */
+              <div className="rounded-2xl border p-6 text-sm" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}>
+                {trashLoading ? '正在加载回收站...' : '回收站当前为空。'}
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </AppModal>
     </div>
   );
 };

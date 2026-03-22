@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import AppIconButton from '../components/AppIconButton';
+import AppModal from '../components/AppModal';
+import AppBadge from '../components/AppBadge';
 import GlassCard from '../components/GlassCard';
 import AgentEnhancer from '../components/AgentEnhancer';
 import GlobalLoading from '../components/GlobalLoading';
@@ -42,6 +44,8 @@ const Agents: React.FC = () => {
   const [exportTarget, setExportTarget] = useState<AgentInfo | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 顶部"更多操作"下拉菜单展开状态
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   // 删除确认对话框状态
   const [deleteTarget, setDeleteTarget] = useState<AgentInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -175,8 +179,13 @@ const Agents: React.FC = () => {
         showToast('success', `智能体「${agentName}」已删除`);
         loadAgents();
       } else {
-        setDeleteError(result.error || '删除失败');
-        showToast('error', `删除失败：${result.error || '未知错误'}`);
+        // 将 CLI 错误信息转为更友好的中文提示
+        const rawError = result.error || '删除失败';
+        const friendlyError = rawError.includes('cannot be deleted')
+          ? `「${deleteTarget.id}」是默认智能体，不可删除`
+          : rawError;
+        setDeleteError(friendlyError);
+        showToast('error', `删除失败：${friendlyError}`);
       }
     } catch (err: any) {
       const msg = err.message || '删除失败';
@@ -221,14 +230,18 @@ const Agents: React.FC = () => {
           <div className="min-w-0">
             <h3 className="text-lg font-semibold truncate" style={{ color: 'var(--app-text)' }}>{agent.name}</h3>
             <div className="flex items-center space-x-2 mt-1 min-w-0">
-              <span className="text-xs font-mono px-2 py-1 rounded truncate max-w-[160px]" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text-muted)' }}>
-                <Hash className="w-3 h-3 inline mr-1" />
+              {/* Agent ID 标签：保留 mono 字体风格，用 neutral badge */}
+              <AppBadge
+                variant="neutral"
+                size="sm"
+                icon={<Hash className="w-3 h-3" />}
+                className="font-mono truncate max-w-[160px]"
+              >
                 {agent.id}
-              </span>
+              </AppBadge>
               {agent.agentDir && (
-                <span className="text-xs px-2 py-1 rounded flex-shrink-0 whitespace-nowrap" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}>
-                  Configured
-                </span>
+                /* 已配置状态 badge */
+                <AppBadge variant="success" size="sm">Configured</AppBadge>
               )}
             </div>
           </div>
@@ -306,19 +319,15 @@ const Agents: React.FC = () => {
           <div className="flex flex-wrap gap-1 min-w-0">
             {agentBindings.map((b: any, i: number) => {
               const ch = b?.match?.channel || '未知';
-              // 从 binding 的 match 中读取 DM 策略（dm 字段为 true/false 或不存在）
               const hasDm = b?.match?.dm === true || b?.match?.dm === 'true';
               return (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}
-                >
+                /* 渠道绑定 badge，带可选 DM 子标签 */
+                <AppBadge key={i} variant="neutral" size="sm">
                   {ch}
                   {hasDm && (
-                    <span className="text-[10px] px-1 rounded" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>DM</span>
+                    <AppBadge variant="success" size="sm" className="ml-1">DM</AppBadge>
                   )}
-                </span>
+                </AppBadge>
               );
             })}
           </div>
@@ -408,7 +417,7 @@ const Agents: React.FC = () => {
           {/* 顶部渐变标题卡片 */}
           <GlassCard
             variant="gradient"
-            className="relative rounded-[28px] px-6 py-5 mb-6"
+            className="relative rounded-[28px] px-6 py-5 mb-6 overflow-hidden"
             style={{
               background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(99, 102, 241, 0.08) 48%, rgba(255, 255, 255, 0.02) 100%)',
               backdropFilter: 'blur(18px)',
@@ -418,74 +427,146 @@ const Agents: React.FC = () => {
             <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(59, 130, 246, 0.18)' }} />
             <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(99, 102, 241, 0.14)' }} />
 
+            {/* 卡片内容：左右两列，与技能页面保持一致的布局模式 */}
             <div className="relative flex items-start justify-between gap-4">
-              <div className="max-w-2xl">
-                <div
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--app-text)', border: '1px solid rgba(255, 255, 255, 0.08)' }}
+              {/* 左侧：badge + 标题 + 描述 + 统计 pill */}
+              <div>
+                {/* 页面标题 badge */}
+                <AppBadge
+                  variant="neutral"
+                  icon={activeTab === 'list' ? <Users size={13} /> : <Zap size={13} />}
+                  style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.08)' }}
                 >
-                  {activeTab === 'list' ? <Users size={14} /> : <Zap size={14} />}
                   {activeTab === 'list' ? 'Multi-Agent System' : 'Agent Enhancement'}
-                </div>
+                </AppBadge>
                 <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
                   {activeTab === 'list' ? '智能体' : '智能体增强'}
                 </h1>
-                <p className="mt-2 max-w-xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
+                <p className="mt-2 text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
                   {activeTab === 'list'
                     ? '管理和查看所有 OpenClaw 智能体，配置工作区与模型。'
                     : selectedAgent
                       ? `正在增强 ${selectedAgent.name} 的能力与性能。`
                       : '增强智能体能力与运行性能。'}
                 </p>
+                {/* 内联统计指标 badge 组，flex-nowrap 确保一行内水平排列 */}
+                {activeTab === 'list' && (
+                  <div className="mt-3 flex flex-nowrap gap-2">
+                    {[
+                      { label: '智能体总数', value: agents.length, color: '#60a5fa', icon: Users },
+                      { label: '已配置', value: agents.filter(a => a.agentDir).length, color: '#34d399', icon: Settings },
+                      { label: '模型种类', value: new Set(agents.map(a => a.model)).size, color: '#a78bfa', icon: Cpu },
+                    ].map((m) => {
+                      const Icon = m.icon;
+                      return (
+                        /* 统计指标 badge：neutral 底色 + 动态 accent 数值色 */
+                        <AppBadge
+                          key={m.label}
+                          variant="neutral"
+                          icon={<Icon size={13} style={{ color: m.color }} />}
+                          className="whitespace-nowrap"
+                          style={{ backgroundColor: 'var(--app-bg-elevated)', backdropFilter: 'blur(10px)' }}
+                        >
+                          <span style={{ color: 'var(--app-text-muted)' }}>{m.label}</span>
+                          <span className="font-semibold ml-1" style={{ color: m.color }}>{m.value}</span>
+                        </AppBadge>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              <div className="ml-auto flex items-center justify-end gap-3 shrink-0">
+              {/* 右侧：操作按钮组，shrink-0 防止被左侧内容挤压 */}
+              <div className="flex items-center gap-2 shrink-0">
                 {activeTab === 'enhance' && selectedAgent && (
-                  <AppButton
+                  <button
                     onClick={() => setActiveTab('list')}
-                    icon={<ArrowRight className="w-4 h-4 rotate-180" />}
-                    variant="secondary"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
                   >
-                    Back to Agents
-                  </AppButton>
+                    <ArrowRight className="w-4 h-4 rotate-180" />
+                    返回列表
+                  </button>
                 )}
                 {activeTab === 'list' && (
                   <>
-                    {/* 导入 Agent 配置按钮 */}
-                    <AppButton
-                      onClick={() => setImportOpen(true)}
-                      icon={<Upload className="w-4 h-4" />}
-                      variant="secondary"
+                    {/* 更多操作下拉菜单：导入 + 导出历史 */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setMoreMenuOpen(v => !v)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                        style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                      >
+                        <History className="w-4 h-4" />
+                        更多
+                      </button>
+                      {moreMenuOpen && (
+                        <>
+                          {/* 点击遮罩关闭菜单 */}
+                          <div className="fixed inset-0 z-10" onClick={() => setMoreMenuOpen(false)} />
+                          <div
+                            className="absolute right-0 top-full mt-1.5 z-20 min-w-[130px] rounded-xl overflow-hidden shadow-lg"
+                            style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)' }}
+                          >
+                            <button
+                              onClick={() => { setImportOpen(true); setMoreMenuOpen(false); }}
+                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                              style={{ color: 'var(--app-text)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                            >
+                              <Upload className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
+                              导入配置
+                            </button>
+                            <button
+                              onClick={() => { setHistoryOpen(true); setMoreMenuOpen(false); }}
+                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                              style={{ color: 'var(--app-text)', borderTop: '1px solid var(--app-border)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                            >
+                              <History className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
+                              导出历史
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {/* 刷新按钮（带文字标签，与技能页面风格一致，放在主操作按钮左侧） */}
+                    <button
+                      onClick={loadAgents}
+                      disabled={loading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                      title="刷新"
                     >
-                      导入
-                    </AppButton>
-                    {/* 导出历史按钮 */}
-                    <AppButton
-                      onClick={() => setHistoryOpen(true)}
-                      icon={<History className="w-4 h-4" />}
-                      variant="secondary"
+                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">刷新</span>
+                    </button>
+                    {/* 新增智能体主按钮（主操作放最右侧） */}
+                    <button
+                      onClick={handleOpenCreateModal}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
+                      style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff' }}
                     >
-                      导出历史
-                    </AppButton>
+                      <Plus className="w-4 h-4" />
+                      新增智能体
+                    </button>
                   </>
                 )}
-                {activeTab === 'list' && (
-                  <AppButton
-                    onClick={handleOpenCreateModal}
-                    icon={<Plus className="w-4 h-4" />}
-                    variant="primary"
+                {/* enhance 模式下的刷新按钮 */}
+                {activeTab === 'enhance' && (
+                  <button
+                    onClick={loadAgents}
+                    disabled={loading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    title="刷新"
                   >
-                    新增智能体
-                  </AppButton>
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">刷新</span>
+                  </button>
                 )}
-                <AppButton
-                  onClick={loadAgents}
-                  disabled={loading}
-                  icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
-                  variant="secondary"
-                >
-                  {loading ? 'Loading...' : 'Refresh'}
-                </AppButton>
               </div>
             </div>
           </GlassCard>
@@ -517,48 +598,6 @@ const Agents: React.FC = () => {
 
         {activeTab === 'list' ? (
           <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>Total Agents</p>
-                    <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>{agents.length}</p>
-                  </div>
-                  <div className="p-3 bg-blue-500/10 rounded-lg">
-                    <Users className="w-6 h-6 text-blue-500" />
-                  </div>
-                </div>
-              </GlassCard>
-              
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>Configured Agents</p>
-                    <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                      {agents.filter(a => a.agentDir).length}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-green-500/10 rounded-lg">
-                    <Settings className="w-6 h-6 text-green-500" />
-                  </div>
-                </div>
-              </GlassCard>
-              
-              <GlassCard className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--app-text-muted)' }}>Unique Models</p>
-                    <p className="text-3xl font-bold mt-2" style={{ color: 'var(--app-text)' }}>
-                      {new Set(agents.map(a => a.model)).size}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-tech-teal/10 rounded-lg">
-                    <Cpu className="w-6 h-6 text-tech-teal" />
-                  </div>
-                </div>
-              </GlassCard>
-            </div>
 
             {/* Error Message */}
             {error && (
@@ -607,27 +646,49 @@ const Agents: React.FC = () => {
             </div>
 
             {/* 删除确认对话框 */}
-            {deleteTarget && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
-                <div
-                  className="w-full max-w-md rounded-3xl border overflow-hidden"
-                  style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-                >
-                  <div className="px-6 py-5 border-b text-center" style={{ borderColor: 'var(--app-border)' }}>
-                    <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)' }}>
-                      <Trash2 className="w-6 h-6 text-red-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold">删除智能体</h3>
-                    <p className="text-sm mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                      确定要删除 <span className="font-mono font-semibold" style={{ color: 'var(--app-text)' }}>{deleteTarget.name}</span> 吗？
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                      此操作将通过 <code className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>openclaw agents delete</code> 清理配置、workspace 和状态数据，不可撤销。
-                    </p>
-                  </div>
+            <AppModal
+              open={!!deleteTarget}
+              onClose={() => setDeleteTarget(null)}
+              title="删除智能体"
+              variant="danger"
+              icon={<Trash2 size={20} />}
+              disableClose={deleting}
+              footer={
+                <>
+                  <AppButton variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                    取消
+                  </AppButton>
+                  <AppButton
+                    variant="danger"
+                    onClick={() => void handleDeleteAgent()}
+                    disabled={deleting}
+                    icon={deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  >
+                    {deleting ? '删除中…' : '确认删除'}
+                  </AppButton>
+                </>
+              }
+            >
+              {deleteTarget && (
+                <div className="space-y-4">
+                  {/* 警告说明 */}
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    确定要删除{' '}
+                    <span className="font-mono font-semibold" style={{ color: 'var(--app-text)' }}>
+                      {deleteTarget.name}
+                    </span>{' '}
+                    吗？此操作将通过{' '}
+                    <code className="px-1 py-0.5 rounded text-xs" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+                      openclaw agents delete
+                    </code>{' '}
+                    清理配置、workspace 和状态数据，不可撤销。
+                  </p>
 
                   {/* Agent 信息摘要 */}
-                  <div className="px-6 py-4 space-y-1.5">
+                  <div
+                    className="rounded-xl border px-4 py-3 space-y-2"
+                    style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>ID</span>
                       <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{deleteTarget.id}</span>
@@ -640,33 +701,16 @@ const Agents: React.FC = () => {
 
                   {/* 错误提示 */}
                   {deleteError && (
-                    <div className="mx-6 mb-3 rounded-xl border px-4 py-2.5 text-xs" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)', color: '#fca5a5' }}>
+                    <div
+                      className="rounded-xl border px-4 py-2.5 text-xs"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)', color: '#fca5a5' }}
+                    >
                       {deleteError}
                     </div>
                   )}
-
-                  {/* 操作按钮 */}
-                  <div className="px-6 py-4 border-t flex items-center justify-end gap-3" style={{ borderColor: 'var(--app-border)' }}>
-                    <AppButton
-                      variant="secondary"
-                      onClick={() => setDeleteTarget(null)}
-                      disabled={deleting}
-                    >
-                      取消
-                    </AppButton>
-                    <AppButton
-                      variant="primary"
-                      onClick={() => void handleDeleteAgent()}
-                      disabled={deleting}
-                      icon={deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      className="!bg-red-600 hover:!bg-red-700"
-                    >
-                      {deleting ? '删除中…' : '确认删除'}
-                    </AppButton>
-                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </AppModal>
 
             {/* CreateAgentWizard 向导组件 */}
             <CreateAgentWizard
@@ -681,64 +725,56 @@ const Agents: React.FC = () => {
             />
 
             {/* 创建后引导面板 */}
-            {postGuideAgent && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
-                <div
-                  className="w-full max-w-lg rounded-3xl border overflow-hidden"
-                  style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-                >
-                  {/* 标题 */}
-                  <div className="px-6 py-5 border-b text-center" style={{ borderColor: 'var(--app-border)' }}>
-                    <div className="w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)' }}>
-                      <CheckCircle className="w-6 h-6 text-green-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold">{t('agent.wizard.postGuideTitle')}</h3>
-                    <p className="text-sm mt-1" style={{ color: 'var(--app-text-muted)' }}>{t('agent.wizard.postGuideSuccess')}</p>
-                  </div>
+            <AppModal
+              open={!!postGuideAgent}
+              onClose={() => setPostGuideAgent(null)}
+              title={t('agent.wizard.postGuideTitle')}
+              variant="success"
+              icon={<CheckCircle size={20} />}
+            >
+              {postGuideAgent && (
+                <div className="space-y-4">
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {t('agent.wizard.postGuideSuccess')}
+                  </p>
 
                   {/* Agent 信息摘要 */}
-                  <div className="px-6 py-4 space-y-2">
-                    <div className="flex items-center justify-between py-1">
+                  <div
+                    className="rounded-xl border px-4 py-3 space-y-2"
+                    style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
+                  >
+                    <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>名称</span>
                       <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{postGuideAgent.name}</span>
                     </div>
-                    <div className="flex items-center justify-between py-1">
+                    <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>ID</span>
                       <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{postGuideAgent.id}</span>
                     </div>
-                    <div className="flex items-center justify-between py-1">
+                    <div className="flex items-center justify-between">
                       <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Workspace</span>
                       <span className="text-xs font-mono truncate max-w-[60%]" style={{ color: 'var(--app-text)' }}>{postGuideAgent.workspace}</span>
                     </div>
                   </div>
 
-                  {/* 操作按钮 */}
-                  <div className="px-6 py-5 border-t space-y-3" style={{ borderColor: 'var(--app-border)' }}>
+                  {/* 操作按钮组 */}
+                  <div className="space-y-2 pt-1">
                     <AppButton
-                      onClick={() => {
-                        setPostGuideAgent(null);
-                        navigate('/settings/channels');
-                      }}
+                      onClick={() => { setPostGuideAgent(null); navigate('/settings/channels'); }}
                       variant="primary"
                       className="w-full"
                     >
                       {t('agent.wizard.postGuideBinding')}
                     </AppButton>
                     <AppButton
-                      onClick={() => {
-                        setPostGuideAgent(null);
-                        openAgentWorkspace(postGuideAgent.id);
-                      }}
+                      onClick={() => { setPostGuideAgent(null); openAgentWorkspace(postGuideAgent.id); }}
                       variant="secondary"
                       className="w-full"
                     >
                       {t('agent.wizard.postGuideWorkspace')}
                     </AppButton>
                     <AppButton
-                      onClick={() => {
-                        setPostGuideAgent(null);
-                        loadAgents();
-                      }}
+                      onClick={() => { setPostGuideAgent(null); loadAgents(); }}
                       variant="secondary"
                       className="w-full"
                     >
@@ -746,8 +782,8 @@ const Agents: React.FC = () => {
                     </AppButton>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </AppModal>
 
             {/* 导出 Agent 配置对话框 */}
             {exportTarget && (

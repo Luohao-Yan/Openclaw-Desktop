@@ -3,6 +3,7 @@
  * 负责渠道相关的 IPC 通信，包括：
  * - 渠道状态查询（openclaw channels status）
  * - 渠道列表查询（openclaw channels list）
+ * - 配对管理配置的本地持久化（electron-store）
  */
 
 import pkg from 'electron';
@@ -11,7 +12,14 @@ import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
+import Store from 'electron-store';
 import { resolveOpenClawCommand, getShellPath } from './settings.js';
+
+/** 配对管理配置的本地存储键名 */
+const PAIRING_CONFIG_KEY = 'pairingConfig';
+
+/** 配对管理配置的本地 electron-store 实例 */
+const pairingStore = new Store({ name: 'pairing-config' });
 
 /**
  * 构建渠道 CLI 命令的 spawn 配置（纯函数）
@@ -286,6 +294,32 @@ export function setupChannelsIPC() {
         };
       }
       return { success: true, output: result.output };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Unknown error' };
+    }
+  });
+
+  /**
+   * channels:pairingConfigGet - 读取本地持久化的配对管理配置
+   * 从 electron-store 读取，不依赖 OpenClaw 配置文件 schema
+   */
+  ipcMain.handle('channels:pairingConfigGet', async () => {
+    try {
+      const config = pairingStore.get(PAIRING_CONFIG_KEY, {}) as Record<string, unknown>;
+      return { success: true, config };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Unknown error', config: {} };
+    }
+  });
+
+  /**
+   * channels:pairingConfigSet - 保存配对管理配置到本地持久化存储
+   * 写入 electron-store，不写入 OpenClaw 配置文件，避免 schema 校验失败
+   */
+  ipcMain.handle('channels:pairingConfigSet', async (_, config: Record<string, unknown>) => {
+    try {
+      pairingStore.set(PAIRING_CONFIG_KEY, config);
+      return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || 'Unknown error' };
     }

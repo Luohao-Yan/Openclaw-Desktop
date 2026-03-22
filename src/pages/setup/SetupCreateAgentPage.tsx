@@ -1,12 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Copy, Loader2, Plus, SkipForward } from 'lucide-react';
+import { Bot, CheckCircle2, Loader2, Plus, SkipForward } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import SetupLayout from '../../components/setup/SetupLayout';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
 import { validateBasicInfo, generateWorkspacePath } from '../../utils/agentCreation';
 
-/** 已有 agent 的简要信息，用于"复制已有 agent"下拉选择器 */
+// ============================================================================
+// 类型定义
+// ============================================================================
+
+/** 已有 agent 的简要信息 */
 interface ExistingAgentInfo {
   id: string;
   name: string;
@@ -14,9 +18,18 @@ interface ExistingAgentInfo {
   workspace?: string;
 }
 
+/** 页面工作模式 */
+type PageMode =
+  | 'loading'           // 正在检测 agents.list
+  | 'has-existing'      // 已有 agent（main agent 或其他），展示确认/选择界面
+  | 'create-new';       // 无 agent，展示创建表单
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
 /**
  * 简易翻译函数，用于 validateBasicInfo 校验
- * 由于这是 Setup 页面，使用内联翻译而非 i18n 上下文
  */
 const t = (key: string): string => {
   const map: Record<string, string> = {
@@ -29,108 +42,58 @@ const t = (key: string): string => {
 
 /**
  * 格式化创建 Agent 的错误信息
- * 对常见错误（如名称重复）提供友好的中文提示
- *
- * @param rawError - CLI 返回的原始错误信息
- * @param agentName - 用户输入的 Agent 名称
- * @returns 用户友好的错误信息
  */
 function formatCreateError(rawError: string, agentName: string): string {
-  // Agent 名称已存在
   if (rawError.toLowerCase().includes('already exists')) {
-    return `智能体 "${agentName}" 已存在，请更换一个名称或跳过此步骤。`;
+    return `智能体 "${agentName}" 已存在，请更换一个名称或选择已有智能体。`;
   }
-  // 过滤掉 Config warnings 前缀噪音，只保留实际错误
   const lines = rawError.split(/[;\n]/).map((l) => l.trim()).filter(Boolean);
   const meaningful = lines.filter((l) => !l.toLowerCase().startsWith('config warning'));
   return meaningful.length > 0 ? meaningful.join('；') : rawError;
 }
 
+// ============================================================================
+// 主页面组件
+// ============================================================================
+
 /**
- * 创建第一个 Agent 页面组件
+ * 智能体配置页面（自适应）
  * 路由: /setup/local/create-agent
- * 位于渠道配置之后、验证页面之前
- * 提供简化的 Agent 创建表单：名称、工作区路径、模型选择
+ *
+ * 逻辑：
+ * - 进入时先检测 agents.list
+ * - 有 agent（包括 openclaw onboard 创建的 main agent）→ 展示"选择/确认已有智能体"界面
+ * - 无 agent → 展示创建表单
  */
 export const SetupCreateAgentPage: React.FC = () => {
   const navigate = useNavigate();
   const { setCreatedAgent, persistPartialState, isBusy } = useSetupFlow();
 
-  // ── 表单状态 ──────────────────────────────────────────────────────────────
-  /** Agent 名称 */
+  // ── 页面模式 ──────────────────────────────────────────────────────────────
+  const [pageMode, setPageMode] = React.useState<PageMode>('loading');
+  /** 系统中已有的 agent 列表 */
+  const [existingAgents, setExistingAgents] = React.useState<ExistingAgentInfo[]>([]);
+  /** 当前选中的已有 agent ID */
+  const [selectedAgentId, setSelectedAgentId] = React.useState('');
+
+  // ── 创建表单状态 ──────────────────────────────────────────────────────────
   const [name, setName] = React.useState('');
-  /** 工作区路径 */
   const [workspace, setWorkspace] = React.useState('');
-  /** 用户是否手动编辑过工作区路径 */
   const [workspaceManuallyEdited, setWorkspaceManuallyEdited] = React.useState(false);
-  /** 选中的模型 */
   const [selectedModel, setSelectedModel] = React.useState('');
-  /** 可用模型列表 */
   const [availableModels, setAvailableModels] = React.useState<string[]>([]);
-  /** 表单校验错误 */
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  /** 创建错误信息 */
   const [createError, setCreateError] = React.useState('');
-  /** 是否正在创建 */
   const [isCreating, setIsCreating] = React.useState(false);
 
-  // ── 复制已有 agent 相关状态 ────────────────────────────────────────────────
-  /** 已有 agent 列表 */
-  const [existingAgents, setExistingAgents] = React.useState<ExistingAgentInfo[]>([]);
-  /** 当前选中的复制源 agent ID（空字符串表示不复制） */
-  const [copyFromAgentId, setCopyFromAgentId] = React.useState('');
-  /** 是否已通过复制自动填充了模型 */
-  const [modelCopiedFromAgent, setModelCopiedFromAgent] = React.useState(false);
-
-  // ── 初始化：获取可用模型列表 ──────────────────────────────────────────────
+  // ── 初始化：检测 agents.list，决定页面模式 ────────────────────────────────
   React.useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        if (typeof window.electronAPI?.modelsGetConfig === 'function') {
-          const result = await window.electronAPI.modelsGetConfig();
-          if (result.success) {
-            // 从 configuredModels 和 providers 中收集可用模型标识
-            const models: string[] = [];
-            // 主模型
-            if (result.primary) {
-              models.push(result.primary);
-            }
-            // 备用模型
-            if (result.fallbacks) {
-              for (const fb of result.fallbacks) {
-                if (!models.includes(fb)) models.push(fb);
-              }
-            }
-            // configuredModels 中的模型别名
-            if (result.configuredModels) {
-              for (const key of Object.keys(result.configuredModels)) {
-                if (!models.includes(key)) models.push(key);
-              }
-            }
-            setAvailableModels(models);
-            // 如果有主模型，默认选中
-            if (result.primary) {
-              setSelectedModel(result.primary);
-            }
-          }
-        }
-      } catch (err) {
-        // 获取模型列表失败时静默处理，用户可手动输入
-        console.warn('获取模型列表失败:', err);
-      }
-    };
-    void fetchModels();
-  }, []);
-
-  // ── 初始化：获取已有 agent 列表（用于"复制已有 agent"选项） ────────────────
-  // @see 需求 2.5 — 提供"复制已有 agent 配置"选项
-  React.useEffect(() => {
-    const fetchExistingAgents = async () => {
+    const detectAgents = async () => {
       try {
         if (typeof window.electronAPI?.agentsGetAll === 'function') {
           const result = await window.electronAPI.agentsGetAll();
-          if (result.success && Array.isArray(result.agents)) {
-            // 提取每个 agent 的基本信息
+          if (result.success && Array.isArray(result.agents) && result.agents.length > 0) {
+            // 已有 agent（包括 openclaw onboard 创建的 main agent）
             const agents: ExistingAgentInfo[] = result.agents.map((a: any) => ({
               id: a.id ?? a.name ?? '',
               name: a.name ?? a.id ?? '',
@@ -138,66 +101,87 @@ export const SetupCreateAgentPage: React.FC = () => {
               workspace: a.workspace ?? '',
             }));
             setExistingAgents(agents);
+            // 默认选中第一个（通常是 main agent）
+            setSelectedAgentId(agents[0]?.id ?? '');
+            setPageMode('has-existing');
+            return;
           }
         }
       } catch (err) {
-        // 获取已有 agent 列表失败时静默处理
-        console.warn('获取已有 agent 列表失败:', err);
+        console.warn('[SetupCreateAgentPage] 检测 agents 失败:', err);
       }
+      // 无 agent 或检测失败，进入创建模式
+      setPageMode('create-new');
     };
-    void fetchExistingAgents();
+
+    void detectAgents();
   }, []);
 
-  // ── 名称变化时自动更新工作区路径（除非用户手动编辑过） ────────────────────
+  // ── 初始化：获取可用模型列表（创建模式使用） ──────────────────────────────
+  React.useEffect(() => {
+    if (pageMode !== 'create-new') return;
+    const fetchModels = async () => {
+      try {
+        if (typeof window.electronAPI?.modelsGetConfig === 'function') {
+          const result = await window.electronAPI.modelsGetConfig();
+          if (result.success) {
+            const models: string[] = [];
+            if (result.primary) models.push(result.primary);
+            if (result.fallbacks) {
+              for (const fb of result.fallbacks) {
+                if (!models.includes(fb)) models.push(fb);
+              }
+            }
+            if (result.configuredModels) {
+              for (const key of Object.keys(result.configuredModels)) {
+                if (!models.includes(key)) models.push(key);
+              }
+            }
+            setAvailableModels(models);
+            if (result.primary) setSelectedModel(result.primary);
+          }
+        }
+      } catch (err) {
+        console.warn('[SetupCreateAgentPage] 获取模型列表失败:', err);
+      }
+    };
+    void fetchModels();
+  }, [pageMode]);
+
+  // ── 名称变化时自动更新工作区路径 ──────────────────────────────────────────
   React.useEffect(() => {
     if (!workspaceManuallyEdited && name.trim()) {
       setWorkspace(generateWorkspacePath(name.trim()));
     }
   }, [name, workspaceManuallyEdited]);
 
-  /** 处理"复制已有 agent"下拉选择变化 */
-  const handleCopyFromAgentChange = (agentId: string) => {
-    setCopyFromAgentId(agentId);
+  // ── 处理器：选择已有 agent 并继续 ────────────────────────────────────────
+  const handleUseExistingAgent = async () => {
+    const agent = existingAgents.find((a) => a.id === selectedAgentId);
+    if (!agent) return;
 
-    if (!agentId) {
-      // 用户选择"不复制（从零创建）"，清除自动填充标记
-      // Preservation: 不复制时行为与当前版本完全一致
-      setModelCopiedFromAgent(false);
-      return;
-    }
-
-    // 查找选中的 agent，自动填充模型配置
-    const agent = existingAgents.find((a) => a.id === agentId);
-    if (agent?.model) {
-      setSelectedModel(agent.model);
-      setModelCopiedFromAgent(true);
-    } else {
-      setModelCopiedFromAgent(false);
-    }
+    // 将选中的 agent 写入引导流程状态
+    setCreatedAgent({ id: agent.id, name: agent.name });
+    await persistPartialState({
+      createdAgentName: agent.name,
+      createdAgentId: agent.id,
+      createdAgentWorkspace: agent.workspace,
+      createdAgentModel: agent.model,
+    });
+    navigate('/setup/local/bind-channels');
   };
 
-  /** 处理工作区路径输入变化 */
-  const handleWorkspaceChange = (value: string) => {
-    setWorkspace(value);
-    setWorkspaceManuallyEdited(true);
+  // ── 处理器：跳过（不选择任何 agent） ─────────────────────────────────────
+  const handleSkip = () => {
+    navigate('/setup/local/bind-channels');
   };
 
-  /** 校验表单 */
-  const validateForm = (): boolean => {
+  // ── 处理器：创建新 agent ──────────────────────────────────────────────────
+  const handleCreate = async () => {
+    setCreateError('');
     const validationErrors = validateBasicInfo({ name, workspace }, t);
     setErrors(validationErrors);
-    return Object.keys(validationErrors).length === 0;
-  };
-
-  /** 创建 Agent */
-  const handleCreate = async () => {
-    // 清除之前的错误
-    setCreateError('');
-
-    // 校验表单
-    if (!validateForm()) {
-      return;
-    }
+    if (Object.keys(validationErrors).length > 0) return;
 
     setIsCreating(true);
     try {
@@ -205,54 +189,34 @@ export const SetupCreateAgentPage: React.FC = () => {
         name: name.trim(),
         workspace: workspace.trim(),
       };
-      // 仅当选择了模型时才传递
-      if (selectedModel) {
-        payload.model = selectedModel;
-      }
+      if (selectedModel) payload.model = selectedModel;
 
       const result = await window.electronAPI.agentsCreate(payload);
 
       if (result.success && result.agent) {
-        // 保存创建的 Agent 信息到 Context
         setCreatedAgent({ id: result.agent.id, name: result.agent.name });
 
-        // CLI 成功后，调用 IPC 验证 agent 是否已写入 openclaw.json
-        // @see 需求 2.3 — 验证 agent 记录已正确写入 openclaw.json 的 agents.list
+        // 验证 agent 是否已写入 openclaw.json
         let verifiedAgentInfo: Record<string, unknown> | undefined;
         if (typeof window.electronAPI?.coreConfigVerifyAgent === 'function') {
           try {
             const verifyResult = await window.electronAPI.coreConfigVerifyAgent(result.agent.id);
             if (verifyResult.success && verifyResult.exists) {
-              // 验证成功：从 openclaw.json 获取完整 agent 信息
               verifiedAgentInfo = verifyResult.agent;
-            } else {
-              // 验证失败：agent 可能已通过 CLI 创建成功，但 openclaw.json 中未找到
-              // 显示警告但不阻塞流程
-              console.warn(
-                '持久化验证警告: agent 未在 openclaw.json 中找到，可能需要手动检查配置',
-                verifyResult.error,
-              );
             }
           } catch (verifyErr) {
-            // 验证调用异常，不阻塞流程
-            console.warn('持久化验证调用异常:', verifyErr);
+            console.warn('[SetupCreateAgentPage] 持久化验证异常:', verifyErr);
           }
         }
 
-        // 持久化到 electron-store，包含完整 agent 信息
         await persistPartialState({
           createdAgentName: result.agent.name,
           createdAgentId: result.agent.id,
-          // 同步完整 agent 信息（包括工作区路径、模型配置等）
-          createdAgentWorkspace: verifiedAgentInfo?.workspace as string | undefined
-            ?? payload.workspace,
-          createdAgentModel: verifiedAgentInfo?.model as string | undefined
-            ?? payload.model,
+          createdAgentWorkspace: verifiedAgentInfo?.workspace as string | undefined ?? payload.workspace,
+          createdAgentModel: verifiedAgentInfo?.model as string | undefined ?? payload.model,
         });
-        // 导航到绑定渠道页面（bind-channels 有跳过条件，无渠道或无 agent 时自动跳到 verify）
         navigate('/setup/local/bind-channels');
       } else {
-        // 创建失败，解析并显示友好的错误信息
         const rawError = result.error || '创建智能体失败，请重试';
         setCreateError(formatCreateError(rawError, name.trim()));
       }
@@ -263,19 +227,122 @@ export const SetupCreateAgentPage: React.FC = () => {
     }
   };
 
-  /** 跳过创建，直接进入绑定渠道页面（bind-channels 有跳过条件，无渠道或无 agent 时自动跳到 verify） */
-  const handleSkip = () => {
-    navigate('/setup/local/bind-channels');
-  };
-
-  /** 按钮禁用状态 */
   const buttonsDisabled = isBusy || isCreating;
 
+  // ── 加载中 ────────────────────────────────────────────────────────────────
+  if (pageMode === 'loading') {
+    return (
+      <SetupLayout
+        title="智能体配置"
+        description="正在检测系统中的智能体…"
+        stepLabel="智能体配置"
+      >
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin" style={{ color: 'var(--app-text-muted)' }} />
+        </div>
+      </SetupLayout>
+    );
+  }
+
+  // ── 已有 agent 模式：展示选择/确认界面 ───────────────────────────────────
+  if (pageMode === 'has-existing') {
+    return (
+      <SetupLayout
+        title="选择智能体"
+        description="检测到系统中已有智能体（通常由 openclaw onboard 创建）。选择一个作为当前引导流程的主智能体，或跳过此步骤。"
+        stepLabel="智能体配置"
+        footer={
+          <div className="flex flex-wrap items-center gap-3">
+            <AppButton
+              variant="secondary"
+              onClick={handleSkip}
+              disabled={buttonsDisabled}
+              icon={<SkipForward size={14} />}
+            >
+              跳过
+            </AppButton>
+            <AppButton
+              variant="primary"
+              onClick={() => void handleUseExistingAgent()}
+              disabled={buttonsDisabled || !selectedAgentId}
+              icon={<CheckCircle2 size={15} />}
+            >
+              使用此智能体
+            </AppButton>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          {/* agent 列表 */}
+          {existingAgents.map((agent) => (
+            <button
+              key={agent.id}
+              type="button"
+              onClick={() => setSelectedAgentId(agent.id)}
+              className="w-full rounded-2xl border px-4 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: 'var(--app-bg)',
+                borderColor: selectedAgentId === agent.id
+                  ? 'var(--app-active-border)'
+                  : 'var(--app-border)',
+                boxShadow: selectedAgentId === agent.id
+                  ? '0 0 0 1px var(--app-active-border)'
+                  : 'none',
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {/* 图标 */}
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+                  style={{
+                    borderColor: selectedAgentId === agent.id
+                      ? 'var(--app-active-border)'
+                      : 'var(--app-border)',
+                    backgroundColor: selectedAgentId === agent.id
+                      ? 'var(--app-active-bg)'
+                      : 'var(--app-bg-elevated, var(--app-bg))',
+                  }}
+                >
+                  <Bot
+                    size={16}
+                    style={{
+                      color: selectedAgentId === agent.id
+                        ? 'var(--app-active-text)'
+                        : 'var(--app-text-muted)',
+                    }}
+                  />
+                </div>
+                {/* 信息 */}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{agent.name}</div>
+                  <div className="mt-0.5 truncate text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {agent.model ? `模型: ${agent.model}` : '使用系统默认模型'}
+                    {agent.workspace ? ` · ${agent.workspace}` : ''}
+                  </div>
+                </div>
+                {/* 选中标记 */}
+                {selectedAgentId === agent.id && (
+                  <CheckCircle2 size={16} style={{ color: 'var(--app-active-text)', flexShrink: 0 }} />
+                )}
+              </div>
+            </button>
+          ))}
+
+          {/* 提示：如需创建新 agent，可稍后在智能体页面操作 */}
+          <p className="pt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            如需创建额外的智能体，可在引导完成后前往「智能体」页面操作。
+          </p>
+        </div>
+      </SetupLayout>
+    );
+  }
+
+  // ── 创建模式：展示创建表单 ────────────────────────────────────────────────
   return (
     <SetupLayout
       title="创建第一个智能体"
-      description="创建你的第一个 AI 智能体，开始使用 OpenClaw 系统。你也可以跳过此步骤，稍后在智能体页面创建。"
-      stepLabel="创建 Agent"
+      description="系统中尚未检测到智能体。创建你的第一个 AI 智能体，或跳过此步骤稍后在智能体页面创建。"
+      stepLabel="智能体配置"
       footer={
         <div className="flex flex-wrap items-center gap-3">
           <AppButton
@@ -303,9 +370,8 @@ export const SetupCreateAgentPage: React.FC = () => {
         </div>
       }
     >
-      {/* 表单区域 */}
       <div className="space-y-5">
-        {/* Agent 名称输入 */}
+        {/* 智能体名称 */}
         <div>
           <label
             htmlFor="agent-name"
@@ -320,10 +386,7 @@ export const SetupCreateAgentPage: React.FC = () => {
             value={name}
             onChange={(e) => {
               setName(e.target.value);
-              // 清除名称相关错误
-              if (errors.name) {
-                setErrors((prev) => ({ ...prev, name: '' }));
-              }
+              if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
             }}
             placeholder="例如：my-assistant"
             className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
@@ -334,16 +397,14 @@ export const SetupCreateAgentPage: React.FC = () => {
             }}
           />
           {errors.name && (
-            <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>
-              {errors.name}
-            </p>
+            <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>{errors.name}</p>
           )}
           <p className="mt-1.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
             仅允许 ASCII 字母、数字、连字符（-）和下划线（_）
           </p>
         </div>
 
-        {/* 工作区路径输入 */}
+        {/* 工作区路径 */}
         <div>
           <label
             htmlFor="agent-workspace"
@@ -357,11 +418,9 @@ export const SetupCreateAgentPage: React.FC = () => {
             type="text"
             value={workspace}
             onChange={(e) => {
-              handleWorkspaceChange(e.target.value);
-              // 清除工作区相关错误
-              if (errors.workspace) {
-                setErrors((prev) => ({ ...prev, workspace: '' }));
-              }
+              setWorkspace(e.target.value);
+              setWorkspaceManuallyEdited(true);
+              if (errors.workspace) setErrors((prev) => ({ ...prev, workspace: '' }));
             }}
             placeholder="例如：~/.openclaw/workspace-my-assistant"
             className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
@@ -372,60 +431,14 @@ export const SetupCreateAgentPage: React.FC = () => {
             }}
           />
           {errors.workspace && (
-            <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>
-              {errors.workspace}
-            </p>
+            <p className="mt-1.5 text-xs" style={{ color: '#ef4444' }}>{errors.workspace}</p>
           )}
           <p className="mt-1.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
             智能体的工作目录，根据名称自动生成，可手动修改
           </p>
         </div>
 
-        {/* 复制已有 agent 下拉选择器 */}
-        {/* @see 需求 2.5 — 提供"复制已有 agent 配置"选项，自动填充模型配置 */}
-        {existingAgents.length > 0 && (
-          <div>
-            <label
-              htmlFor="copy-from-agent"
-              className="mb-1.5 flex items-center gap-1.5 text-sm font-medium"
-              style={{ color: 'var(--app-text)' }}
-            >
-              <Copy size={14} style={{ color: 'var(--app-text-muted)' }} />
-              复制已有智能体配置 <span style={{ color: 'var(--app-text-muted)' }}>（可选）</span>
-            </label>
-            <select
-              id="copy-from-agent"
-              value={copyFromAgentId}
-              onChange={(e) => handleCopyFromAgentChange(e.target.value)}
-              className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2 cursor-pointer"
-              style={{
-                backgroundColor: 'var(--app-bg)',
-                borderColor: 'var(--app-border)',
-                color: 'var(--app-text)',
-              }}
-            >
-              <option value="">不复制（从零创建）</option>
-              {existingAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}{agent.model ? ` — 模型: ${agent.model}` : ''}
-                </option>
-              ))}
-            </select>
-            {/* 复制成功提示 */}
-            {modelCopiedFromAgent && (
-              <p className="mt-1.5 text-xs" style={{ color: 'var(--app-accent, #3b82f6)' }}>
-                已从已有智能体复制模型配置
-              </p>
-            )}
-            {!modelCopiedFromAgent && (
-              <p className="mt-1.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                选择一个已有智能体，自动填充其模型配置
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* 模型选择下拉框 */}
+        {/* 模型选择 */}
         <div>
           <label
             htmlFor="agent-model"
@@ -438,7 +451,7 @@ export const SetupCreateAgentPage: React.FC = () => {
             id="agent-model"
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2 cursor-pointer"
+            className="w-full cursor-pointer rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: 'var(--app-border)',
@@ -447,13 +460,11 @@ export const SetupCreateAgentPage: React.FC = () => {
           >
             <option value="">使用系统默认模型</option>
             {availableModels.map((model) => (
-              <option key={model} value={model}>
-                {model}
-              </option>
+              <option key={model} value={model}>{model}</option>
             ))}
           </select>
           <p className="mt-1.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-            选择智能体使用的 AI 模型，留空则使用系统默认配置
+            留空则使用系统默认配置
           </p>
         </div>
 

@@ -185,9 +185,12 @@ export function getChannelGuide(channelKey: string): ChannelGuide | undefined {
 /** accountId 格式校验正则：仅允许 ASCII 字母、数字、连字符、下划线 */
 const ACCOUNT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
+/** accountId 最大长度（作为 JSON key 使用，保持简短） */
+export const ACCOUNT_ID_MAX_LENGTH = 32;
+
 /**
  * 校验 accountId 的合法性
- * 规则：非空、仅 ASCII 字母/数字/连字符/下划线、同 provider 内唯一
+ * 规则：非空、长度不超过 32、仅 ASCII 字母/数字/连字符/下划线、同 provider 内唯一
  *
  * @param accountId - 待校验的账户 ID
  * @param existingIds - 同一 provider 下已有的 accountId 列表
@@ -199,6 +202,9 @@ export function validateAccountId(
 ): { valid: boolean; error?: string } {
   if (!accountId.trim()) {
     return { valid: false, error: '账户 ID 不能为空' };
+  }
+  if (accountId.length > ACCOUNT_ID_MAX_LENGTH) {
+    return { valid: false, error: `账户 ID 不能超过 ${ACCOUNT_ID_MAX_LENGTH} 个字符` };
   }
   if (!ACCOUNT_ID_PATTERN.test(accountId)) {
     return { valid: false, error: '账户 ID 仅允许 ASCII 字母、数字、连字符和下划线' };

@@ -66,6 +66,49 @@ const GlobalLoading: React.FC<GlobalLoadingProps> = ({
     boxShadow: '0 20px 50px rgba(0,0,0,0.35)',
   };
 
+  /* 旋转光环 SVG（overlay 和内联模式共用） */
+  const spinnerNode = (
+    <div style={{ position: 'relative', width: ring, height: ring }}>
+      <svg
+        width={ring}
+        height={ring}
+        viewBox={`0 0 ${ring} ${ring}`}
+        style={{ animation: 'gl-spin 1.1s linear infinite' }}
+      >
+        {/* 底环 */}
+        <circle
+          cx={ring / 2}
+          cy={ring / 2}
+          r={r}
+          fill="none"
+          stroke="var(--app-border)"
+          strokeWidth={stroke}
+        />
+        {/* 渐变弧 */}
+        <defs>
+          <linearGradient id="gl-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#00B4FF" />
+            <stop offset="100%" stopColor="#00E08E" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx={ring / 2}
+          cy={ring / 2}
+          r={r}
+          fill="none"
+          stroke="url(#gl-grad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          style={{
+            animation: `gl-dash 1.4s ease-in-out infinite`,
+            transformOrigin: 'center',
+          }}
+        />
+      </svg>
+    </div>
+  );
+
   return (
     <div style={wrapperStyle} role="status" aria-live="polite">
       {/* 内嵌关键帧，只渲染一次 */}
@@ -83,80 +126,46 @@ const GlobalLoading: React.FC<GlobalLoadingProps> = ({
         }
       `}</style>
 
-      <div style={overlay ? cardStyle : undefined}>
-        {/* 旋转光环 */}
-        <div style={{ position: 'relative', width: ring, height: ring }}>
-          <svg
-            width={ring}
-            height={ring}
-            viewBox={`0 0 ${ring} ${ring}`}
-            style={{ animation: 'gl-spin 1.1s linear infinite' }}
-          >
-            {/* 底环 */}
-            <circle
-              cx={ring / 2}
-              cy={ring / 2}
-              r={r}
-              fill="none"
-              stroke="var(--app-border)"
-              strokeWidth={stroke}
-            />
-            {/* 渐变弧 */}
-            <defs>
-              <linearGradient id="gl-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#00B4FF" />
-                <stop offset="100%" stopColor="#00E08E" />
-              </linearGradient>
-            </defs>
-            <circle
-              cx={ring / 2}
-              cy={ring / 2}
-              r={r}
-              fill="none"
-              stroke="url(#gl-grad)"
-              strokeWidth={stroke}
-              strokeLinecap="round"
-              strokeDasharray={circumference}
+      {overlay ? (
+        /* ── 遮罩模式：卡片 + 光环 + 文字 ── */
+        <div style={cardStyle}>
+          {spinnerNode}
+          {/* 提示文字 + 跳动圆点（仅 overlay 模式显示） */}
+          {text && (
+            <div
               style={{
-                animation: `gl-dash 1.4s ease-in-out infinite`,
-                transformOrigin: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.375rem',
+                fontSize: size === 'sm' ? '0.75rem' : '0.8125rem',
+                color: 'var(--app-text-muted)',
+                fontFamily: 'var(--font-body)',
+                letterSpacing: '0.01em',
               }}
-            />
-          </svg>
+            >
+              <span>{text}</span>
+              {/* 三个跳动小圆点 */}
+              <span style={{ display: 'inline-flex', gap: `${dot - 1}px`, marginLeft: 2 }}>
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: dot,
+                      height: dot,
+                      borderRadius: '50%',
+                      background: 'var(--app-text-muted)',
+                      animation: `gl-dot-pulse 1.2s ease-in-out ${i * 0.16}s infinite`,
+                    }}
+                  />
+                ))}
+              </span>
+            </div>
+          )}
         </div>
-
-        {/* 提示文字 + 跳动圆点 */}
-        {text && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              fontSize: size === 'sm' ? '0.75rem' : '0.8125rem',
-              color: 'var(--app-text-muted)',
-              fontFamily: 'var(--font-body)',
-              letterSpacing: '0.01em',
-            }}
-          >
-            <span>{text}</span>
-            {/* 三个跳动小圆点 */}
-            <span style={{ display: 'inline-flex', gap: `${dot - 1}px`, marginLeft: 2 }}>
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  style={{
-                    width: dot,
-                    height: dot,
-                    borderRadius: '50%',
-                    background: 'var(--app-text-muted)',
-                    animation: `gl-dot-pulse 1.2s ease-in-out ${i * 0.16}s infinite`,
-                  }}
-                />
-              ))}
-            </span>
-          </div>
-        )}
-      </div>
+      ) : (
+        /* ── 内联模式：只显示旋转光环，无文字 ── */
+        spinnerNode
+      )}
     </div>
   );
 };

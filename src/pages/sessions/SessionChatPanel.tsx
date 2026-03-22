@@ -14,6 +14,7 @@ import {
   User,
   Settings2,
 } from 'lucide-react';
+import AppButton from '../../components/AppButton';
 import type { Session, TranscriptMessage, TFunc } from './types';
 
 interface SessionChatPanelProps {
@@ -87,23 +88,25 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
             </div>
           </div>
         </div>
-        {/* 操作按钮 */}
+        {/* 操作按钮组（iconOnly ghost） */}
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => void onExport(session.id, 'json')} title="Export JSON"
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/5 cursor-pointer"
-            style={{ color: 'var(--app-text-muted)' }}>
-            <Download size={14} />
-          </button>
-          <button onClick={() => navigator.clipboard.writeText(session.key)} title="Copy Key"
-            className="p-1.5 rounded-lg transition-colors hover:bg-white/5 cursor-pointer"
-            style={{ color: 'var(--app-text-muted)' }}>
-            <Copy size={14} />
-          </button>
-          <button onClick={() => void onClose(session.id)} title="Close Session"
-            className="p-1.5 rounded-lg transition-colors hover:bg-red-500/10 cursor-pointer"
-            style={{ color: '#ef4444' }}>
-            <Trash2 size={14} />
-          </button>
+          <AppButton variant="ghost" size="sm" iconOnly
+            icon={<Download size={14} />}
+            onClick={() => void onExport(session.id, 'json')}
+            title="Export JSON"
+          />
+          <AppButton variant="ghost" size="sm" iconOnly
+            icon={<Copy size={14} />}
+            onClick={() => navigator.clipboard.writeText(session.key)}
+            title="Copy Key"
+          />
+          {/* 关闭会话：danger ghost */}
+          <AppButton variant="ghost" size="sm" iconOnly
+            icon={<Trash2 size={14} />}
+            onClick={() => void onClose(session.id)}
+            title="Close Session"
+            style={{ color: '#ef4444' }}
+          />
         </div>
       </div>
 
@@ -172,12 +175,19 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
             disabled={sending}
             className="flex-1 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/40"
             style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }} />
-          <button onClick={onSend} disabled={sending || !newMessage.trim()}
-            className="px-3.5 py-2 rounded-xl transition-all duration-150 cursor-pointer flex items-center gap-1.5 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)', color: 'white', boxShadow: '0 2px 8px rgba(96,165,250,0.25)' }}>
-            <Send size={14} />
-            <span className="text-xs font-medium">{sending ? t('sessions.sending') : t('sessions.send')}</span>
-          </button>
+          {/* 发送按钮：loading 时自动显示 spinner */}
+          <AppButton
+            variant="primary"
+            size="sm"
+            icon={<Send size={14} />}
+            loading={sending}
+            disabled={sending || !newMessage.trim()}
+            onClick={onSend}
+          >
+            <span className="text-xs font-medium">
+              {sending ? t('sessions.sending') : t('sessions.send')}
+            </span>
+          </AppButton>
         </div>
       </div>
     </div>

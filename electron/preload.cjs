@@ -175,6 +175,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
   skillsStats: () => ipcRenderer.invoke('skills:stats'),
   skillsSearch: (query) => ipcRenderer.invoke('skills:search', query),
 
+  // 技能 CRUD（自定义技能创建/读取/保存/删除）
+  skillsCreate: (payload) => ipcRenderer.invoke('skills:create', payload),
+  skillsRead: (skillId) => ipcRenderer.invoke('skills:read', skillId),
+  skillsSave: (skillId, content) => ipcRenderer.invoke('skills:save', skillId, content),
+  skillsDeleteCustom: (skillId) => ipcRenderer.invoke('skills:deleteCustom', skillId),
+
+  // 技能详情/诊断（运行时信息、健康检查、ClawHub 市场搜索）
+  skillsInfo: (skillName) => ipcRenderer.invoke('skills:info', skillName),
+  skillsCheck: () => ipcRenderer.invoke('skills:check'),
+  skillsClawHubSearch: (query) => ipcRenderer.invoke('skills:clawHubSearch', query),
+
+  // 技能配置（读取/保存 openclaw.json 中的技能配置条目）
+  skillsGetConfig: (skillId) => ipcRenderer.invoke('skills:getConfig', skillId),
+  skillsSaveConfig: (skillId, config) => ipcRenderer.invoke('skills:saveConfig', skillId, config),
+
+  // 文件监听（技能目录变更自动感知）
+  skillsStartWatcher: () => ipcRenderer.invoke('skills:startWatcher'),
+  skillsStopWatcher: () => ipcRenderer.invoke('skills:stopWatcher'),
+  onSkillsChanged: (callback) => {
+    const handler = (_event) => callback();
+    ipcRenderer.on('skills:changed', handler);
+    return () => ipcRenderer.removeListener('skills:changed', handler);
+  },
+
+  // 插件管理（列表/安装/卸载/启用/禁用/详情/诊断）
+  pluginsList: () => ipcRenderer.invoke('plugins:list'),
+  pluginsInstall: (spec) => ipcRenderer.invoke('plugins:install', spec),
+  pluginsUninstall: (id) => ipcRenderer.invoke('plugins:uninstall', id),
+  pluginsEnable: (id) => ipcRenderer.invoke('plugins:enable', id),
+  pluginsDisable: (id) => ipcRenderer.invoke('plugins:disable', id),
+  pluginsInspect: (id) => ipcRenderer.invoke('plugins:inspect', id),
+  pluginsDoctor: () => ipcRenderer.invoke('plugins:doctor'),
+
+  // 依赖安装（技能缺失依赖的自动安装）
+  skillsInstallDependency: (payload) => ipcRenderer.invoke('skills:installDependency', payload),
+
   // Approvals — exec approvals 图形化管理
   approvalsGet: (target) => ipcRenderer.invoke('approvals:get', target),
   approvalsAllowlistAdd: (pattern, agent, target) => ipcRenderer.invoke('approvals:allowlist:add', pattern, agent, target),
@@ -195,6 +231,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pairingList: (channel) => ipcRenderer.invoke('channels:pairingList', channel),
   // DM 配对审批：执行 openclaw pairing approve <channel> <code>
   pairingApprove: (channel, code) => ipcRenderer.invoke('channels:pairingApprove', channel, code),
+  // 配对管理配置读取（electron-store 本地持久化，不依赖 OpenClaw schema）
+  pairingConfigGet: () => ipcRenderer.invoke('channels:pairingConfigGet'),
+  // 配对管理配置保存（electron-store 本地持久化，不依赖 OpenClaw schema）
+  pairingConfigSet: (config) => ipcRenderer.invoke('channels:pairingConfigSet', config),
   // 添加渠道到 OpenClaw 系统（执行 openclaw channels add）
   channelsAdd: (channelType, fieldValues) => ipcRenderer.invoke('channels:add', channelType, fieldValues),
 

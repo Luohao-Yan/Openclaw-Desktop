@@ -681,7 +681,7 @@ const SettingsChannels: React.FC = () => {
           <AppButton variant="secondary" onClick={resetDraft}>
             {t('channels.resetDraft')}
           </AppButton>
-          <AppButton variant="primary" onClick={() => void saveConfig()} disabled={isSaving} icon={<Save size={16} />}>
+          <AppButton variant="primary" onClick={() => void saveConfig()} loading={isSaving} icon={<Save size={16} />}>
             {t('channels.saveConfig')}
           </AppButton>
         </div>
@@ -906,8 +906,7 @@ const SettingsChannels: React.FC = () => {
 
       {/* ── 配对管理（PairingManager - Task 26） ────────────────────── */}
       <PairingManager
-        config={draft || {}}
-        onSave={onSaveAdvancedConfig}
+        configuredChannels={configuredChannelTypes}
       />
 
       {/* ── 群消息配置（GroupMessagesConfig - Task 27） ──────────────── */}

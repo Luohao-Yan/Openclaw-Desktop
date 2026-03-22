@@ -183,7 +183,12 @@ const AccountForm: React.FC<{
         <input
           type="text"
           value={account.accountId}
-          onChange={(e) => onAccountIdChange(account.accountId, e.target.value)}
+          onChange={(e) => {
+            // 实时过滤：仅保留 ASCII 字母、数字、连字符、下划线，中文和特殊字符直接丢弃
+            const filtered = e.target.value.replace(/[^a-zA-Z0-9_-]/g, '');
+            onAccountIdChange(account.accountId, filtered);
+          }}
+          maxLength={32}
           placeholder="例如 my-bot（仅允许字母、数字、连字符、下划线）"
           className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
           style={{

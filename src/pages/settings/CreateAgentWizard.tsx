@@ -4,10 +4,12 @@
  * 复用现有 IPC 接口，新增 agents:updateIdentity 用于写入 Identity
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Plus, Check, AlertCircle, Loader2, Copy, FileText, Palette, Smile, Image } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Check, AlertCircle, Loader2, FileText, Palette, Smile, Image } from 'lucide-react';
 import type { AgentInfo } from '../../../types/electron';
 import AppButton from '../../components/AppButton';
+import AppModal from '../../components/AppModal';
 import AppSelect from '../../components/AppSelect';
+import type { TranslationKey } from '../../i18n/I18nContext';
 import { useI18n } from '../../i18n/I18nContext';
 import {
   validateBasicInfo,
@@ -138,7 +140,7 @@ function BasicInfoStep({
   setForm: React.Dispatch<React.SetStateAction<WizardFormData>>;
   errors: Record<string, string>;
   availableModels: { label: string; value: string; description?: string }[];
-  t: (key: string) => string;
+  t: (key: TranslationKey) => string;
 }) {
   return (
     <div className="space-y-4">
@@ -222,7 +224,7 @@ function TemplateStep({
   form: WizardFormData;
   setForm: React.Dispatch<React.SetStateAction<WizardFormData>>;
   agents: AgentInfo[];
-  t: (key: string) => string;
+  t: (key: TranslationKey) => string;
 }) {
   // 源 Agent 的文件存在状态
   const [fileStatus, setFileStatus] = useState<Record<string, boolean>>({});
@@ -360,7 +362,7 @@ function IdentityStep({
 }: {
   form: WizardFormData;
   setForm: React.Dispatch<React.SetStateAction<WizardFormData>>;
-  t: (key: string) => string;
+  t: (key: TranslationKey) => string;
 }) {
   const updateIdentity = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, identity: { ...prev.identity, [field]: value } }));
@@ -454,7 +456,7 @@ function SummaryStep({
 }: {
   form: WizardFormData;
   onGoToStep: (step: number) => void;
-  t: (key: string) => string;
+  t: (key: TranslationKey) => string;
 }) {
   /** 摘要分区卡片 */
   const SectionCard = ({ title, step, children }: { title: string; step: number; children: React.ReactNode }) => (
@@ -555,7 +557,7 @@ const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({ open, onClose, ag
   // 下一步（含校验）
   const handleNext = () => {
     if (currentStep === 0) {
-      const validationErrors = validateBasicInfo({ name: form.name, workspace: form.workspace }, t);
+      const validationErrors = validateBasicInfo({ name: form.name, workspace: form.workspace }, t as (key: string) => string);
       if (Object.keys(validationErrors).length > 0) {
         setErrors(validationErrors);
         return;
@@ -601,9 +603,11 @@ const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({ open, onClose, ag
         setProgress({ stage: 'copying-templates' });
         for (const fileName of form.selectedFiles) {
           try {
-            const readRes = await window.electronAPI.agentsReadWorkspaceFile(form.templateSourceAgentId, fileName);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const readRes = await window.electronAPI.agentsReadWorkspaceFile(form.templateSourceAgentId, fileName as any);
             if (readRes.success && readRes.file?.content) {
-              await window.electronAPI.agentsSaveWorkspaceFile(newAgent.id, fileName, readRes.file.content);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await window.electronAPI.agentsSaveWorkspaceFile(newAgent.id, fileName as any, readRes.file.content);
             } else {
               skippedFiles.push(fileName);
             }
@@ -619,7 +623,8 @@ const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({ open, onClose, ag
       for (const [fileName, content] of Object.entries(DEFAULT_WORKSPACE_TEMPLATES)) {
         if (!copiedFiles.includes(fileName)) {
           try {
-            await window.electronAPI.agentsSaveWorkspaceFile(newAgent.id, fileName, content);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await window.electronAPI.agentsSaveWorkspaceFile(newAgent.id, fileName as any, content);
           } catch {
             // 尽力而为，失败不阻断
           }
@@ -654,70 +659,36 @@ const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({ open, onClose, ag
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3" style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}>
-      <div
-        className="w-full max-w-4xl rounded-3xl border overflow-hidden flex flex-col"
-        style={{
-          backgroundColor: 'var(--app-bg-elevated)',
-          borderColor: 'var(--app-border)',
-          color: 'var(--app-text)',
-          maxHeight: '92vh',
-        }}
-      >
-        {/* 顶部标题栏 */}
-        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--app-border)' }}>
-          <h3 className="text-xl font-semibold">{t('agent.wizard.title')}</h3>
-          <button
-            onClick={handleClose}
-            disabled={isCreating}
-            className="p-1.5 rounded-lg transition-colors"
-            style={{ color: 'var(--app-text-muted)' }}
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* 步骤指示器 */}
-        <WizardStepIndicator currentStep={currentStep} steps={steps} />
-
-        {/* 内容区域（可滚动） */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-5" style={{ minHeight: 0 }}>
-          {/* 创建错误提示 */}
-          {progress?.stage === 'error' && (
-            <div className="mb-4 p-4 border rounded-lg" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)' }}>
-              <div className="flex items-center gap-2 text-red-500">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <span className="text-sm">{progress.error}</span>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 0 && (
-            <BasicInfoStep form={form} setForm={setForm} errors={errors} availableModels={availableModels} t={t} />
-          )}
-          {currentStep === 1 && (
-            <TemplateStep form={form} setForm={setForm} agents={agents} t={t} />
-          )}
-          {currentStep === 2 && (
-            <IdentityStep form={form} setForm={setForm} t={t} />
-          )}
-          {currentStep === 3 && (
-            <SummaryStep form={form} onGoToStep={goToStep} t={t} />
-          )}
-        </div>
-
-        {/* 底部导航栏 */}
-        <div className="px-6 py-4 border-t flex items-center justify-between" style={{ borderColor: 'var(--app-border)' }}>
+    <AppModal
+      open={open}
+      onClose={handleClose}
+      title={t('agent.wizard.title')}
+      icon={<Plus size={20} />}
+      variant="default"
+      size="xl"
+      disableClose={isCreating}
+      /* 底部导航按钮 */
+      footer={
+        <div className="flex items-center justify-between w-full">
           <div>
             {currentStep > 0 && (
-              <AppButton onClick={handlePrev} disabled={isCreating} variant="secondary" icon={<ChevronLeft className="w-4 h-4" />}>
+              <AppButton
+                onClick={handlePrev}
+                disabled={isCreating}
+                variant="secondary"
+                icon={<ChevronLeft className="w-4 h-4" />}
+              >
                 {t('agent.wizard.prev')}
               </AppButton>
             )}
           </div>
           <div>
             {currentStep < steps.length - 1 ? (
-              <AppButton onClick={handleNext} variant="primary" icon={<ChevronRight className="w-4 h-4" />}>
+              <AppButton
+                onClick={handleNext}
+                variant="primary"
+                icon={<ChevronRight className="w-4 h-4" />}
+              >
                 {t('agent.wizard.next')}
               </AppButton>
             ) : (
@@ -725,15 +696,53 @@ const CreateAgentWizard: React.FC<CreateAgentWizardProps> = ({ open, onClose, ag
                 onClick={handleCreate}
                 disabled={isCreating}
                 variant="primary"
-                icon={isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                icon={isCreating
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Plus className="w-4 h-4" />
+                }
               >
                 {isCreating ? t('agent.wizard.creating') : t('agent.wizard.create')}
               </AppButton>
             )}
           </div>
         </div>
+      }
+    >
+      {/* 步骤指示器 */}
+      <WizardStepIndicator currentStep={currentStep} steps={steps} />
+
+      {/* 内容区域（可滚动） */}
+      <div className="overflow-y-auto overflow-x-hidden py-5" style={{ maxHeight: '60vh' }}>
+        {/* 创建错误提示 */}
+        {progress?.stage === 'error' && (
+          <div
+            className="mb-4 p-4 border rounded-lg"
+            style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              borderColor: 'rgba(239, 68, 68, 0.22)',
+            }}
+          >
+            <div className="flex items-center gap-2" style={{ color: '#EF4444' }}>
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span className="text-sm">{progress.error}</span>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 0 && (
+          <BasicInfoStep form={form} setForm={setForm} errors={errors} availableModels={availableModels} t={t} />
+        )}
+        {currentStep === 1 && (
+          <TemplateStep form={form} setForm={setForm} agents={agents} t={t} />
+        )}
+        {currentStep === 2 && (
+          <IdentityStep form={form} setForm={setForm} t={t} />
+        )}
+        {currentStep === 3 && (
+          <SummaryStep form={form} onGoToStep={goToStep} t={t} />
+        )}
       </div>
-    </div>
+    </AppModal>
   );
 };
 

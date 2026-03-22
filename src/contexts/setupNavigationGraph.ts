@@ -123,7 +123,7 @@ export const NAVIGATION_GRAPH: NavigationNode[] = [
     path: '/setup/local/create-agent',
     next: '/setup/local/bind-channels',
     prev: () => '/setup/local/channels',
-    label: '创建 Agent',
+    label: '智能体配置',
   },
   {
     path: '/setup/local/bind-channels',

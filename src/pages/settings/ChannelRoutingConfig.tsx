@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit, Route } from 'lucide-react';
 import AppButton from '../../components/AppButton';
+import AppBadge from '../../components/AppBadge';
 import GlassCard from '../../components/GlassCard';
 import { useI18n } from '../../i18n/I18nContext';
 import {
@@ -211,16 +212,10 @@ const ChannelRoutingConfig: React.FC<ChannelRoutingConfigProps> = ({
                     >
                       {rule.name || '—'}
                     </span>
-                    {/* 匹配条件摘要 */}
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs"
-                      style={{
-                        backgroundColor: 'var(--app-active-bg, rgba(59,130,246,0.1))',
-                        color: 'var(--app-active-text, #3b82f6)',
-                      }}
-                    >
+                    {/* 匹配条件摘要 badge */}
+                    <AppBadge variant="info" size="sm">
                       {getMatchSummary(rule.match)}
-                    </span>
+                    </AppBadge>
                     {/* 目标 Agent */}
                     <span
                       className="text-xs"
@@ -228,16 +223,10 @@ const ChannelRoutingConfig: React.FC<ChannelRoutingConfigProps> = ({
                     >
                       → {getAgentName(rule.agentId)}
                     </span>
-                    {/* 优先级徽章 */}
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs font-medium"
-                      style={{
-                        backgroundColor: 'rgba(168,85,247,0.15)',
-                        color: 'var(--app-text)',
-                      }}
-                    >
+                    {/* 优先级 badge */}
+                    <AppBadge variant="default" size="sm">
                       P{rule.priority}
-                    </span>
+                    </AppBadge>
                   </div>
 
                   {/* 操作按钮区域 */}

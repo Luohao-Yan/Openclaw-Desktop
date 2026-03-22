@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import GlassCard from './GlassCard';
 import GlobalLoading from './GlobalLoading';
+import AppButton from './AppButton';
 import { useI18n } from '../i18n/I18nContext';
 
 interface AgentEnhancement {
@@ -259,37 +260,25 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            {/* 刷新按钮：loading 时自动显示 spinner */}
+            <AppButton
+              variant="secondary"
+              size="sm"
               onClick={handleRefresh}
-              disabled={loading}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text)',
-              }}
-              title={t('agent.enhancement.refreshData')}
+              loading={loading}
+              icon={<RefreshCw className="w-4 h-4" />}
             >
-              <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
               {t('agent.enhancement.refresh')}
-            </button>
-            <button
+            </AppButton>
+            {/* 性能测试按钮 */}
+            <AppButton
+              variant="secondary"
               onClick={runPerformanceTest}
-              disabled={actionLoading['performance-test']}
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text)',
-              }}
+              loading={actionLoading['performance-test']}
+              icon={<BarChart className="w-4 h-4" />}
             >
-              {actionLoading['performance-test'] ? (
-                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <BarChart className="w-4 h-4 mr-2" />
-              )}
               {t('agent.enhancement.performanceTest')}
-            </button>
+            </AppButton>
           </div>
         </div>
 
@@ -407,38 +396,32 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <button
+                    {/* 展开/折叠设置按钮（iconOnly ghost） */}
+                    <AppButton
+                      variant="ghost"
+                      size="sm"
+                      iconOnly
+                      icon={expandedEnhancement === enhancement.id
+                        ? <Minus className="w-4 h-4" />
+                        : <Eye className="w-4 h-4" />}
                       onClick={() => setExpandedEnhancement(expandedEnhancement === enhancement.id ? null : enhancement.id)}
-                      className="p-2 rounded-lg transition-colors"
-                      style={{ color: 'var(--app-text-muted)' }}
-                      title={expandedEnhancement === enhancement.id ? t('agent.enhancement.collapseSettings') : t('agent.enhancement.expandSettings')}
-                    >
-                      {expandedEnhancement === enhancement.id ? (
-                        <Minus className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                    
-                    <button
+                      title={expandedEnhancement === enhancement.id
+                        ? t('agent.enhancement.collapseSettings')
+                        : t('agent.enhancement.expandSettings')}
+                    />
+
+                    {/* 启用/禁用增强按钮 */}
+                    <AppButton
+                      variant={enhancement.enabled ? 'danger' : 'success'}
+                      size="sm"
+                      iconOnly
+                      icon={enhancement.enabled
+                        ? <StopCircle className="w-4 h-4" />
+                        : <Play className="w-4 h-4" />}
+                      loading={!!actionLoading[enhancement.id]}
                       onClick={() => toggleEnhancement(enhancement.id, enhancement.enabled)}
-                      disabled={actionLoading[enhancement.id]}
-                      className="p-2 rounded-lg transition-colors"
-                      style={
-                        enhancement.enabled
-                          ? { backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#EF4444' }
-                          : { backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }
-                      }
                       title={enhancement.enabled ? 'Disable enhancement' : 'Enable enhancement'}
-                    >
-                      {actionLoading[enhancement.id] ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : enhancement.enabled ? (
-                        <StopCircle className="w-4 h-4" />
-                      ) : (
-                        <Play className="w-4 h-4" />
-                      )}
-                    </button>
+                    />
                   </div>
                 </div>
                 
@@ -447,24 +430,18 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
                   <div className="mt-4 p-4 border rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-medium" style={{ color: 'var(--app-text)' }}>{t('agent.enhancement.settings')}</h4>
-                      <button
+                      {/* 保存设置按钮 */}
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        loading={!!actionLoading[`settings-${enhancement.id}`]}
                         onClick={() => {
                           handleSaveSettings(enhancement.id, enhancement.settings);
                           alert(t('common.success'));
                         }}
-                        disabled={actionLoading[`settings-${enhancement.id}`]}
-                        className="text-sm px-3 py-1 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        style={{
-                          backgroundColor: 'var(--app-bg-elevated)',
-                          border: '1px solid var(--app-border)',
-                          color: 'var(--app-text)',
-                        }}
                       >
-                        {actionLoading[`settings-${enhancement.id}`] ? (
-                          <RefreshCw className="w-3 h-3 inline animate-spin mr-1" />
-                        ) : null}
                         {t('agent.enhancement.saveSettings')}
-                      </button>
+                      </AppButton>
                     </div>
                     
                     <div className="space-y-3">

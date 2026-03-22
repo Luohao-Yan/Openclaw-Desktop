@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit, Users } from 'lucide-react';
 import AppButton from '../../components/AppButton';
+import AppBadge from '../../components/AppBadge';
 import GlassCard from '../../components/GlassCard';
 import { useI18n } from '../../i18n/I18nContext';
 import {
@@ -273,16 +274,10 @@ const GroupsManager: React.FC<GroupsManagerProps> = ({
                     >
                       {gid}
                     </span>
-                    {/* 所属渠道 */}
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs"
-                      style={{
-                        backgroundColor: 'var(--app-active-bg, rgba(59,130,246,0.1))',
-                        color: 'var(--app-active-text, #3b82f6)',
-                      }}
-                    >
+                    {/* 所属渠道 badge */}
+                    <AppBadge variant="info" size="sm">
                       {group.channel || '—'}
-                    </span>
+                    </AppBadge>
                     {/* 群组名称 */}
                     {group.name && (
                       <span
@@ -292,24 +287,15 @@ const GroupsManager: React.FC<GroupsManagerProps> = ({
                         {group.name}
                       </span>
                     )}
-                    {/* 启用状态徽章 */}
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs"
-                      style={{
-                        backgroundColor:
-                          group.enabled !== false
-                            ? 'rgba(34,197,94,0.15)'
-                            : 'rgba(156,163,175,0.15)',
-                        color:
-                          group.enabled !== false
-                            ? 'var(--app-success, #22c55e)'
-                            : 'var(--app-text-muted)',
-                      }}
+                    {/* 启用状态 badge */}
+                    <AppBadge
+                      variant={group.enabled !== false ? 'success' : 'neutral'}
+                      size="sm"
                     >
                       {group.enabled !== false
                         ? t('channels.channelEnabled' as any)
                         : t('channels.channelDisabled' as any)}
-                    </span>
+                    </AppBadge>
                   </div>
 
                   {/* 操作按钮区域 */}

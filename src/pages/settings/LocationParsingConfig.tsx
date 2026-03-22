@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit, MapPin } from 'lucide-react';
 import AppButton from '../../components/AppButton';
+import AppBadge from '../../components/AppBadge';
 import GlassCard from '../../components/GlassCard';
 import { useI18n } from '../../i18n/I18nContext';
 import {
@@ -287,16 +288,10 @@ const LocationParsingConfig: React.FC<LocationParsingConfigProps> = ({
                     >
                       {channelType}
                     </span>
-                    {/* 解析模式徽章 */}
-                    <span
-                      className="rounded-full px-2 py-0.5 text-xs"
-                      style={{
-                        backgroundColor: 'var(--app-active-bg, rgba(59,130,246,0.1))',
-                        color: 'var(--app-active-text, #3b82f6)',
-                      }}
-                    >
+                    {/* 解析模式 badge */}
+                    <AppBadge variant="info" size="sm">
                       {getModeLabel(rule.mode)}
-                    </span>
+                    </AppBadge>
                     {/* 规则摘要 */}
                     <span
                       className="text-xs font-mono"

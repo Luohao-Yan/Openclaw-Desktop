@@ -3,8 +3,8 @@
  * 管理 DM 配对审批和节点配对列表
  * - DM 配对审批：自动加载待审批请求，卡片式展示，一键批准
  * - 手动输入配对码审批（折叠区域）
- * - DM 策略选择器
- * - 节点配对列表
+ * - DM 策略选择器（持久化到 electron-store，不写入 OpenClaw 配置文件）
+ * - 节点配对列表（持久化到 electron-store，不写入 OpenClaw 配置文件）
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -12,7 +12,6 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Loader2,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -21,13 +20,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import AppButton from '../../components/AppButton';
+import AppBadge from '../../components/AppBadge';
 import GlassCard from '../../components/GlassCard';
 import { useI18n } from '../../i18n/I18nContext';
-import {
-  updatePairingDmPolicy,
-  addPairingNode,
-  deletePairingNode,
-} from '../../utils/channelOps';
 import type { PairingNode } from '../../utils/channelOps';
 
 // ============================================================
@@ -35,8 +30,8 @@ import type { PairingNode } from '../../utils/channelOps';
 // ============================================================
 
 interface PairingManagerProps {
-  config: any;
-  onSave: (updatedConfig: any) => Promise<void>;
+  /** 已配置的渠道列表（用于渠道切换下拉框） */
+  configuredChannels?: string[];
 }
 
 /** 待审批配对请求 */
@@ -76,7 +71,7 @@ const POLICY_OPTIONS: PolicyOption[] = [
 // 组件
 // ============================================================
 
-const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
+const PairingManager: React.FC<PairingManagerProps> = ({ configuredChannels: externalChannels }) => {
   const { t } = useI18n();
 
   // ── 状态 ──────────────────────────────────────────────────
@@ -88,6 +83,11 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualCode, setManualCode] = useState('');
 
+  // 配对配置（从 electron-store 读取，独立于 OpenClaw 配置文件）
+  const [currentPolicy, setCurrentPolicy] = useState<DmPolicyValue>('manual');
+  const [nodes, setNodes] = useState<PairingNode[]>([]);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
   // 节点管理
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNodeId, setNewNodeId] = useState('');
@@ -97,13 +97,41 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
   // 自动刷新定时器
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── 配置数据 ──────────────────────────────────────────────
-  const pairing = (config as any)?.pairing || {};
-  const currentPolicy: DmPolicyValue = pairing.dm?.policy || 'manual';
-  const nodes: PairingNode[] = pairing.nodes || [];
-  const configuredChannels = Object.keys(config?.channels || {}).filter(
-    (ch) => PAIRING_CHANNELS.includes(ch),
-  );
+  // 可用渠道列表（优先使用外部传入的已配置渠道）
+  const availableChannels = (externalChannels && externalChannels.length > 0)
+    ? externalChannels
+    : PAIRING_CHANNELS;
+
+  // ── 从 electron-store 加载配对配置 ───────────────────────
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const result = await window.electronAPI.pairingConfigGet();
+        if (result.success && result.config) {
+          const cfg = result.config as any;
+          setCurrentPolicy(cfg?.dm?.policy || 'manual');
+          setNodes(Array.isArray(cfg?.nodes) ? cfg.nodes : []);
+        }
+      } catch {
+        // 读取失败时使用默认值
+      } finally {
+        setConfigLoaded(true);
+      }
+    };
+    void loadConfig();
+  }, []);
+
+  // ── 保存配对配置到 electron-store ────────────────────────
+  const savePairingConfig = useCallback(async (policy: DmPolicyValue, nodeList: PairingNode[]) => {
+    try {
+      await window.electronAPI.pairingConfigSet({
+        dm: { policy },
+        nodes: nodeList,
+      });
+    } catch {
+      // 保存失败静默处理，不影响 UI 交互
+    }
+  }, []);
 
   // ── 加载待审批请求 ────────────────────────────────────────
   const loadPendingRequests = useCallback(async () => {
@@ -158,22 +186,27 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
     }
   };
 
-  // ── DM 策略变更 ──────────────────────────────────────────
+  // ── DM 策略变更（直接写入 electron-store） ───────────────
   const handlePolicyChange = async (policy: DmPolicyValue) => {
-    const updated = updatePairingDmPolicy(config, policy);
-    await onSave(updated);
+    setCurrentPolicy(policy);
+    await savePairingConfig(policy, nodes);
   };
 
-  // ── 节点操作 ──────────────────────────────────────────────
+  // ── 节点操作（直接写入 electron-store） ──────────────────
   const handleAddNode = async () => {
     const trimmedId = newNodeId.trim();
     if (!trimmedId) return;
     const node: PairingNode = { id: trimmedId, name: newNodeName.trim() || undefined, status: 'active' };
-    await onSave(addPairingNode(config, node));
+    const nextNodes = [...nodes, node];
+    setNodes(nextNodes);
+    await savePairingConfig(currentPolicy, nextNodes);
     setNewNodeId(''); setNewNodeName(''); setShowAddForm(false);
   };
+
   const handleDeleteNode = async (nodeId: string) => {
-    await onSave(deletePairingNode(config, nodeId));
+    const nextNodes = nodes.filter((n) => n.id !== nodeId);
+    setNodes(nextNodes);
+    await savePairingConfig(currentPolicy, nextNodes);
     setConfirmDeleteId(null);
   };
 
@@ -205,7 +238,7 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
           className="rounded-xl px-3 py-2 text-sm outline-none"
           style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
         >
-          {(configuredChannels.length > 0 ? configuredChannels : PAIRING_CHANNELS).map((ch) => (
+          {availableChannels.map((ch) => (
             <option key={ch} value={ch}>{ch}</option>
           ))}
         </select>
@@ -227,12 +260,13 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
               </span>
             )}
           </div>
+          {/* 刷新待审批列表：loading 时自动显示 spinner */}
           <AppButton
             size="xs"
             variant="secondary"
-            icon={<RefreshCw className={`h-3.5 w-3.5 ${loadingPending ? 'animate-spin' : ''}`} />}
+            icon={<RefreshCw className="h-3.5 w-3.5" />}
             onClick={() => void loadPendingRequests()}
-            disabled={loadingPending}
+            loading={loadingPending}
           >
             {t('channels.pairingRefresh' as any)}
           </AppButton>
@@ -316,12 +350,13 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
                     </div>
                   </div>
 
-                  {/* 右侧审批按钮 */}
+                  {/* 审批按钮：loading 时自动显示 spinner */}
                   <AppButton
                     size="sm"
                     variant="primary"
-                    icon={isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    icon={<CheckCircle className="h-4 w-4" />}
                     onClick={() => void handleApprove(req.code)}
+                    loading={isApproving}
                     disabled={isApproving || isExpired}
                   >
                     {isApproving ? t('channels.pairingApproving' as any) : t('channels.pairingApproveBtn' as any)}
@@ -372,7 +407,11 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
         <label className="mb-3 block text-sm font-medium" style={{ color: 'var(--app-text)' }}>
           {t('channels.pairingDmPolicy' as any)}
         </label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {/* configLoaded 为 false 时显示骨架，避免策略选中状态闪烁 */}
+        {!configLoaded ? (
+          <div className="h-16 animate-pulse rounded-xl" style={{ backgroundColor: 'var(--app-bg-subtle)' }} />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {POLICY_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -403,6 +442,7 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* ── 节点配对列表 ──────────────────────────────────── */}
@@ -466,15 +506,13 @@ const PairingManager: React.FC<PairingManagerProps> = ({ config, onSave }) => {
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{node.id}</span>
                   {node.name && <span className="text-sm" style={{ color: 'var(--app-text-muted)' }}>{node.name}</span>}
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs"
-                    style={{
-                      backgroundColor: node.status === 'active' ? 'rgba(34,197,94,0.15)' : 'rgba(156,163,175,0.15)',
-                      color: node.status === 'active' ? 'var(--app-success, #22c55e)' : 'var(--app-text-muted)',
-                    }}
+                  {/* 节点状态 badge */}
+                  <AppBadge
+                    variant={node.status === 'active' ? 'success' : 'neutral'}
+                    size="sm"
                   >
                     {node.status || 'active'}
-                  </span>
+                  </AppBadge>
                 </div>
                 {confirmDeleteId === node.id ? (
                   <div className="flex items-center gap-2">

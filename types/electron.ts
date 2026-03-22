@@ -354,6 +354,10 @@ export interface ChannelsActions {
   }>;
   /** 审批指定渠道的 DM 配对请求（执行 openclaw pairing approve <channel> <code>） */
   pairingApprove(channel: string, code: string): Promise<ChannelsCommandResult>;
+  /** 读取本地持久化的配对管理配置（electron-store，不依赖 OpenClaw schema） */
+  pairingConfigGet(): Promise<{ success: boolean; config?: Record<string, unknown>; error?: string }>;
+  /** 保存配对管理配置到本地持久化存储（electron-store，不依赖 OpenClaw schema） */
+  pairingConfigSet(config: Record<string, unknown>): Promise<{ success: boolean; error?: string }>;
   /** 添加渠道到 OpenClaw 系统（执行 openclaw channels add） */
   channelsAdd(channelType: string, fieldValues: Record<string, string>): Promise<ChannelsCommandResult>;
 }
@@ -756,22 +760,132 @@ export interface InstancesActions {
 }
 
 export interface SkillInfo {
+  /** 技能唯一标识（通常为 kebab-case 名称） */
+  id: string;
+  /** 技能显示名称 */
+  name: string;
+  /** 技能描述 */
+  description: string;
+  /** 版本号 */
+  version: string;
+  /** 作者 */
+  author: string;
+  /** 分类 */
+  category: string;
+  /** 技能状态 */
+  status: 'installed' | 'available' | 'updatable' | 'error';
+  /** 安装时间 */
+  installedAt?: string;
+  /** 更新时间 */
+  updatedAt?: string;
+  /** 文件大小 */
+  size?: number;
+  /** 依赖列表 */
+  dependencies?: string[];
+  /** 评分 */
+  rating?: number;
+  /** 下载数 */
+  downloads?: number;
+  /** 是否启用 */
+  enabled: boolean;
+  /** 技能目录路径 */
+  path?: string;
+  /** 是否满足安装条件 */
+  eligible?: boolean;
+  /** 缺失的依赖项 */
+  missingRequirements?: string[];
+
+  // ── 新增字段（需求 9.4）──
+  /** 技能来源 */
+  source?: 'custom' | 'clawhub' | 'bundled' | 'plugin';
+  /** Emoji 图标 */
+  emoji?: string;
+  /** 依赖声明 */
+  requires?: {
+    bins?: string[];
+    env?: string[];
+    config?: string[];
+  };
+  /** 是否为自定义技能 */
+  isCustom?: boolean;
+}
+
+// ── SKILL.md 结构化数据（需求 10）──────────────────────────────────────────────
+
+/** SKILL.md 结构化数据 */
+export interface SkillMdData {
+  frontmatter: {
+    name: string;
+    description: string;
+    metadata?: {
+      openclaw?: {
+        emoji?: string;
+        homepage?: string;
+        requires?: { bins?: string[]; env?: string[]; config?: string[] };
+        primaryEnv?: string;
+        install?: Array<{
+          id: string;
+          kind: string;
+          formula?: string;
+          bins?: string[];
+          label?: string;
+        }>;
+        always?: boolean;
+        os?: string[];
+      };
+    };
+    'user-invocable'?: boolean;
+    'disable-model-invocation'?: boolean;
+    'command-dispatch'?: string;
+    'command-tool'?: string;
+    'command-arg-mode'?: string;
+  };
+  /** key 为章节标题（如 "Instructions"、"Rules"），value 为 Markdown 内容 */
+  sections: Record<string, string>;
+}
+
+/** SKILL.md 解析结果：成功或失败的判别联合类型 */
+export type ParseResult =
+  | { ok: true; data: SkillMdData }
+  | { ok: false; error: string };
+
+/** 技能运行时配置条目，对应 openclaw.json 中 skills.entries.<id> */
+export interface SkillEntryConfig {
+  enabled?: boolean;
+  apiKey?: string | { source: string; provider: string; id: string };
+  env?: Record<string, string>;
+  config?: Record<string, unknown>;
+}
+
+// ── 插件信息（需求 8）──────────────────────────────────────────────────────────
+
+/** 插件信息 */
+export interface PluginInfo {
   id: string;
   name: string;
-  description: string;
   version: string;
-  author: string;
-  category: string;
-  status: 'installed' | 'available' | 'updatable' | 'error';
-  installedAt?: string;
-  updatedAt?: string;
-  size?: number;
-  dependencies?: string[];
-  rating?: number;
-  downloads?: number;
-  enabled: boolean;
+  status: 'enabled' | 'disabled' | 'error';
+  description?: string;
   path?: string;
+  skills?: string[];
 }
+
+// ── 技能诊断报告（需求 7）──────────────────────────────────────────────────────
+
+/** 技能诊断条目 */
+export interface SkillDiagnosticItem {
+  skillName: string;
+  status: 'ok' | 'warning' | 'error';
+  issues: string[];
+}
+
+/** 技能诊断报告 */
+export interface SkillDiagnosticReport {
+  items: SkillDiagnosticItem[];
+  summary: { ok: number; warning: number; error: number };
+}
+
+// ── 技能操作接口 ──────────────────────────────────────────────────────────────
 
 export interface SkillsActions {
   skillsGetAll(): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }>;
@@ -792,6 +906,53 @@ export interface SkillsActions {
     error?: string 
   }>;
   skillsSearch(query: string): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }>;
+
+  // ── 新增方法签名（需求 9.1, 9.4）──
+  /** 创建自定义技能 */
+  skillsCreate(payload: { name: string; description: string; emoji?: string; content?: string }): Promise<{ success: boolean; skillId?: string; error?: string }>;
+  /** 读取技能 SKILL.md 原始内容 */
+  skillsRead(skillId: string): Promise<{ success: boolean; content?: string; error?: string }>;
+  /** 保存技能 SKILL.md 内容 */
+  skillsSave(skillId: string, content: string): Promise<{ success: boolean; error?: string }>;
+  /** 删除自定义技能 */
+  skillsDeleteCustom(skillId: string): Promise<{ success: boolean; error?: string }>;
+  /** 获取技能运行时详情 */
+  skillsInfo(skillName: string): Promise<{ success: boolean; info?: Record<string, unknown>; error?: string }>;
+  /** 执行全局技能健康检查 */
+  skillsCheck(): Promise<{ success: boolean; report?: SkillDiagnosticReport; error?: string }>;
+  /** ClawHub 市场搜索 */
+  skillsClawHubSearch(query: string): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }>;
+  /** 读取技能配置 */
+  skillsGetConfig(skillId: string): Promise<{ success: boolean; config?: SkillEntryConfig; error?: string }>;
+  /** 保存技能配置 */
+  skillsSaveConfig(skillId: string, config: SkillEntryConfig): Promise<{ success: boolean; error?: string }>;
+  /** 启动文件监听 */
+  skillsStartWatcher(): Promise<{ success: boolean }>;
+  /** 停止文件监听 */
+  skillsStopWatcher(): Promise<{ success: boolean }>;
+  /** 监听技能文件变更事件，返回取消订阅函数 */
+  onSkillsChanged(callback: () => void): () => void;
+}
+
+// ── 插件管理操作接口（需求 8.1-8.6）──────────────────────────────────────────
+
+export interface PluginsActions {
+  /** 获取插件列表 */
+  pluginsList(): Promise<{ success: boolean; plugins?: PluginInfo[]; error?: string }>;
+  /** 安装插件 */
+  pluginsInstall(spec: string): Promise<{ success: boolean; error?: string }>;
+  /** 卸载插件 */
+  pluginsUninstall(id: string): Promise<{ success: boolean; error?: string }>;
+  /** 启用插件 */
+  pluginsEnable(id: string): Promise<{ success: boolean; error?: string }>;
+  /** 禁用插件 */
+  pluginsDisable(id: string): Promise<{ success: boolean; error?: string }>;
+  /** 查看插件详情 */
+  pluginsInspect(id: string): Promise<{ success: boolean; detail?: Record<string, unknown>; error?: string }>;
+  /** 插件诊断 */
+  pluginsDoctor(): Promise<{ success: boolean; report?: Record<string, unknown>; error?: string }>;
+  /** 执行依赖安装命令 */
+  skillsInstallDependency(payload: { command: string; args: string[] }): Promise<{ success: boolean; output?: string; error?: string }>;
 }
 
 export interface FileActions {
@@ -1136,6 +1297,7 @@ export interface ElectronAPI extends
   SessionsActions, 
   InstancesActions, 
   SkillsActions,
+  PluginsActions,
   FileActions,
   MainActions,
   ModelsActions,

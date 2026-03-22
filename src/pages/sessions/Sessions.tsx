@@ -16,6 +16,8 @@ import {
   Database,
 } from 'lucide-react';
 import { useI18n } from '../../i18n/I18nContext';
+import GlobalLoading from '../../components/GlobalLoading';
+import AppButton from '../../components/AppButton';
 import type { Session, SessionStats, TranscriptMessage } from './types';
 import SessionList from './SessionList';
 import SessionChatPanel from './SessionChatPanel';
@@ -213,10 +215,7 @@ const Sessions: React.FC = () => {
   if (loading && sessions.length === 0 && !error) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mb-4" />
-          <p style={{ color: 'var(--app-text-muted)' }}>{t('sessions.loadingText')}</p>
-        </div>
+        <GlobalLoading visible overlay={false} size="md" />
       </div>
     );
   }
@@ -225,65 +224,89 @@ const Sessions: React.FC = () => {
   return (
     <div className="absolute inset-0 flex flex-col overflow-hidden p-4 gap-3">
 
-      {/* ═══ 第一行：标题 + 内联统计指标 + 操作按钮 ═══ */}
-      <div className="flex items-center gap-4 shrink-0">
-        {/* 标题区 */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)' }}>
-            <MessageSquare size={18} style={{ color: 'white' }} />
+      {/* ═══ 第一行：渐变标题卡片（绿/蓝色调） ═══ */}
+      <div
+        className="relative rounded-[20px] px-5 py-4 shrink-0 overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.14) 0%, rgba(52, 211, 153, 0.10) 50%, rgba(255, 255, 255, 0.02) 100%)',
+          backdropFilter: 'blur(18px)',
+        }}
+      >
+        {/* 装饰光晕 */}
+        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(96, 165, 250, 0.18)' }} />
+        <div className="pointer-events-none absolute bottom-0 right-16 h-24 w-24 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(52, 211, 153, 0.14)' }} />
+
+        <div className="relative flex items-center gap-4">
+          {/* 标题区 */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="h-9 w-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)' }}>
+              <MessageSquare size={18} style={{ color: 'white' }} />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
+                {t('sessions.title')}
+              </h1>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
-              {t('sessions.title')}
-            </h1>
+
+          {/* 分隔线 */}
+          <div className="h-6 w-px shrink-0" style={{ backgroundColor: 'var(--app-border)' }} />
+
+          {/* 内联统计指标 pill 组 */}
+          <div className="flex items-center gap-2 shrink-0">
+            {metrics.map((m) => {
+              const Icon = m.icon;
+              return (
+                <div key={m.label}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
+                  style={{ backgroundColor: `${m.color}12`, border: `1px solid ${m.color}20` }}
+                  title={m.label}>
+                  <Icon size={13} style={{ color: m.color }} />
+                  <span className="font-semibold tabular-nums" style={{ color: m.color }}>{m.value}</span>
+                  <span className="hidden xl:inline" style={{ color: 'var(--app-text-muted)' }}>{m.label}</span>
+                </div>
+              );
+            })}
           </div>
-        </div>
 
-        {/* 分隔线 */}
-        <div className="h-6 w-px shrink-0" style={{ backgroundColor: 'var(--app-border)' }} />
+          {/* 弹性间距 */}
+          <div className="flex-1" />
 
-        {/* 内联统计指标 pill 组 */}
-        <div className="flex items-center gap-2 shrink-0">
-          {metrics.map((m) => {
-            const Icon = m.icon;
-            return (
-              <div key={m.label}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs"
-                style={{ backgroundColor: `${m.color}12`, border: `1px solid ${m.color}20` }}
-                title={m.label}>
-                <Icon size={13} style={{ color: m.color }} />
-                <span className="font-semibold tabular-nums" style={{ color: m.color }}>{m.value}</span>
-                <span className="hidden xl:inline" style={{ color: 'var(--app-text-muted)' }}>{m.label}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 弹性间距 */}
-        <div className="flex-1" />
-
-        {/* 操作按钮组 */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={() => void handleCleanup(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95"
-            style={{ backgroundColor: 'var(--app-bg-elevated)', color: 'var(--app-text-muted)', border: '1px solid var(--app-border)' }}
-            title={t('sessions.cleanup')}>
-            <Wrench size={14} />
-            <span className="hidden lg:inline">{t('sessions.cleanup')}</span>
-          </button>
-          <button onClick={() => void loadSessions()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95"
-            style={{ backgroundColor: 'var(--app-bg-elevated)', color: 'var(--app-text-muted)', border: '1px solid var(--app-border)' }}>
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            <span className="hidden lg:inline">{loading ? t('sessions.loading') : t('sessions.refresh')}</span>
-          </button>
-          <button onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)', color: 'white', boxShadow: '0 2px 8px rgba(96,165,250,0.3)' }}>
-            <Plus size={14} />
-            <span>{t('sessions.createNew')}</span>
-          </button>
+          {/* 操作按钮组 */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* 清理按钮 */}
+            <AppButton
+              variant="secondary"
+              size="xs"
+              icon={<Wrench size={14} />}
+              onClick={() => void handleCleanup(true)}
+              title={t('sessions.cleanup')}
+            >
+              <span className="hidden lg:inline">{t('sessions.cleanup')}</span>
+            </AppButton>
+            {/* 刷新按钮：loading 时自动显示 spinner */}
+            <AppButton
+              variant="secondary"
+              size="xs"
+              icon={<RefreshCw size={14} />}
+              loading={loading}
+              onClick={() => void loadSessions()}
+            >
+              <span className="hidden lg:inline">
+                {loading ? t('sessions.loading') : t('sessions.refresh')}
+              </span>
+            </AppButton>
+            {/* 新建会话按钮 */}
+            <AppButton
+              variant="primary"
+              size="xs"
+              icon={<Plus size={14} />}
+              onClick={() => setShowCreateModal(true)}
+            >
+              {t('sessions.createNew')}
+            </AppButton>
+          </div>
         </div>
       </div>
 
@@ -320,9 +343,15 @@ const Sessions: React.FC = () => {
         <div className="shrink-0 p-3 rounded-xl border" style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
           <div className="flex justify-between items-center mb-1.5">
             <span className="text-xs font-medium" style={{ color: 'var(--app-text)' }}>{t('sessions.cleanupResult')}</span>
-            <button onClick={() => setCleanupResult(null)} className="p-0.5 rounded hover:bg-red-500/20 cursor-pointer" style={{ color: '#ef4444' }}>
-              <X size={13} />
-            </button>
+            {/* 关闭清理结果条（iconOnly ghost） */}
+            <AppButton
+              variant="ghost"
+              size="xs"
+              iconOnly
+              icon={<X size={13} />}
+              onClick={() => setCleanupResult(null)}
+              style={{ color: '#ef4444' }}
+            />
           </div>
           <pre className="text-[11px] whitespace-pre-wrap overflow-auto max-h-28 leading-relaxed" style={{ color: 'var(--app-text-muted)' }}>{cleanupResult}</pre>
         </div>

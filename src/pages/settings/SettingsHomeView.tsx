@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronRight, Search, Sparkles } from 'lucide-react';
 import AppIconButton from '../../components/AppIconButton';
+import AppBadge from '../../components/AppBadge';
 import GlassCard from '../../components/GlassCard';
 import { sectionAccentMap } from './constants';
 import type { SettingsSection } from './types';
@@ -56,17 +57,14 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
         <div className="relative flex flex-col gap-5">
           <div className="flex items-start justify-between gap-4">
             <div className="max-w-2xl">
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium"
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  color: 'var(--app-text)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
+              {/* 页面标题 badge */}
+              <AppBadge
+                variant="neutral"
+                icon={<Sparkles size={13} />}
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.08)' }}
               >
-                <Sparkles size={14} />
                 Personalize your OpenClaw experience
-              </div>
+              </AppBadge>
 
               <h1
                 className="mt-2 text-3xl font-semibold leading-tight"
@@ -131,45 +129,31 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap gap-2.5 text-sm">
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                color: 'var(--app-text)',
-                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
-                backdropFilter: 'blur(10px)',
-              }}
+          {/* 统计指标 badge 组 */}
+          <div className="mt-2 flex flex-wrap gap-2.5">
+            <AppBadge
+              variant="neutral"
+              style={{ backgroundColor: 'var(--app-bg-elevated)', backdropFilter: 'blur(10px)' }}
             >
               <span style={{ color: 'var(--app-text-muted)' }}>分类</span>
-              <span className="font-semibold">{sections.length}</span>
-            </div>
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                color: 'var(--app-text)',
-                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
-                backdropFilter: 'blur(10px)',
-              }}
+              <span className="font-semibold ml-1">{sections.length}</span>
+            </AppBadge>
+            <AppBadge
+              variant="neutral"
+              style={{ backgroundColor: 'var(--app-bg-elevated)', backdropFilter: 'blur(10px)' }}
             >
               <span style={{ color: 'var(--app-text-muted)' }}>结果</span>
-              <span className="font-semibold">{filteredSections.length}</span>
-            </div>
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                color: 'var(--app-text)',
-                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
-                backdropFilter: 'blur(10px)',
-              }}
+              <span className="font-semibold ml-1">{filteredSections.length}</span>
+            </AppBadge>
+            <AppBadge
+              variant="neutral"
+              style={{ backgroundColor: 'var(--app-bg-elevated)', backdropFilter: 'blur(10px)' }}
             >
               <span style={{ color: 'var(--app-text-muted)' }}>高频</span>
-              <span className="font-semibold truncate max-w-[120px]">
+              <span className="font-semibold ml-1 truncate max-w-[120px]">
                 {highlightedSections[0]?.name || '通用'}
               </span>
-            </div>
+            </AppBadge>
           </div>
         </div>
       </GlassCard>
@@ -220,15 +204,17 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
                 </div>
 
                 <div>
-                  <div
-                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+                  {/* 设置分类/热门入口 badge */}
+                  <AppBadge
+                    size="sm"
                     style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                      backgroundColor: 'rgba(255,255,255,0.06)',
+                      borderColor: 'transparent',
                       color: isHighlighted ? accent.icon : 'var(--app-text-muted)',
                     }}
                   >
                     {isHighlighted ? '热门入口' : '设置分类'}
-                  </div>
+                  </AppBadge>
 
                   <div
                     className="mt-2 text-[15px] font-semibold"

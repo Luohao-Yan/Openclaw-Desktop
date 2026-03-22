@@ -12,6 +12,7 @@ const DEFAULT_SELECTED_FILES = ['AGENTS.md', 'SOUL.md', 'TOOLS.md'];
 /**
  * 校验基础信息步骤，返回字段 → 错误消息的映射
  * 空映射表示校验通过
+ * t 参数接受宽松的 string 类型，兼容测试中的 mockT 和严格类型的 useI18n().t
  */
 export function validateBasicInfo(
   data: { name: string; workspace: string },
