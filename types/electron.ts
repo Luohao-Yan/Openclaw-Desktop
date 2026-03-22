@@ -717,7 +717,7 @@ export interface SessionsActions {
   sessionsGet(sessionId: string): Promise<SessionDetail | null>;
   sessionsTranscript(agentId: string, sessionKey: string): Promise<{ success: boolean; transcript: any[]; error?: string }>;
   sessionsCreate(agent: string, model?: string): Promise<{ success: boolean; sessionId?: string; error?: string }>;
-  sessionsSend(sessionId: string, message: string): Promise<{ success: boolean; response?: string; error?: string }>;
+  sessionsSend(sessionId: string, message: string, meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } }): Promise<{ success: boolean; response?: string; error?: string }>;
   sessionsClose(sessionId: string): Promise<{ success: boolean; error?: string }>;
   sessionsExport(sessionId: string, format: 'json' | 'markdown'): Promise<{ success: boolean; data?: string; error?: string }>;
   sessionsImport(data: string, format: 'json' | 'markdown'): Promise<{ success: boolean; sessionId?: string; error?: string }>;
@@ -866,10 +866,13 @@ export interface PluginInfo {
   id: string;
   name: string;
   version: string;
-  status: 'enabled' | 'disabled' | 'error';
+  /** loaded = 已加载运行中（等同于 enabled），disabled = 未启用，error = 出错 */
+  status: 'enabled' | 'loaded' | 'disabled' | 'error';
   description?: string;
   path?: string;
   skills?: string[];
+  /** 插件来源：bundled = 内置，global = 用户安装 */
+  origin?: 'bundled' | 'global' | string;
 }
 
 // ── 技能诊断报告（需求 7）──────────────────────────────────────────────────────

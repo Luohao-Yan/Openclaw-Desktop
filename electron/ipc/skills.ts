@@ -78,51 +78,78 @@ function readInstalledSkillsFromDisk(): SkillInfo[] {
   return skills;
 }
 
-// 调用 CLI 获取技能列表（使用缓存的磁盘读取结果）
+/**
+ * 将 CLI 返回的单条 skill 原始对象映射为 SkillInfo
+ * 真实 CLI 字段：name, description, eligible, disabled, blockedByAllowlist, source, bundled, missing
+ * missing 结构：{ bins:[], anyBins:[], env:[], config:[], os:[] }
+ */
+function mapRawSkillToInfo(item: any, installedSkills: SkillInfo[]): SkillInfo {
+  const id = String(item.id || item.name || '');
+  const name = String(item.name || item.id || '');
+  const description = String(item.description || '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  const version = String(item.version || '1.0.0');
+  const author = String(item.author || 'Unknown');
+  const category = inferSkillCategory(name, description);
+  const eligible = Boolean(item.eligible);
+  const disabled = Boolean(item.disabled);
+  // missing 字段：合并 bins + anyBins + env + config + os 作为缺失依赖列表
+  const missing = item.missing || {};
+  const missingRequirements = [
+    ...(Array.isArray(missing.bins) ? missing.bins : []),
+    ...(Array.isArray(missing.anyBins) ? missing.anyBins : []),
+    ...(Array.isArray(missing.env) ? missing.env : []),
+    ...(Array.isArray(missing.config) ? missing.config : []),
+    ...(Array.isArray(missing.os) ? missing.os : []),
+  ].map(String);
+  const isInstalled = installedSkills.some(s => s.id === id || s.name === name);
+  // 状态判断：disabled → error；已安装 → installed；其余 → available
+  let status: SkillInfo['status'] = 'available';
+  if (disabled) status = 'error';
+  else if (isInstalled) status = 'installed';
+  return { id, name, description, version, author, category, status, enabled: !disabled && eligible, eligible, missingRequirements };
+}
+
+/**
+ * 调用 CLI 获取全量技能列表
+ * 真实命令：openclaw skills list --json
+ * 返回结构：{ workspaceDir, managedSkillsDir, skills: [...] }
+ * 每个 skill 包含 eligible 字段，无需单独调用 --eligible
+ */
 async function fetchSkillsFromCLI(): Promise<SkillInfo[]> {
   const result = await runCommand(['skills', 'list', '--json']);
-  const parsed = tryParseJson<unknown>(result.output);
+  const parsed = tryParseJson<any>(result.output);
   if (parsed) {
-    const list = Array.isArray(parsed) ? parsed : Array.isArray((parsed as any)?.skills) ? (parsed as any).skills : Array.isArray((parsed as any)?.items) ? (parsed as any).items : [];
+    // 真实返回结构是 { skills: [...] }，不是数组
+    const list: any[] = Array.isArray(parsed) ? parsed
+      : Array.isArray(parsed?.skills) ? parsed.skills
+      : Array.isArray(parsed?.items) ? parsed.items
+      : [];
+    // 缓存一次磁盘读取结果，避免 map 内重复调用
     const installedSkills = readInstalledSkillsFromDisk();
-    return list.filter((item: any) => typeof item === 'object' && item !== null).map((item: any): SkillInfo => {
-      const id = String(item.id || item.name || ''), name = String(item.name || item.id || '');
-      const description = String(item.description || ''), version = String(item.version || '1.0.0');
-      const author = String(item.author || 'Unknown'), category = inferSkillCategory(name, description);
-      const eligible = Boolean(item.eligible), disabled = Boolean(item.disabled);
-      const missing = item.missing || {};
-      const missingBins = Array.isArray(missing.bins) ? missing.bins : [];
-      const missingEnv = Array.isArray(missing.env) ? missing.env : [];
-      const missingConfig = Array.isArray(missing.config) ? missing.config : [];
-      const isInstalled = installedSkills.some(s => s.id === id || s.name === name);
-      // 状态判断：disabled → error；已安装 → installed；其余 → available
-      let status: SkillInfo['status'] = 'available';
-      if (disabled) status = 'error';
-      else if (isInstalled) status = 'installed';
-      return { id, name, description: description.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim(), version, author, category, status, enabled: !disabled && isInstalled, eligible, missingRequirements: [...missingBins, ...missingEnv, ...missingConfig] };
-    });
+    return list
+      .filter((item: any) => typeof item === 'object' && item !== null)
+      .map((item: any) => mapRawSkillToInfo(item, installedSkills));
   }
+  // CLI 失败时回退到磁盘读取
   return readInstalledSkillsFromDisk();
 }
 
+/**
+ * 获取 eligible（满足依赖条件）的技能列表
+ * 真实命令：openclaw skills list --eligible --json（--eligible 是真实存在的 flag）
+ * 返回结构与 skills list 相同，但只包含 eligible=true 的条目
+ */
 async function fetchEligibleSkillsFromCLI(): Promise<SkillInfo[]> {
   const result = await runCommand(['skills', 'list', '--eligible', '--json']);
-  const parsed = tryParseJson<unknown>(result.output);
+  const parsed = tryParseJson<any>(result.output);
   if (!parsed) return [];
-  const list = Array.isArray(parsed) ? parsed : Array.isArray((parsed as any)?.skills) ? (parsed as any).skills : [];
+  const list: any[] = Array.isArray(parsed) ? parsed
+    : Array.isArray(parsed?.skills) ? parsed.skills
+    : [];
   const installedSkills = readInstalledSkillsFromDisk();
-  return list.filter((item: any) => typeof item === 'object' && item !== null).map((item: any): SkillInfo => {
-    const id = String(item.id || item.name || ''), name = String(item.name || item.id || '');
-    const description = String(item.description || ''), version = String(item.version || '1.0.0');
-    const author = String(item.author || 'Unknown'), category = inferSkillCategory(name, description);
-    const eligible = Boolean(item.eligible), disabled = Boolean(item.disabled);
-    const missing = item.missing || {};
-    const missingBins = Array.isArray(missing.bins) ? missing.bins : [];
-    const missingEnv = Array.isArray(missing.env) ? missing.env : [];
-    const missingConfig = Array.isArray(missing.config) ? missing.config : [];
-    const isInstalled = installedSkills.some(s => s.id === id || s.name === name);
-    return { id, name, description: description.replace(/\n/g, ' ').trim(), version, author, category, status: isInstalled ? 'installed' : 'available', enabled: !disabled && isInstalled, eligible, missingRequirements: [...missingBins, ...missingEnv, ...missingConfig] };
-  });
+  return list
+    .filter((item: any) => typeof item === 'object' && item !== null)
+    .map((item: any) => mapRawSkillToInfo(item, installedSkills));
 }
 
 export function setupSkillsIPC() {
@@ -165,16 +192,44 @@ export function setupSkillsIPC() {
     diskCache.invalidate(); return { success: true };
   });
 
-  // 启用技能
+  // 启用技能：openclaw skills 没有 enable/disable 子命令
+  // 通过直接修改 openclaw.json 中 skills.disabled 数组来实现
   ipcMain.handle('skills:enable', async (_, skillId: string) => {
-    const r = await runCommand(['skills', 'enable', skillId]);
-    return r.success ? { success: true } : { success: false, error: r.error || '启用技能失败' };
+    try {
+      if (!skillId) return { success: false, error: '技能 ID 不能为空' };
+      const configPath = join(getOpenClawRootDir(), 'openclaw.json');
+      let config: Record<string, any> = {};
+      if (existsSync(configPath)) {
+        const raw = await fs.readFile(configPath, 'utf-8');
+        config = JSON.parse(raw);
+      }
+      // 从 skills.disabled 数组中移除该技能
+      if (Array.isArray(config?.skills?.disabled)) {
+        config.skills.disabled = config.skills.disabled.filter((id: string) => id !== skillId);
+      }
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+      return { success: true };
+    } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
   });
 
-  // 禁用技能
+  // 禁用技能：同上，将技能 ID 加入 skills.disabled 数组
   ipcMain.handle('skills:disable', async (_, skillId: string) => {
-    const r = await runCommand(['skills', 'disable', skillId]);
-    return r.success ? { success: true } : { success: false, error: r.error || '禁用技能失败' };
+    try {
+      if (!skillId) return { success: false, error: '技能 ID 不能为空' };
+      const configPath = join(getOpenClawRootDir(), 'openclaw.json');
+      let config: Record<string, any> = {};
+      if (existsSync(configPath)) {
+        const raw = await fs.readFile(configPath, 'utf-8');
+        config = JSON.parse(raw);
+      }
+      if (!config.skills) config.skills = {};
+      if (!Array.isArray(config.skills.disabled)) config.skills.disabled = [];
+      if (!config.skills.disabled.includes(skillId)) {
+        config.skills.disabled.push(skillId);
+      }
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+      return { success: true };
+    } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
   });
 
   // 技能统计
@@ -289,35 +344,61 @@ export function setupSkillsIPC() {
   });
 
   // 执行全局技能健康检查
+  // 真实 CLI：openclaw skills check --json
+  // 真实返回结构：
+  // {
+  //   summary: { total, eligible, disabled, blocked, missingRequirements },
+  //   eligible: ["skill-name", ...],       // 满足依赖的技能名列表
+  //   disabled: ["skill-name", ...],       // 被禁用的技能名列表
+  //   blocked: ["skill-name", ...],        // 被 allowlist 屏蔽的技能名列表
+  //   missingRequirements: [{ name, missing: { bins, env, config, os } }, ...]
+  // }
   ipcMain.handle('skills:check', async () => {
     try {
-      const r = await runCommand(['skills', 'check']);
-      const output = stripAnsi(r.output || '');
+      const r = await runCommand(['skills', 'check', '--json']);
       const parsed = tryParseJson<any>(r.output);
-      if (parsed) {
-        const rawItems = Array.isArray(parsed) ? parsed : (parsed.items || parsed.skills || []);
-        const checkItems: SkillDiagnosticItem[] = rawItems.map((item: any) => ({
-          skillName: String(item.name || item.skillName || ''),
-          status: (item.status === 'ok' ? 'ok' : item.status === 'warning' ? 'warning' : 'error') as 'ok' | 'warning' | 'error',
-          issues: Array.isArray(item.issues) ? item.issues.map(String) : [],
-        }));
-        return { success: true, report: { items: checkItems, summary: {
-          ok: checkItems.filter(i => i.status === 'ok').length,
-          warning: checkItems.filter(i => i.status === 'warning').length,
-          error: checkItems.filter(i => i.status === 'error').length,
-        }} as SkillDiagnosticReport };
+      if (parsed && parsed.summary) {
+        const summary = parsed.summary as { total: number; eligible: number; disabled: number; blocked: number; missingRequirements: number };
+        // 将真实结构转换为 SkillDiagnosticReport 格式
+        const items: SkillDiagnosticItem[] = [];
+        // eligible 技能 → ok
+        for (const name of (Array.isArray(parsed.eligible) ? parsed.eligible : [])) {
+          items.push({ skillName: String(name), status: 'ok', issues: [] });
+        }
+        // disabled 技能 → warning
+        for (const name of (Array.isArray(parsed.disabled) ? parsed.disabled : [])) {
+          items.push({ skillName: String(name), status: 'warning', issues: ['技能已被禁用'] });
+        }
+        // blocked 技能 → warning
+        for (const name of (Array.isArray(parsed.blocked) ? parsed.blocked : [])) {
+          items.push({ skillName: String(name), status: 'warning', issues: ['技能被 allowlist 屏蔽'] });
+        }
+        // missingRequirements 技能 → error，附带缺失依赖详情
+        for (const entry of (Array.isArray(parsed.missingRequirements) ? parsed.missingRequirements : [])) {
+          const missing = entry.missing || {};
+          const issues: string[] = [
+            ...(Array.isArray(missing.bins) ? missing.bins.map((b: string) => `缺少命令: ${b}`) : []),
+            ...(Array.isArray(missing.anyBins) ? missing.anyBins.map((b: string) => `缺少命令(任一): ${b}`) : []),
+            ...(Array.isArray(missing.env) ? missing.env.map((e: string) => `缺少环境变量: ${e}`) : []),
+            ...(Array.isArray(missing.config) ? missing.config.map((c: string) => `缺少配置: ${c}`) : []),
+            ...(Array.isArray(missing.os) ? missing.os.map((o: string) => `不支持的操作系统: ${o}`) : []),
+          ];
+          items.push({ skillName: String(entry.name || ''), status: 'error', issues });
+        }
+        return {
+          success: true,
+          report: {
+            items,
+            summary: {
+              ok: summary.eligible || 0,
+              warning: (summary.disabled || 0) + (summary.blocked || 0),
+              error: summary.missingRequirements || 0,
+            },
+          } as SkillDiagnosticReport,
+        };
       }
-      const lines = output.split('\n').filter(l => l.trim());
-      const textItems: SkillDiagnosticItem[] = lines.map(line => ({
-        skillName: line.trim(),
-        status: (line.includes('✓') || line.includes('ok') ? 'ok' : line.includes('⚠') || line.includes('warn') ? 'warning' : 'error') as 'ok' | 'warning' | 'error',
-        issues: (line.includes('✓') || line.includes('ok')) ? [] : [line.trim()],
-      }));
-      return { success: true, report: { items: textItems, summary: {
-        ok: textItems.filter(i => i.status === 'ok').length,
-        warning: textItems.filter(i => i.status === 'warning').length,
-        error: textItems.filter(i => i.status === 'error').length,
-      }} as SkillDiagnosticReport };
+      // 回退：CLI 未返回 JSON，返回空报告
+      return { success: true, report: { items: [], summary: { ok: 0, warning: 0, error: 0 } } as SkillDiagnosticReport };
     } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
   });
 
@@ -431,20 +512,64 @@ export function setupSkillsIPC() {
   // ── Task 4.6: 插件管理 ────────────────────────────────────────────────────
 
   // 获取插件列表
+  // 真实 CLI：openclaw plugins list --json
+  // 真实返回结构：{ workspaceDir, plugins: [{ id, name, description, version, source, origin, enabled, status, toolNames, ... }] }
+  // 注意：stdout 中混有 [plugins] ANSI 日志行，需要先 stripAnsi 再提取 JSON
   ipcMain.handle('plugins:list', async () => {
     try {
       const r = await runCommand(['plugins', 'list', '--json']);
       if (!r.success) return { success: false, error: r.error || '获取插件列表失败' };
-      const parsed = tryParseJson<any>(r.output);
-      const rawList = parsed ? (Array.isArray(parsed) ? parsed : (parsed.plugins || parsed.items || [])) : [];
-      const plugins: PluginInfo[] = rawList.map((item: any): PluginInfo => ({
-        id: String(item.id || item.name || ''), name: String(item.name || item.id || ''),
-        version: String(item.version || '0.0.0'),
-        status: item.enabled === false ? 'disabled' : item.status === 'error' ? 'error' : 'enabled',
-        description: item.description ? String(item.description) : undefined,
-        path: item.path ? String(item.path) : undefined,
-        skills: Array.isArray(item.skills) ? item.skills.map(String) : undefined,
-      }));
+      // 先 stripAnsi，再从最后一个 } 往前找完整 JSON（与 sessions:send 相同的健壮解析策略）
+      const cleanOutput = stripAnsi(r.output).trim();
+      let parsed: any = null;
+      try { parsed = JSON.parse(cleanOutput); } catch { /* 继续 */ }
+      if (!parsed) {
+        const lastClose = cleanOutput.lastIndexOf('}');
+        if (lastClose >= 0) {
+          let depth = 0, start = -1;
+          for (let i = lastClose; i >= 0; i--) {
+            if (cleanOutput[i] === '}') depth++;
+            else if (cleanOutput[i] === '{') { depth--; if (depth === 0) { start = i; break; } }
+          }
+          if (start >= 0) {
+            try { parsed = JSON.parse(cleanOutput.substring(start, lastClose + 1)); } catch { /* 继续 */ }
+          }
+        }
+      }
+      // 真实结构：{ plugins: [...] }
+      const rawList: any[] = parsed
+        ? (Array.isArray(parsed) ? parsed : Array.isArray(parsed?.plugins) ? parsed.plugins : [])
+        : [];
+      const plugins: PluginInfo[] = rawList.map((item: any): PluginInfo => {
+        // 状态映射：优先使用 CLI 返回的 status 字段
+        // loaded = 已加载运行中，disabled = 未启用，error = 出错，enabled = 已启用
+        let status: PluginInfo['status'];
+        if (item.enabled === false) {
+          status = 'disabled';
+        } else if (item.status === 'error') {
+          status = 'error';
+        } else if (item.status === 'loaded') {
+          // 保留 loaded 状态，前端可区分"已加载"与"已启用"
+          status = 'loaded';
+        } else {
+          status = 'enabled';
+        }
+        return {
+          id: String(item.id || item.name || ''),
+          name: String(item.name || item.id || ''),
+          version: String(item.version || '0.0.0'),
+          status,
+          description: item.description ? String(item.description) : undefined,
+          // 路径：优先取 source 字段（真实 CLI 字段），其次 path
+          path: item.source ? String(item.source) : (item.path ? String(item.path) : undefined),
+          // toolNames 是真实字段（工具名数组），兼容旧字段 skills
+          skills: Array.isArray(item.toolNames) ? item.toolNames.map(String)
+            : Array.isArray(item.skills) ? item.skills.map(String)
+            : undefined,
+          // origin 字段：bundled = 内置，global = 用户安装
+          origin: item.origin ? String(item.origin) : undefined,
+        };
+      });
       return { success: true, plugins };
     } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
   });

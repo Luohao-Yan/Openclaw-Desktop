@@ -183,6 +183,14 @@ function getPluginStatusDisplay(status: PluginInfo['status']): {
         color: '#10B981',
         bg: 'rgba(16, 185, 129, 0.12)',
       };
+    case 'loaded':
+      // loaded = 已加载运行中，与 enabled 视觉相同，但标签区分
+      return {
+        icon: <CheckCircle className="w-4 h-4" />,
+        label: '已加载',
+        color: '#10B981',
+        bg: 'rgba(16, 185, 129, 0.12)',
+      };
     case 'disabled':
       return {
         icon: <StopCircle className="w-4 h-4" />,
@@ -283,7 +291,9 @@ const PluginsTab: React.FC<PluginsTabProps> = ({
     const key = `${plugin.id}-toggle`;
     setActionLoading(key);
     try {
-      const result = plugin.status === 'enabled'
+      // loaded 和 enabled 都视为"已启用"，点击后执行禁用
+      const isActive = plugin.status === 'enabled' || plugin.status === 'loaded';
+      const result = isActive
         ? await window.electronAPI.pluginsDisable(plugin.id)
         : await window.electronAPI.pluginsEnable(plugin.id);
       if (result.success) {
@@ -395,7 +405,7 @@ const PluginsTab: React.FC<PluginsTabProps> = ({
 
   // ── 渲染 ─────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 h-full min-h-0 overflow-hidden">
 
       {/* 错误提示 */}
       {error && (
@@ -471,13 +481,23 @@ const PluginsTab: React.FC<PluginsTabProps> = ({
           </AppButton>
         </div>
       ) : (
-        /* 插件列表 */
-        <div className="space-y-2">
-          {plugins.map((plugin) => {
+        /* 插件列表：loaded/enabled 排前，error 居中，disabled 排后；外层可滚动 */
+        <div className="overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-2">
+          {[...plugins]
+            .sort((a, b) => {
+              // 排序权重：loaded/enabled=0, error=1, disabled=2
+              const weight = (s: PluginInfo['status']) =>
+                s === 'loaded' || s === 'enabled' ? 0 : s === 'error' ? 1 : 2;
+              return weight(a.status) - weight(b.status);
+            })
+            .map((plugin) => {
             const statusDisplay = getPluginStatusDisplay(plugin.status);
             const isInspecting = inspectingId === plugin.id;
             const toggleKey = `${plugin.id}-toggle`;
             const uninstallKey = `${plugin.id}-uninstall`;
+            // loaded 和 enabled 都视为"已启用"状态
+            const isActive = plugin.status === 'enabled' || plugin.status === 'loaded';
 
             return (
               <div key={plugin.id}>
@@ -542,14 +562,14 @@ const PluginsTab: React.FC<PluginsTabProps> = ({
                         size="xs"
                         onClick={() => void handleToggle(plugin)}
                         disabled={actionLoading === toggleKey}
-                        title={plugin.status === 'enabled' ? '禁用插件' : '启用插件'}
+                        title={isActive ? '禁用插件' : '启用插件'}
                         icon={actionLoading === toggleKey
                           ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          : plugin.status === 'enabled'
+                          : isActive
                             ? <StopCircle className="w-3.5 h-3.5" />
                             : <Play className="w-3.5 h-3.5" />}
                       >
-                        {plugin.status === 'enabled' ? '禁用' : '启用'}
+                        {isActive ? '禁用' : '启用'}
                       </AppButton>
 
                       {/* 卸载按钮 */}
@@ -602,6 +622,7 @@ const PluginsTab: React.FC<PluginsTabProps> = ({
               </div>
             );
           })}
+          </div>
         </div>
       )}
 

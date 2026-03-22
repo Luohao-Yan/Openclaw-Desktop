@@ -657,10 +657,13 @@ export interface PluginInfo {
   id: string;
   name: string;
   version: string;
-  status: 'enabled' | 'disabled' | 'error';
+  /** loaded = 已加载运行中（等同于 enabled），disabled = 未启用，error = 出错 */
+  status: 'enabled' | 'loaded' | 'disabled' | 'error';
   description?: string;
   path?: string;
   skills?: string[];
+  /** 插件来源：bundled = 内置，global = 用户安装 */
+  origin?: 'bundled' | 'global' | string;
 }
 
 /** 技能诊断条目 */
@@ -807,7 +810,7 @@ export interface ElectronAPI {
   sessionsGet: (sessionId: string) => Promise<any>;
   sessionsTranscript: (agentId: string, sessionKey: string) => Promise<any>;
   sessionsCreate: (agent: string, model?: string) => Promise<any>;
-  sessionsSend: (sessionId: string, message: string) => Promise<any>;
+  sessionsSend: (sessionId: string, message: string, meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } }) => Promise<any>;
   sessionsClose: (sessionId: string) => Promise<any>;
   sessionsExport: (sessionId: string, format: 'json' | 'markdown') => Promise<any>;
   sessionsImport: (data: string, format: string) => Promise<any>;
