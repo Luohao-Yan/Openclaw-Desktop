@@ -225,11 +225,195 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
   const mutedText = { color: 'var(--app-text-muted)' };
   const elevatedBg = { backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' };
 
+  // ── 各 subStep 对应的底部固定按钮区域 ──────────────────────────────────────
+  const footer = React.useMemo(() => {
+    if (subStep === 'platform') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => navigate('/setup/local/check')}>返回检测</AppButton>
+          <AppButton variant="primary" onClick={() => setSubStep('install')} icon={<ChevronRight size={15} />}>
+            确认，开始安装
+          </AppButton>
+        </div>
+      );
+    }
+    if (subStep === 'install') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('platform')} disabled={isBusy}>上一步</AppButton>
+          {(!existingInstall || hasStartedInstall) && localInstallStatus !== 'succeeded' && (
+            <AppButton variant="primary" onClick={() => void handleInstall()} disabled={isBusy}
+              icon={isBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}>
+              {isBusy ? '正在安装…' : hasStartedInstall && localInstallStatus === 'failed' ? '重新安装' : '开始安装'}
+            </AppButton>
+          )}
+          {localInstallStatus === 'succeeded' && (
+            <AppButton variant="primary" onClick={() => setSubStep('model')} icon={<ChevronRight size={15} />}>
+              继续
+            </AppButton>
+          )}
+        </div>
+      );
+    }
+    if (subStep === 'model') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('install')}>上一步</AppButton>
+          <AppButton
+            variant={modelTestStatus === 'ok' ? 'secondary' : 'primary'}
+            disabled={!modelProvider || modelTestStatus === 'testing'}
+            icon={modelTestStatus === 'testing' ? <Loader2 size={14} className="animate-spin" /> : undefined}
+            onClick={async () => {
+              setModelTestStatus('testing');
+              setModelTestError('');
+              const result = await window.electronAPI?.testModelConnection?.({
+                provider: modelProvider,
+                model: modelName,
+                apiKey: apiKey || undefined,
+                baseUrl: baseUrl || undefined,
+              });
+              if (result?.success) {
+                setModelTestStatus('ok');
+              } else {
+                setModelTestStatus('error');
+                setModelTestError(result?.error ?? '连通性测试失败');
+              }
+            }}
+          >
+            {modelTestStatus === 'testing' ? '测试中…' : '测试连通性'}
+          </AppButton>
+          {modelTestStatus === 'ok' && (
+            <AppButton variant="primary" onClick={() => setSubStep('workspace')} icon={<ChevronRight size={15} />}>
+              继续
+            </AppButton>
+          )}
+        </div>
+      );
+    }
+    if (subStep === 'workspace') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('model')}>上一步</AppButton>
+          <AppButton variant="primary" onClick={() => setSubStep('gateway')} disabled={!workspaceDir.trim()} icon={<ChevronRight size={15} />}>
+            继续
+          </AppButton>
+        </div>
+      );
+    }
+    if (subStep === 'gateway') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('workspace')}>上一步</AppButton>
+          <AppButton variant="primary" onClick={() => setSubStep('channels')} icon={<ChevronRight size={15} />}>
+            确认配置
+          </AppButton>
+        </div>
+      );
+    }
+    if (subStep === 'channels') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('gateway')}>上一步</AppButton>
+          <AppButton variant="primary" onClick={() => setSubStep('daemon')} icon={<ChevronRight size={15} />}>
+            {enabledChannels.size === 0 ? '跳过' : '继续'}
+          </AppButton>
+        </div>
+      );
+    }
+    if (subStep === 'daemon') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('channels')}>上一步</AppButton>
+          <AppButton variant="primary" onClick={() => setSubStep('skills')} icon={<ChevronRight size={15} />}>继续</AppButton>
+        </div>
+      );
+    }
+    if (subStep === 'skills') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('daemon')}>上一步</AppButton>
+          <AppButton variant="primary" onClick={() => setSubStep('done')} icon={<ChevronRight size={15} />}>继续</AppButton>
+        </div>
+      );
+    }
+    if (subStep === 'done') {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <AppButton variant="secondary" onClick={() => setSubStep('gateway')}>返回修改</AppButton>
+          <AppButton variant="primary" disabled={isSaving} icon={isSaving ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={15} />}
+            onClick={async () => {
+              setIsSaving(true);
+              setSaveError('');
+              try {
+                const existing = await window.electronAPI?.configGet?.();
+                const base = existing?.success && existing.config ? existing.config : {};
+                const updated = {
+                  ...base,
+                  agents: {
+                    ...(base.agents ?? {}),
+                    defaults: {
+                      ...((base.agents as any)?.defaults ?? {}),
+                      model: { primary: modelName || undefined },
+                    },
+                  },
+                  gateway: {
+                    ...(base.gateway ?? {}),
+                    port: parseInt(gatewayPort, 10) || 18789,
+                    auth: gatewayAuth === 'none' ? undefined : { mode: gatewayAuth },
+                    bind: gatewayBind,
+                    tailscale: gatewayTailscale,
+                  },
+                  session: {
+                    ...(base.session ?? {}),
+                    dmScope,
+                  },
+                  channels: {
+                    ...(base.channels ?? {}),
+                    ...(channelTokens.telegram ? { telegram: { botToken: channelTokens.telegram } } : {}),
+                    ...(channelTokens.discord ? { discord: { token: channelTokens.discord } } : {}),
+                    ...(channelTokens.googlechat ? { googlechat: { webhookUrl: channelTokens.googlechat } } : {}),
+                    ...(channelTokens.mattermost ? { mattermost: { webhookUrl: channelTokens.mattermost } } : {}),
+                  },
+                  daemon: {
+                    ...(base.daemon ?? {}),
+                    install: installDaemon,
+                    runtime: daemonRuntime,
+                  },
+                  skills: {
+                    ...(base.skills ?? {}),
+                    install: {
+                      ...((base.skills as any)?.install ?? {}),
+                      recommended: installRecommendedSkills,
+                    },
+                  },
+                };
+                const saveResult = await window.electronAPI?.configSet?.(updated);
+                if (!saveResult?.success) {
+                  setSaveError(saveResult?.error ?? '保存配置失败，请重试。');
+                  return;
+                }
+                navigate('/setup/local/configure');
+              } catch (e) {
+                setSaveError(String(e));
+              } finally {
+                setIsSaving(false);
+              }
+            }}>
+            {isSaving ? '保存中…' : '继续'}
+          </AppButton>
+        </div>
+      );
+    }
+    return null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subStep, isBusy, existingInstall, hasStartedInstall, localInstallStatus, modelProvider, modelTestStatus, workspaceDir, enabledChannels, isSaving]);
+
   return (
     <SetupLayout
       title="安装 OpenClaw"
       description="桌面端将自动完成 OpenClaw 的安装与初始配置，全程无需打开终端或输入任何命令。"
       stepLabel="步骤 4 / 6"
+      footer={footer}
     >
       <StepBar current={subStep} />
 
@@ -275,12 +459,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => navigate('/setup/local/check')}>返回检测</AppButton>
-            <AppButton variant="primary" onClick={() => setSubStep('install')} icon={<ChevronRight size={15} />}>
-              确认，开始安装
-            </AppButton>
-          </div>
         </div>
       )}
 
@@ -392,20 +570,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
           </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('platform')} disabled={isBusy}>上一步</AppButton>
-            {(!existingInstall || hasStartedInstall) && localInstallStatus !== 'succeeded' && (
-              <AppButton variant="primary" onClick={() => void handleInstall()} disabled={isBusy}
-                icon={isBusy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}>
-                {isBusy ? '正在安装…' : hasStartedInstall && localInstallStatus === 'failed' ? '重新安装' : '开始安装'}
-              </AppButton>
-            )}
-            {localInstallStatus === 'succeeded' && (
-              <AppButton variant="primary" onClick={() => setSubStep('model')} icon={<ChevronRight size={15} />}>
-                继续
-              </AppButton>
-            )}
-          </div>
         </div>
       )}
 
@@ -528,37 +692,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('install')}>上一步</AppButton>
-            <AppButton
-              variant={modelTestStatus === 'ok' ? 'secondary' : 'primary'}
-              disabled={!modelProvider || modelTestStatus === 'testing'}
-              icon={modelTestStatus === 'testing' ? <Loader2 size={14} className="animate-spin" /> : undefined}
-              onClick={async () => {
-                setModelTestStatus('testing');
-                setModelTestError('');
-                const result = await window.electronAPI?.testModelConnection?.({
-                  provider: modelProvider,
-                  model: modelName,
-                  apiKey: apiKey || undefined,
-                  baseUrl: baseUrl || undefined,
-                });
-                if (result?.success) {
-                  setModelTestStatus('ok');
-                } else {
-                  setModelTestStatus('error');
-                  setModelTestError(result?.error ?? '连通性测试失败');
-                }
-              }}
-            >
-              {modelTestStatus === 'testing' ? '测试中…' : '测试连通性'}
-            </AppButton>
-            {modelTestStatus === 'ok' && (
-              <AppButton variant="primary" onClick={() => setSubStep('workspace')} icon={<ChevronRight size={15} />}>
-                继续
-              </AppButton>
-            )}
-          </div>
         </div>
       )}
 
@@ -589,12 +722,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('model')}>上一步</AppButton>
-            <AppButton variant="primary" onClick={() => setSubStep('gateway')} disabled={!workspaceDir.trim()} icon={<ChevronRight size={15} />}>
-              继续
-            </AppButton>
-          </div>
         </div>
       )}
 
@@ -688,12 +815,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('workspace')}>上一步</AppButton>
-            <AppButton variant="primary" onClick={() => setSubStep('channels')} icon={<ChevronRight size={15} />}>
-              确认配置
-            </AppButton>
-          </div>
         </div>
       )}
 
@@ -752,12 +873,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           ))}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('gateway')}>上一步</AppButton>
-            <AppButton variant="primary" onClick={() => setSubStep('daemon')} icon={<ChevronRight size={15} />}>
-              {enabledChannels.size === 0 ? '跳过' : '继续'}
-            </AppButton>
-          </div>
         </div>
       )}
 
@@ -805,10 +920,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('channels')}>上一步</AppButton>
-            <AppButton variant="primary" onClick={() => setSubStep('skills')} icon={<ChevronRight size={15} />}>继续</AppButton>
-          </div>
         </div>
       )}
 
@@ -849,10 +960,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('daemon')}>上一步</AppButton>
-            <AppButton variant="primary" onClick={() => setSubStep('done')} icon={<ChevronRight size={15} />}>继续</AppButton>
-          </div>
         </div>
       )}
 
@@ -893,76 +1000,6 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <AppButton variant="secondary" onClick={() => setSubStep('gateway')}>返回修改</AppButton>
-            <AppButton variant="primary" disabled={isSaving} icon={isSaving ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={15} />}
-              onClick={async () => {
-                setIsSaving(true);
-                setSaveError('');
-                try {
-                  // 读取现有配置
-                  const existing = await window.electronAPI?.configGet?.();
-                  const base = existing?.success && existing.config ? existing.config : {};
-
-                  // 合并写入
-                  const updated = {
-                    ...base,
-                    agents: {
-                      ...(base.agents ?? {}),
-                      defaults: {
-                        ...((base.agents as any)?.defaults ?? {}),
-                        model: { primary: modelName || undefined },
-                      },
-                    },
-                    gateway: {
-                      ...(base.gateway ?? {}),
-                      port: parseInt(gatewayPort, 10) || 18789,
-                      // 写入对象格式，与 gateway.ts 读取 auth.mode 保持一致
-                      auth: gatewayAuth === 'none' ? undefined : { mode: gatewayAuth },
-                      bind: gatewayBind,
-                      tailscale: gatewayTailscale,
-                    },
-                    session: {
-                      ...(base.session ?? {}),
-                      dmScope,
-                    },
-                    channels: {
-                      ...(base.channels ?? {}),
-                      ...(channelTokens.telegram ? { telegram: { botToken: channelTokens.telegram } } : {}),
-                      ...(channelTokens.discord ? { discord: { token: channelTokens.discord } } : {}),
-                      ...(channelTokens.googlechat ? { googlechat: { webhookUrl: channelTokens.googlechat } } : {}),
-                      ...(channelTokens.mattermost ? { mattermost: { webhookUrl: channelTokens.mattermost } } : {}),
-                    },
-                    daemon: {
-                      ...(base.daemon ?? {}),
-                      install: installDaemon,
-                      runtime: daemonRuntime,
-                    },
-                    skills: {
-                      ...(base.skills ?? {}),
-                      install: {
-                        ...((base.skills as any)?.install ?? {}),
-                        recommended: installRecommendedSkills,
-                      },
-                    },
-                  };
-
-                  const saveResult = await window.electronAPI?.configSet?.(updated);
-                  if (!saveResult?.success) {
-                    setSaveError(saveResult?.error ?? '保存配置失败，请重试。');
-                    return;
-                  }
-
-                  navigate('/setup/local/configure');
-                } catch (e) {
-                  setSaveError(String(e));
-                } finally {
-                  setIsSaving(false);
-                }
-              }}>
-              {isSaving ? '保存中…' : '继续'}
-            </AppButton>
-          </div>
         </div>
       )}
     </SetupLayout>
