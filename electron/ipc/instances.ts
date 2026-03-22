@@ -1,9 +1,8 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
-import { spawn } from 'child_process';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
+import { getOpenClawRootDir, resolveOpenClawCommand, runCommand as runShellCommand } from './settings.js';
 import { rm } from 'fs/promises';
 
 const ANSI_ESCAPE_PATTERN = /\u001B\[[0-?]*[ -/]*[@-~]/g;
@@ -34,54 +33,15 @@ export interface InstanceInfo {
 }
 
 // 运行 OpenClaw 命令的辅助函数
+// 复用 settings.ts 的 runShellCommand，确保使用完整的 shell PATH（解决 Electron 主进程 PATH 缺失问题）
 async function runOpenClawCommand(args: string[]): Promise<{ success: boolean; output: string; error?: string }> {
-  return new Promise((resolve) => {
-    try {
-      const child = spawn(resolveOpenClawCommand(), ['--no-color', ...args], {
-        env: {
-          ...process.env,
-          NO_COLOR: '1',
-          FORCE_COLOR: '0',
-        },
-      });
-      
-      let output = '';
-      let errorOutput = '';
-      
-      child.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      child.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true, output: stripAnsiAndControlChars(output) });
-        } else {
-          resolve({ success: false, output: '', error: stripAnsiAndControlChars(errorOutput) || `Command exited with code ${code}` });
-        }
-      });
-      
-      child.on('error', (error) => {
-        resolve({ success: false, output: '', error: error.message });
-      });
-      
-      // 设置超时
-      setTimeout(() => {
-        try {
-          child.kill();
-        } catch (e) {
-          // ignore
-        }
-        resolve({ success: false, output: '', error: 'Command timeout' });
-      }, 15000);
-      
-    } catch (error: any) {
-      resolve({ success: false, output: '', error: error.message });
-    }
-  });
+  const result = await runShellCommand(resolveOpenClawCommand(), ['--no-color', ...args]);
+  // 对输出做 ANSI 清理，保持和原来一致
+  return {
+    success: result.success,
+    output: stripAnsiAndControlChars(result.output || ''),
+    error: result.error,
+  };
 }
 
 // ============================================================================
@@ -210,7 +170,7 @@ export function setupInstancesIPC() {
   // 获取所有实例
   ipcMain.handle('instances:getAll', async (): Promise<{ success: boolean; instances?: InstanceInfo[]; error?: string }> => {
     try {
-      // 获取网关状态
+      // 获取网关状态（即使命令返回非零退出码，输出里也可能有状态信息）
       const statusResult = await runOpenClawCommand(['gateway', 'status']);
       const gatewayInstances = parseOpenClawStatus(statusResult.output);
       
