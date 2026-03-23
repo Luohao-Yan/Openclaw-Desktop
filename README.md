@@ -143,6 +143,14 @@ src/                    # React 渲染进程
 
 - [OpenClaw](https://github.com/nicepkg/openclaw) — 多智能体 AI 系统核心
 
+## Star History
+
+<p align="center">
+  <a href="https://star-history.com/#Luohao-Yan/Openclaw-Desktop&Date">
+    <img src="https://api.star-history.com/svg?repos=Luohao-Yan/Openclaw-Desktop&type=Date" alt="Star History Chart" width="600">
+  </a>
+</p>
+
 ---
 
 <p align="center">
