@@ -13,6 +13,8 @@ import {
   Bot,
   User,
   Settings2,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import type { Session, TranscriptMessage, TFunc } from './types';
@@ -25,6 +27,12 @@ interface SessionChatPanelProps {
   onMessageChange: (value: string) => void;
   onSend: () => void;
   sending: boolean;
+  /** 当前 session 是否处于 pending 状态（等待 agent 回复） */
+  isPending?: boolean;
+  /** 发送错误/超时信息 */
+  sendError?: { sessionId: string; message: string; type: 'error' | 'timeout' } | null;
+  /** 重试发送回调 */
+  onRetry?: () => void;
   onExport: (sessionId: string, format: 'json' | 'markdown') => void;
   onClose: (sessionId: string) => void;
   t: TFunc;
@@ -44,6 +52,7 @@ function getRoleConfig(role: string) {
 const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   session, transcript, transcriptLoading,
   newMessage, onMessageChange, onSend, sending,
+  isPending, sendError, onRetry,
   onExport, onClose, t,
 }) => {
   // 自动滚动到最新消息
@@ -98,7 +107,7 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
           <AppButton variant="ghost" size="sm" iconOnly
             icon={<Copy size={14} />}
             onClick={() => navigator.clipboard.writeText(session.key)}
-            title="Copy Key"
+            title="复制 Key"
           />
           {/* 关闭会话：danger ghost */}
           <AppButton variant="ghost" size="sm" iconOnly
@@ -121,11 +130,18 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
             </div>
           </div>
         ) : transcript.length === 0 ? (
-          /* 无消息空状态 */
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          /* 无消息空状态：cron 会话单独提示 */
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
             <MessageSquare size={22} style={{ color: 'var(--app-text-muted)', opacity: 0.25 }} />
             <p className="mt-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>{t('sessions.noMessages')}</p>
-            <p className="mt-0.5 text-[11px]" style={{ color: 'var(--app-text-muted)', opacity: 0.5 }}>{t('sessions.noMessagesHint')}</p>
+            {session?.channel === 'cron' ? (
+              /* cron 会话专属提示：对话记录文件可能尚未生成或已被清理 */
+              <p className="mt-1 text-[11px] leading-relaxed" style={{ color: 'var(--app-text-muted)', opacity: 0.5 }}>
+                {t('sessions.cronSessionHint')}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-[11px]" style={{ color: 'var(--app-text-muted)', opacity: 0.5 }}>{t('sessions.noMessagesHint')}</p>
+            )}
           </div>
         ) : (
           /* 消息列表 */
@@ -167,28 +183,67 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
 
       {/* ── 消息输入栏 ── */}
       <div className="px-3 py-2.5 border-t shrink-0" style={{ borderColor: 'var(--app-border)' }}>
-        <div className="flex items-center gap-2">
-          <input type="text" value={newMessage}
-            onChange={(e) => onMessageChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
-            placeholder={t('sessions.sendPlaceholder')}
-            disabled={sending}
-            className="flex-1 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/40"
-            style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }} />
-          {/* 发送按钮：loading 时自动显示 spinner */}
-          <AppButton
-            variant="primary"
-            size="sm"
-            icon={<Send size={14} />}
-            loading={sending}
-            disabled={sending || !newMessage.trim()}
-            onClick={onSend}
-          >
-            <span className="text-xs font-medium">
-              {sending ? t('sessions.sending') : t('sessions.send')}
-            </span>
-          </AppButton>
-        </div>
+        {/* pending 状态指示器：等待 agent 回复中 */}
+        {isPending && (
+          <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)', color: '#60a5fa' }}>
+            <RefreshCw size={13} className="animate-spin shrink-0" />
+            <span>{t('sessions.waitingReply') || '等待回复中...'}</span>
+          </div>
+        )}
+
+        {/* 发送错误/超时提示 + 重试按钮 */}
+        {sendError && (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 mb-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.15)', color: '#ef4444' }}>
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle size={13} className="shrink-0" />
+              <span className="truncate">
+                {sendError.type === 'timeout'
+                  ? (t('sessions.replyTimeout') || '回复超时，请重试')
+                  : (t('sessions.replyFailed') || '获取回复失败')}
+              </span>
+            </div>
+            {onRetry && (
+              <AppButton variant="secondary" size="xs" icon={<RefreshCw size={12} />} onClick={onRetry}>
+                {t('sessions.retry') || '重试'}
+              </AppButton>
+            )}
+          </div>
+        )}
+
+        {/* cron 会话（无 sessionId）显示只读提示，其他会话显示输入框 */}
+        {!(session as any)?.sessionId ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+            style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}>
+            <Send size={13} style={{ opacity: 0.35, flexShrink: 0 }} />
+            <span style={{ opacity: 0.55 }}>{t('sessions.sendUnsupported')}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input type="text" value={newMessage}
+              onChange={(e) => onMessageChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+              placeholder={t('sessions.sendPlaceholder')}
+              disabled={sending || isPending}
+              className="flex-1 px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+              style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }} />
+            {/* 发送按钮 */}
+            <AppButton
+              variant="primary"
+              size="sm"
+              icon={<Send size={14} />}
+              loading={sending}
+              disabled={sending || isPending || !newMessage.trim()}
+              onClick={onSend}
+              data-send-btn
+            >
+              <span className="text-xs font-medium">
+                {sending ? t('sessions.sending') : t('sessions.send')}
+              </span>
+            </AppButton>
+          </div>
+        )}
       </div>
     </div>
   );

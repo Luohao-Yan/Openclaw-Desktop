@@ -1094,38 +1094,53 @@ async function testModelConnection(params: {
     max_tokens: 1,
   });
 
-  const start = Date.now();
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: AbortSignal.timeout(15000),
-    });
+  // 最多重试 2 次（共 3 次请求），应对首次 DNS/TLS 握手失败
+  const maxAttempts = 3;
+  let lastError = '';
+  let totalLatencyMs = 0;
 
-    const latencyMs = Date.now() - start;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const start = Date.now();
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(15000),
+      });
 
-    // 401/403 说明 API Key 错误，但端点可达
-    if (response.status === 401 || response.status === 403) {
-      return { success: false, error: 'API Key 无效或无权限', latencyMs };
-    }
-    // 400 可能是模型名错误，但 API 可达
-    if (response.status === 400) {
-      const text = await response.text().catch(() => '');
-      return { success: false, error: `请求参数错误：${text.slice(0, 200)}`, latencyMs };
-    }
-    if (!response.ok) {
-      return { success: false, error: `HTTP ${response.status}`, latencyMs };
-    }
+      const latencyMs = Date.now() - start;
 
-    return { success: true, latencyMs };
-  } catch (err: any) {
-    const latencyMs = Date.now() - start;
-    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
-      return { success: false, error: '连接超时（15s）', latencyMs };
+      // 401/403 说明 API Key 错误，但端点可达——无需重试
+      if (response.status === 401 || response.status === 403) {
+        return { success: false, error: 'API Key 无效或无权限', latencyMs };
+      }
+      // 400 可能是模型名错误，但 API 可达——无需重试
+      if (response.status === 400) {
+        const text = await response.text().catch(() => '');
+        return { success: false, error: `请求参数错误：${text.slice(0, 200)}`, latencyMs };
+      }
+      if (!response.ok) {
+        return { success: false, error: `HTTP ${response.status}`, latencyMs };
+      }
+
+      return { success: true, latencyMs };
+    } catch (err: any) {
+      totalLatencyMs += Date.now() - start;
+      // 超时错误直接返回，不重试
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        return { success: false, error: '连接超时（15s）', latencyMs: totalLatencyMs };
+      }
+      lastError = err.message ?? '网络错误';
+      // 网络错误（fetch failed / DNS / TLS）：等待短暂后重试
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
-    return { success: false, error: err.message ?? '网络错误', latencyMs };
   }
+
+  // 所有重试均失败
+  return { success: false, error: lastError, latencyMs: totalLatencyMs };
 }
 
 // IPC设置

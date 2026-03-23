@@ -22,6 +22,7 @@ import type { Session, SessionStats, TranscriptMessage } from './types';
 import SessionList from './SessionList';
 import SessionChatPanel from './SessionChatPanel';
 import CreateSessionModal from './CreateSessionModal';
+import { retryRefreshTranscript, pollForReply } from './sessionRetryLogic';
 
 const Sessions: React.FC = () => {
   const { t } = useI18n();
@@ -50,6 +51,17 @@ const Sessions: React.FC = () => {
   // ── 发送消息 ──
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+
+  // ── 异步发送 pending 状态管理 ──
+  // 跟踪多个 session 的并发 pending 状态（消息已发送但 agent 尚未回复）
+  const [pendingSessions, setPendingSessions] = useState<Map<string, {
+    message: string;          // 原始消息（用于重试）
+    startedAt: number;        // 开始时间
+    baselineAssistantCount: number; // 发送前 assistant 消息数
+  }>>(new Map());
+
+  // ── 发送错误/超时状态 ──
+  const [sendError, setSendError] = useState<{ sessionId: string; message: string; type: 'error' | 'timeout' } | null>(null);
 
   // ── 清理 ──
   const [cleanupResult, setCleanupResult] = useState<string | null>(null);
@@ -184,36 +196,97 @@ const Sessions: React.FC = () => {
 
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedSession) return;
+    // 若当前 session 正在 pending，禁止重复发送
+    if (pendingSessions.has(selectedSession.id)) return;
+
     const msgText = newMessage;
+    const session = selectedSession;
     try {
       setSending(true);
       setNewMessage('');
+      setSendError(null);
 
       // 乐观更新：立即把用户消息追加到 transcript，让 UI 即时响应
-      // CLI 完成后会用真实数据替换，若失败则回滚
       const optimisticMsg = { role: 'user', content: msgText, timestamp: new Date().toLocaleString() };
       setTranscript((prev) => [...prev, optimisticMsg]);
 
-      // 通过 CLI `openclaw agent --session-id` 发送消息
+      // 计算发送前 assistant 消息数量（用于轮询检测新回复）
+      const baselineAssistantCount = transcript.filter((m) => m.role === 'assistant').length;
+
+      // 通过异步 IPC 发送消息（立即返回，不等待 agent 回复）
       const result = await window.electronAPI.sessionsSend(
-        selectedSession.id,
+        session.id,
         msgText,
         {
-          sessionId: (selectedSession as any).sessionId,
-          agentId: selectedSession.agent,
-          deliveryContext: (selectedSession as any).deliveryContext,
+          sessionId: (session as any).sessionId,
+          agentId: session.agent,
+          deliveryContext: (session as any).deliveryContext,
         },
       );
 
-      if (result?.success) {
-        // sessions:send 直接返回最新 transcript（含用户消息 + agent 回复），替换乐观更新
-        // 只有 transcript 非空时才替换，避免空数组覆盖掉乐观消息
-        if (Array.isArray((result as any).transcript) && (result as any).transcript.length > 0) {
-          setTranscript((result as any).transcript);
+      if (result?.success && result?.pending) {
+        // 异步模式：将当前 session 加入 pendingSessions
+        setPendingSessions((prev) => {
+          const next = new Map(prev);
+          next.set(session.id, {
+            message: msgText,
+            startedAt: Date.now(),
+            baselineAssistantCount,
+          });
+          return next;
+        });
+
+        // 启动轮询检测 agent 回复
+        void (async () => {
+          const pollResult = await pollForReply(
+            async () => {
+              const getResult: any = await window.electronAPI.sessionsGet(session.id);
+              if (getResult?.success && Array.isArray(getResult.transcript) && getResult.transcript.length > 0) {
+                return getResult.transcript;
+              }
+              const fallback: any = await window.electronAPI.sessionsTranscript(session.agent, session.id);
+              if (fallback?.success && Array.isArray(fallback.transcript) && fallback.transcript.length > 0) {
+                return fallback.transcript;
+              }
+              return [];
+            },
+            baselineAssistantCount,
+          );
+
+          // 轮询完成，移除 pending 状态
+          setPendingSessions((prev) => {
+            const next = new Map(prev);
+            next.delete(session.id);
+            return next;
+          });
+
+          if (pollResult.success) {
+            // 检测到新回复，更新 transcript
+            setTranscript(pollResult.transcript);
+          } else if (pollResult.timedOut) {
+            // 超时提示
+            setSendError({ sessionId: session.id, message: msgText, type: 'timeout' });
+          } else if (pollResult.failedConsecutively) {
+            // 连续读取失败
+            setSendError({ sessionId: session.id, message: msgText, type: 'error' });
+          }
+        })();
+      } else if (result?.success) {
+        // 兼容旧的同步模式返回（含 transcript）
+        if (Array.isArray(result.transcript) && result.transcript.length > 0) {
+          setTranscript(result.transcript);
         } else {
-          // transcript 未随 send 返回（或为空）：延迟 500ms 后刷新，等文件系统写入完成
-          // 不立即覆盖，保留乐观消息让用户看到自己发的内容
-          setTimeout(() => void refreshTranscript(selectedSession), 500);
+          // 使用旧的重试逻辑
+          void (async () => {
+            const retryResult = await retryRefreshTranscript(async () => {
+              const getResult: any = await window.electronAPI.sessionsGet(session.id);
+              if (getResult?.success && Array.isArray(getResult.transcript) && getResult.transcript.length > 0) {
+                return getResult.transcript;
+              }
+              return [];
+            });
+            if (retryResult.success) setTranscript(retryResult.transcript);
+          })();
         }
       } else {
         // 发送失败：回滚乐观更新，显示错误
@@ -222,13 +295,12 @@ const Sessions: React.FC = () => {
       }
     } catch (err) {
       console.error('[Sessions] 发送失败:', err);
-      // 异常时回滚最后一条乐观消息
       setTranscript((prev) => prev.slice(0, -1));
       setError(String(err));
     } finally {
       setSending(false);
     }
-  }, [newMessage, selectedSession, refreshTranscript, t]);
+  }, [newMessage, selectedSession, transcript, pendingSessions, t]);
 
   const handleCleanup = useCallback(async (dryRun: boolean) => {
     try {
@@ -241,6 +313,68 @@ const Sessions: React.FC = () => {
       }
     } catch (err) { console.error('[Sessions] 清理失败:', err); }
   }, [loadSessions]);
+
+  /** 重试发送：使用 sendError 中保存的原始消息重新触发发送 */
+  const handleRetrySend = useCallback(() => {
+    if (!sendError) return;
+    setNewMessage(sendError.message);
+    setSendError(null);
+    // 下一个 tick 触发发送（等 newMessage 状态更新后）
+    setTimeout(() => {
+      const sendBtn = document.querySelector('[data-send-btn]') as HTMLButtonElement;
+      sendBtn?.click();
+    }, 50);
+  }, [sendError]);
+
+  // ── 页面刷新后恢复 pending 状态 ──
+  // 组件挂载时查询所有已知 session 的 sendStatus，恢复 processing 状态
+  useEffect(() => {
+    if (sessions.length === 0) return;
+    void (async () => {
+      for (const session of sessions) {
+        try {
+          const status = await window.electronAPI.sessionsSendStatus(session.id);
+          if (status?.status === 'processing') {
+            // 恢复 pending 状态
+            const baselineAssistantCount = 0; // 刷新后无法精确恢复，使用 0 作为基线
+            setPendingSessions((prev) => {
+              const next = new Map(prev);
+              next.set(session.id, {
+                message: '',
+                startedAt: status.startedAt || Date.now(),
+                baselineAssistantCount,
+              });
+              return next;
+            });
+            // 重新启动轮询
+            void (async () => {
+              const pollResult = await pollForReply(
+                async () => {
+                  const getResult: any = await window.electronAPI.sessionsGet(session.id);
+                  if (getResult?.success && Array.isArray(getResult.transcript) && getResult.transcript.length > 0) {
+                    return getResult.transcript;
+                  }
+                  return [];
+                },
+                baselineAssistantCount,
+              );
+              setPendingSessions((prev) => {
+                const next = new Map(prev);
+                next.delete(session.id);
+                return next;
+              });
+              if (pollResult.success && selectedSession?.id === session.id) {
+                setTranscript(pollResult.transcript);
+              }
+            })();
+          }
+        } catch {
+          // 查询失败忽略
+        }
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions.length]);
 
   // ── 初始化 & 定时刷新 ──
   useEffect(() => {
@@ -419,6 +553,7 @@ const Sessions: React.FC = () => {
           sessions={filteredSessions}
           selectedSession={selectedSession}
           onSelect={handleSelectSession}
+          pendingSessions={pendingSessions}
           t={t}
         />
         <SessionChatPanel
@@ -429,6 +564,9 @@ const Sessions: React.FC = () => {
           onMessageChange={setNewMessage}
           onSend={() => void handleSendMessage()}
           sending={sending}
+          isPending={selectedSession ? pendingSessions.has(selectedSession.id) : false}
+          sendError={sendError && selectedSession && sendError.sessionId === selectedSession.id ? sendError : null}
+          onRetry={handleRetrySend}
           onExport={(id, fmt) => void handleExportSession(id, fmt)}
           onClose={(id) => void handleCloseSession(id)}
           t={t}

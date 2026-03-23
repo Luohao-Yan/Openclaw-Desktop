@@ -1,0 +1,43 @@
+{
+  "appId": "com.openclaw.desktop",
+  "productName": "OpenClaw Desktop",
+  "artifactName": "${productName}-${version}-tahoe-${arch}.${ext}",
+  "icon": "resources/icns/icon_tahoe.icns",
+  "directories": {
+    "output": "release-artifacts/mac-arm64-tahoe"
+  },
+  "extraResources": [
+    {
+      "from": "resources/node/",
+      "to": "node/"
+    },
+    {
+      "from": "resources/bin/",
+      "to": "bin/"
+    }
+  ],
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "dist-electron/**/*",
+    "resources/**/*"
+  ],
+  "mac": {
+    "icon": "resources/icns/icon_tahoe.icns",
+    "category": "public.app-category.developer-tools",
+    "minimumSystemVersion": "26.0",
+    "extendInfo": {
+      "NSHighResolutionCapable": true
+    },
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["arm64"]
+      }
+    ],
+    "x64ArchFiles": "**/*darwin-arm64*"
+  },
+  "dmg": {
+    "title": "${productName} ${version} (Tahoe)"
+  }
+}

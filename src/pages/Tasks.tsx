@@ -398,7 +398,6 @@ const Tasks: React.FC = () => {
         ? {
             kind,
             text: '',
-            mode: current.wakeMode,
           }
         : {
             kind,
@@ -449,7 +448,6 @@ const Tasks: React.FC = () => {
         payload: draft.payload.kind === 'systemEvent'
           ? {
               ...draft.payload,
-              mode: draft.wakeMode,
             } as CronPayloadSystemEvent
           : draft.payload,
       };
@@ -958,7 +956,7 @@ const Tasks: React.FC = () => {
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>Payload</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>载荷</div>
                   {/* Payload 类型 badge */}
                   <AppBadge size="sm" variant="default">
                     {getPayloadKind(selectedJob)}
@@ -975,7 +973,7 @@ const Tasks: React.FC = () => {
                 {/* Delivery 配置（如有） */}
                 {(selectedJob as any).delivery && (
                   <>
-                    <div className="mt-3 mb-2 text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>Delivery</div>
+                    <div className="mt-3 mb-2 text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>投递配置</div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                       {Object.entries((selectedJob as any).delivery).map(([k, v]) => (
                         <div key={k} className="flex items-start gap-2 min-w-0">
@@ -1076,7 +1074,7 @@ const Tasks: React.FC = () => {
         footer={
           <>
             <AppButton variant="secondary" onClick={closeCreateModal} disabled={saving}>
-              Cancel
+              取消
             </AppButton>
             <AppButton
               variant="primary"
@@ -1084,7 +1082,7 @@ const Tasks: React.FC = () => {
               disabled={saving || !draft.name.trim()}
               icon={saving ? <LoaderCircle size={14} className="animate-spin" /> : undefined}
             >
-              Save
+              保存
             </AppButton>
           </>
         }
@@ -1125,14 +1123,14 @@ const Tasks: React.FC = () => {
               />
 
               {/* Agent ID */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Agent ID</div>
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>智能体ID</div>
               <select
                 value={draft.agentId || ''}
                 onChange={(event) => updateDraft({ agentId: event.target.value })}
                 className={inputClassName}
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
               >
-                <option value="">Optional (default agent)</option>
+                <option value="">可选（默认智能体）</option>
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
@@ -1191,9 +1189,6 @@ const Tasks: React.FC = () => {
                         type="button"
                         onClick={() => {
                           updateDraft({ wakeMode: value });
-                          if (draft.payload.kind === 'systemEvent') {
-                            updatePayload({ mode: value });
-                          }
                         }}
                         className="rounded-xl px-4 py-2 text-sm font-medium transition-colors"
                         style={{
@@ -1219,10 +1214,10 @@ const Tasks: React.FC = () => {
             className="rounded-2xl border p-5"
             style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}
           >
-            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--app-text)' }}>Schedule</div>
+            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--app-text)' }}>调度配置</div>
             <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-4">
               {/* Kind */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Kind</div>
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>类型</div>
               <div>
                 <div className="flex flex-wrap gap-2">
                   {cronScheduleKindOptions.map((item) => {
@@ -1359,12 +1354,12 @@ const Tasks: React.FC = () => {
                   </select>
 
                   {/* Timeout */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Timeout</div>
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>超时时间</div>
                   <input
                     type="number"
                     value={agentTurnPayload.timeoutSeconds || ''}
                     onChange={(event) => updatePayload({ timeoutSeconds: Number(event.target.value || 0) || undefined })}
-                    placeholder="Seconds (optional)"
+                    placeholder="秒数（可选）"
                     className={inputClassName}
                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                   />

@@ -15,6 +15,7 @@ import {
 import { basename, dirname, extname, join, relative, resolve } from 'path';
 import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand } from './settings.js';
 import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError, needsAgentDirRepair, planAgentDirRepair } from './agentCreateLogic.js';
+import { checkAgentCompleteness, planAgentCompletenessRepair, validateAgentRename } from './agentCompletenessLogic.js';
 
 /**
  * 构建 doctor --fix 命令的环境变量（纯函数）
@@ -2841,6 +2842,124 @@ export function setupAgentsIPC() {
       return { success: true };
     } catch (error) {
       console.error('[agents:updateIdentity] 错误:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // ── Agent 配置完整性检查与修复 IPC Handlers ──────────────────────────────────────
+
+  /**
+   * 检查 agent 配置完整性
+   * 返回完整性报告，包含各项检查的通过/缺失状态
+   */
+  ipcMain.handle('agents:checkCompleteness', async (_, agentId: string): Promise<{ success: boolean; report?: any; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      const report = checkAgentCompleteness(info, existsSync);
+      return { success: true, report };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  /**
+   * 执行 agent 配置完整性修复
+   * 先检查完整性，再生成修复计划，最后执行目录创建和文件写入（幂等）
+   */
+  ipcMain.handle('agents:repairCompleteness', async (_, agentId: string): Promise<{ success: boolean; repairedItems?: string[]; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      // 获取完整性报告
+      const report = checkAgentCompleteness(info, existsSync);
+      // 生成修复计划
+      const plan = planAgentCompletenessRepair(info, report);
+      const repairedItems: string[] = [];
+
+      // 执行目录创建
+      for (const dir of plan.directoriesToCreate) {
+        mkdirSync(dir, { recursive: true });
+        repairedItems.push(`目录: ${dir}`);
+      }
+
+      // 执行文件写入（幂等：已存在则跳过）
+      for (const file of plan.filesToWrite) {
+        if (!existsSync(file.path)) {
+          // 确保父目录存在
+          mkdirSync(dirname(file.path), { recursive: true });
+          writeFileSync(file.path, file.content, 'utf8');
+          repairedItems.push(`文件: ${file.path}`);
+        }
+      }
+
+      return { success: true, repairedItems };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  /**
+   * 重命名 agent
+   * 校验名称合法性后更新 openclaw.json 中的 name 字段
+   */
+  ipcMain.handle('agents:rename', async (_, agentId: string, newName: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const config = readConfig();
+      const agentsList = config?.agents?.list || [];
+      const agentEntry = agentsList.find((a: any) => a.id === agentId || a.name === agentId);
+
+      if (!agentEntry) {
+        return { success: false, error: `未找到智能体: ${agentId}` };
+      }
+
+      const trimmedName = newName.trim();
+
+      // 幂等：名称相同时直接返回成功
+      if (agentEntry.name === trimmedName) {
+        return { success: true };
+      }
+
+      // 获取所有已有 agent 名称（排除当前 agent）
+      const existingNames = agentsList
+        .filter((a: any) => (a.id || a.name) !== agentId)
+        .map((a: any) => a.name as string);
+
+      // 校验名称合法性
+      const validation = validateAgentRename(newName, existingNames);
+      if (!validation.valid) {
+        return { success: false, error: validation.error };
+      }
+
+      // 更新名称并写入配置
+      agentEntry.name = trimmedName;
+      writeConfig(config);
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  /**
+   * 写入 agent 的 models.json
+   * 将模型配置内容写入 agent 配置目录的 models.json 文件
+   */
+  ipcMain.handle('agents:writeModelsJson', async (_, agentId: string, content: object): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+
+      if (!info.agentConfigRoot) {
+        return { success: false, error: 'agent 配置目录路径为空' };
+      }
+
+      // 确保配置目录存在
+      mkdirSync(info.agentConfigRoot, { recursive: true });
+
+      // 写入 models.json
+      const modelsPath = join(info.agentConfigRoot, 'models.json');
+      writeFileSync(modelsPath, JSON.stringify(content, null, 2), 'utf8');
+
+      return { success: true };
+    } catch (error) {
       return { success: false, error: String(error) };
     }
   });

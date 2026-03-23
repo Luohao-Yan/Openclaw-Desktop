@@ -22,7 +22,7 @@ export interface AgentCreatePayload {
 }
 
 /** CLI 错误类型 */
-export type AgentErrorType = 'schema' | 'network' | 'permission' | 'unknown';
+export type AgentErrorType = 'schema' | 'network' | 'permission' | 'reserved' | 'unknown';
 
 /**
  * 构建智能体创建 CLI 参数数组
@@ -81,6 +81,9 @@ export function classifyAgentError(stderr: string): AgentErrorType {
     }
   }
 
+  // 检查保留名称错误
+  if (lower.includes('reserved')) return 'reserved';
+
   // 检查网络错误
   if (
     lower.includes('network') ||
@@ -118,7 +121,12 @@ export function formatAgentCreateError(
     return '配置文件存在兼容性问题，请尝试运行 `openclaw doctor --fix` 修复，或手动检查 ~/.openclaw/openclaw.json 配置文件。';
   }
 
-  // 非 schema 错误：保留原始 stderr 信息
+  // reserved 错误：返回中文友好提示
+  if (errorType === 'reserved') {
+    return '智能体名称为系统保留名称，请更换其他名称。';
+  }
+
+  // 非 schema/reserved 错误：保留原始 stderr 信息
   return stderr;
 }
 

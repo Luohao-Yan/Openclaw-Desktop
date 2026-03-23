@@ -1,9 +1,10 @@
 import pkg from 'electron';
-const { ipcMain, BrowserWindow } = pkg;
+const { ipcMain, BrowserWindow, dialog } = pkg;
 import { existsSync, readdirSync, readFileSync, watch } from 'fs';
 import fs from 'fs/promises';
 import { join } from 'path';
 import { spawn } from 'child_process';
+import * as AdmZip from 'adm-zip';
 import { getOpenClawRootDir, resolveOpenClawCommand, runCommand as runShellCommand, getShellPath } from './settings.js';
 import {
   parseSkillMd, formatSkillMd, toKebabCase, isValidSkillName,
@@ -11,6 +12,14 @@ import {
 } from './skillsLogic.js';
 import type { SkillInfo, SkillDiagnosticReport, SkillDiagnosticItem, SkillEntryConfig, PluginInfo } from '../../types/electron.js';
 import type { SkillMdData } from './skillsLogic.js';
+import {
+  bindSkillToAgents,
+  unbindSkillFromAgents,
+  getBoundAgents,
+  getAgentSkills,
+  checkSkillPermission,
+  getAllBindings,
+} from './skillAgentBinding.js';
 
 // 磁盘缓存实例（TTL 30 秒）
 const diskCache = new SkillsDiskCache();
@@ -639,6 +648,7 @@ export function setupSkillsIPC() {
   ipcMain.handle('skills:installDependency', async (_, payload: { command: string; args: string[] }) => {
     try {
       const { command, args } = payload;
+;
       if (!command || !command.trim()) return { success: false, error: '安装命令不能为空' };
       // 安全检查：仅允许已知的包管理器命令
       const allowedCommands = ['brew', 'apt', 'apt-get', 'yum', 'dnf', 'pacman', 'npm', 'pip', 'pip3', 'cargo'];
@@ -648,5 +658,239 @@ export function setupSkillsIPC() {
       if (!r.success) return { success: false, output: r.output, error: r.error || '依赖安装失败' };
       return { success: true, output: r.output };
     } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
+  });
+
+  // ── Task 4.8: 本地文件安装 ────────────────────────────────────────────────────
+
+  /**
+   * 选择本地文件进行安装
+   * 支持格式：.zip 文件或包含 SKILL.md 的文件夹
+   */
+  ipcMain.handle('skills:installFromLocal', async () => {
+    try {
+      // 获取当前窗口引用
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (!focusedWindow) return { success: false, error: '未找到活动窗口' };
+
+      // 弹出文件选择对话框
+      const result = await dialog.showOpenDialog(focusedWindow, {
+        title: '选择技能文件',
+        properties: ['openFile', 'openDirectory'],
+        filters: [
+          { name: '技能包', extensions: ['zip'] },
+          { name: '所有文件', extensions: ['*'] },
+        ],
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, canceled: true, error: '用户取消选择' };
+      }
+
+      const filePath = result.filePaths[0];
+      return { success: true, filePath };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  /**
+   * 安装本地文件
+   * 支持格式：.zip 文件解压或文件夹复制到 skills 目录
+   */
+  ipcMain.handle('skills:installLocalFile', async (_, filePath: string) => {
+    try {
+      if (!filePath || !filePath.trim()) {
+        return { success: false, error: '文件路径不能为空' };
+      }
+
+      const skillsDir = join(getOpenClawRootDir(), 'skills');
+      if (!existsSync(skillsDir)) {
+        await fs.mkdir(skillsDir, { recursive: true });
+      }
+
+      // 检查是否为 .zip 文件
+      const isZip = filePath.toLowerCase().endsWith('.zip');
+      let tempDir: string | null = null;
+      let skillId: string | null = null;
+
+      try {
+        if (isZip) {
+          // 解压 zip 文件
+          const zip = new AdmZip(filePath);
+          const zipEntries = zip.getEntries();
+
+          // 查找 SKILL.md 所在的根目录
+          let skillRootEntry = null;
+          for (const entry of zipEntries) {
+            if (entry.entryName.endsWith('SKILL.md')) {
+              // 获取 SKILL.md 所在的目录名称
+              const parts = entry.entryName.split('/');
+              if (parts.length >= 2) {
+                // 找到包含 SKILL.md 的顶级目录
+                const rootDir = parts[0];
+                skillRootEntry = rootDir;
+                break;
+              }
+            }
+          }
+
+          if (!skillRootEntry) {
+            return { success: false, error: 'ZIP 文件中未找到 SKILL.md，请检查文件结构' };
+          }
+
+          // 解压到临时目录
+          tempDir = join(skillsDir, `.temp-${Date.now()}`);
+          zip.extractAllTo(tempDir, true);
+
+          // 检查解压后的目录
+          const extractedDir = join(tempDir, skillRootEntry);
+          if (!existsSync(extractedDir)) {
+            return { success: false, error: '解压失败，无法找到技能目录' };
+          }
+
+          // 检查 SKILL.md 是否存在
+          const skillMdPath = join(extractedDir, 'SKILL.md');
+          if (!existsSync(skillMdPath)) {
+            return { success: false, error: '技能目录中缺少 SKILL.md 文件' };
+          }
+
+          // 解析 SKILL.md 获取技能名称
+          const skillMdContent = await fs.readFile(skillMdPath, 'utf-8');
+          const parsed = parseSkillMd(skillMdContent);
+          if (!parsed.ok) {
+            return { success: false, error: 'SKILL.md 解析失败: 格式错误' };
+          }
+
+          skillId = toKebabCase(parsed.data.frontmatter.name);
+
+          // 检查是否已存在
+          const targetDir = join(skillsDir, skillId);
+          if (existsSync(targetDir)) {
+            return { success: false, error: `技能 "${skillId}" 已存在，请先卸载旧版本` };
+          }
+
+          // 移动目录到 skills 目录
+          await fs.rename(extractedDir, targetDir);
+        } else {
+          // 文件夹模式：检查是否包含 SKILL.md
+          const skillMdPath = join(filePath, 'SKILL.md');
+          if (!existsSync(skillMdPath)) {
+            return { success: false, error: '所选文件夹中缺少 SKILL.md 文件' };
+          }
+
+          // 解析 SKILL.md 获取技能名称
+          const skillMdContent = await fs.readFile(skillMdPath, 'utf-8');
+          const parsed = parseSkillMd(skillMdContent);
+          if (!parsed.ok) {
+            return { success: false, error: 'SKILL.md 解析失败: 格式错误' };
+          }
+
+          skillId = toKebabCase(parsed.data.frontmatter.name);
+
+          // 检查是否已存在
+          const targetDir = join(skillsDir, skillId);
+          if (existsSync(targetDir)) {
+            return { success: false, error: `技能 "${skillId}" 已存在，请先卸载旧版本` };
+          }
+
+          // 复制整个文件夹到 skills 目录
+          await fs.cp(filePath, targetDir, { recursive: true });
+        }
+
+        // 清理临时目录
+        if (tempDir && existsSync(tempDir)) {
+          await fs.rm(tempDir, { recursive: true, force: true });
+        }
+
+        // 清除缓存
+        diskCache.invalidate();
+
+        return { success: true, skillId };
+      } catch (installError: any) {
+        // 清理临时目录
+        if (tempDir && existsSync(tempDir)) {
+          try {
+            await fs.rm(tempDir, { recursive: true, force: true });
+          } catch {
+            // 忽略清理错误
+          }
+        }
+        throw installError;
+      }
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // ── Task 4.4: Agent专属技能管理 ────────────────────────────────────────
+
+  // 将技能绑定到一个或多个Agent
+  ipcMain.handle('skills:bindToAgents', async (_, skillId: string, agentIds: string[]) => {
+    try {
+      bindSkillToAgents(skillId, agentIds);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // 从一个或多个Agent解绑技能
+  ipcMain.handle('skills:unbindFromAgents', async (_, skillId: string, agentIds: string[]) => {
+    try {
+      unbindSkillFromAgents(skillId, agentIds);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // 获取技能绑定的所有Agent列表
+  ipcMain.handle('skills:getBoundAgents', async (_, skillId: string) => {
+    try {
+      const bindings = getBoundAgents(skillId);
+      return { success: true, bindings };
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // 获取Agent的专属技能信息（全局技能+专属技能）
+  ipcMain.handle('skills:getAgentAgentSkills', async (_, agentId: string) => {
+    try {
+      // 获取所有技能列表
+      const allSkills = await fetchSkillsFromCLI();
+      // 获取所有Agent列表 - 需要从agents模块导入
+      // 暂时返回空结果，需要后续集成agents模块
+      return {
+        success: true,
+        agentSkills: {
+          agentId,
+          globalSkills: allSkills,
+          exclusiveSkills: [],
+        },
+      };
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // 检查Agent是否有权限调用指定技能
+  ipcMain.handle('skills:checkPermission', async (_, agentId: string, skillId: string) => {
+    try {
+      const result = checkSkillPermission(agentId, skillId);
+      return { success: true, ...result };
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  // 获取所有技能与Agent的绑定关系
+  ipcMain.handle('skills:getAllBindings', async () => {
+    try {
+      const bindings = getAllBindings();
+      return { success: true, bindings };
+    } catch (err: any) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
   });
 }

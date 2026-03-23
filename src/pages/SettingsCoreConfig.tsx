@@ -1553,7 +1553,7 @@ const SettingsCoreConfig: React.FC = () => {
             {/* Auth Profiles */}
             <div className="space-y-4">
               <div>
-                <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>Auth Profiles</div>
+                <div className="text-[15px] font-semibold" style={{ color: 'var(--app-text)' }}>认证配置</div>
                 <div className="mt-1 text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
                   Provider credential profiles containing provider type, token source, model constraints, and audit-friendly labels.
                 </div>
@@ -1773,7 +1773,7 @@ const SettingsCoreConfig: React.FC = () => {
                 </div>
                 {/* Provider */}
                 <div className="space-y-1.5">
-                  <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Provider</div>
+                  <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>提供商</div>
                   <input
                     type="text"
                     value={authProfileDraft.provider}

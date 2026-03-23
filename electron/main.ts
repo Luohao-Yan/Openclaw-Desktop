@@ -24,6 +24,9 @@ import { setupRuntimeIPC } from './ipc/runtime.js';
 import { setupEnvironmentFixerIPC } from './ipc/environmentFixer.js';
 import { setupRemoteConnectionIPC } from './ipc/remoteConnection.js';
 import { setupAgentExchangeIPC } from './ipc/agentExchange.js';
+import { getShellPath } from './ipc/settings.js';
+import { asyncSendManager } from './ipc/asyncSendManager.js';
+import { setupScreenshotIPC } from './screenshot-ipc.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -196,6 +199,12 @@ app.whenReady().then(() => {
   setupAgentExchangeIPC(); // 注册 Agent 配置加密导入/导出 IPC
   setupShellIPC();
   setupWindowIPC();
+  setupScreenshotIPC();
+
+  // 预热 Shell PATH 解析：在窗口加载期间提前完成 login shell spawn，
+  // 避免用户打开第一个页面时才触发，导致首次 IPC 调用明显变慢
+  getShellPath().catch(() => { /* 预热失败不影响启动 */ });
+
   createWindow();
 });
 
@@ -203,6 +212,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// 应用退出前终止所有异步发送的 CLI 子进程，避免僵尸进程
+app.on('before-quit', () => {
+  asyncSendManager.killAll();
 });
 
 app.on('activate', () => {

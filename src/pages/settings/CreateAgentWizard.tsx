@@ -490,7 +490,7 @@ function SummaryStep({
       {/* 基础信息 */}
       <SectionCard title={t('agent.wizard.summaryBasicInfo')} step={0}>
         <InfoRow label={t('agent.nameLabel')} value={form.name} />
-        <InfoRow label="Workspace" value={form.workspace} />
+        <InfoRow label="工作区" value={form.workspace} />
         <InfoRow label={t('agent.modelLabel')} value={form.model} />
       </SectionCard>
 

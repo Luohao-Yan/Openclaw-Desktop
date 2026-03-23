@@ -581,6 +581,8 @@ export const translations = {
     'agent.nameLabel': 'Agent Name',
     'agent.nameRequired': 'Please enter an agent name',
     'agent.nameInvalid': 'Agent name can only contain letters, numbers, hyphens (-) and underscores (_). It is used as a filesystem path.',
+    // 保留名称错误提示（英文）
+    'agent.nameReserved': 'Agent name is reserved by the system. Please choose another name.',
     'agent.nameHint': 'Only letters, numbers, hyphens (-) and underscores (_). This will be used as a filesystem path.',
     'agent.workspaceRequired': 'Please enter a workspace path',
     'agent.modelLabel': 'Model (optional)',
@@ -645,9 +647,16 @@ export const translations = {
     'sessions.loadFailed': 'Failed to load sessions. Please check if OpenClaw service is running.',
     'sessions.noMessages': 'No messages yet',
     'sessions.noMessagesHint': 'Send a message to start the conversation',
+    'sessions.cronSessionHint': 'This is a cron-triggered session. The conversation log may not be available yet or has been cleaned up by the runtime.',
     'sessions.sendPlaceholder': 'Type your message here...',
     'sessions.send': 'Send',
     'sessions.sending': 'Sending...',
+    'sessions.sendUnsupported': 'Sending messages is not supported — sessions are managed by the OpenClaw runtime.',
+    'sessions.sendFailed': 'Failed to send message',
+    'sessions.waitingReply': 'Waiting for reply...',
+    'sessions.replyTimeout': 'Reply timed out, please retry',
+    'sessions.replyFailed': 'Failed to get reply',
+    'sessions.retry': 'Retry',
     'sessions.createTitle': 'Create New Session',
     'sessions.agentName': 'Agent Name',
     'sessions.agentNamePlaceholder': 'Enter agent name (e.g., cto-development-director)',
@@ -817,6 +826,96 @@ export const translations = {
     'skills.depGuide.installing': 'Installing...',
     'skills.depGuide.installSuccess': 'Installed successfully',
     'skills.depGuide.close': 'Close',
+
+    // Config page
+    'config.title': 'Configuration',
+    'config.subtitle': 'Manage your OpenClaw settings',
+    'config.loading': 'Loading configuration...',
+    'config.addField': 'Add Field',
+    'config.noFields': 'No configuration fields found',
+    'config.addFirstField': 'Add your first field',
+    'config.saving': 'Saving...',
+    'config.save': 'Save Configuration',
+    'config.saveSuccess': 'Configuration saved successfully!',
+    'config.confirmDelete': 'Are you sure you want to delete "{key}"?',
+    'config.enterFieldName': 'Enter field name:',
+    'config.typeBoolean': 'boolean',
+    'config.typeNumber': 'number',
+    'config.typeString': 'string',
+
+    // Agents page additional
+    'agents.configured': 'Configured',
+    'agents.token': 'Token',
+    'agents.id': 'ID',
+    'agents.workspace': 'Workspace',
+    'agents.noAgents': 'No Agents Found',
+    'agents.selectAgent': 'Select an Agent',
+    'agents.cpu': 'CPU',
+    'agents.memory': 'Memory',
+
+    // Tasks page
+    'tasks.newCron': 'New cron job',
+    'tasks.basics': 'Basics',
+    'tasks.name': 'Name',
+    'tasks.namePlaceholder': 'Required (e.g. "Daily summary")',
+    'tasks.description': 'Description',
+    'tasks.descriptionPlaceholder': 'Optional notes',
+    'tasks.agentId': 'Agent ID',
+    'tasks.enabled': 'Enabled',
+    'tasks.sessionTarget': 'Session target',
+    'tasks.wakeMode': 'Wake mode',
+    'tasks.schedule': 'Schedule',
+    'tasks.kind': 'Kind',
+    'tasks.payload': 'Payload',
+    'tasks.delivery': 'Delivery',
+    'tasks.kindHint': '"At" for one-time, "Every" for interval, "Cron" for 5-field expression.',
+    'tasks.systemEventText': 'System event text',
+    'tasks.message': 'Message',
+    'tasks.thinking': 'Thinking',
+    'tasks.optional': 'Optional',
+    'tasks.timeout': 'Timeout',
+    'tasks.channel': 'Channel',
+    'tasks.to': 'To',
+
+    // Agent Workspace
+    'workspace.path': 'Workspace Path',
+    'workspace.memoryPath': 'Memory Path',
+    'workspace.agentConfigPath': 'Agent Config Path',
+    'workspace.sessionsPath': 'Sessions Path',
+    'workspace.root': 'Workspace Root',
+    'workspace.agentConfigRoot': 'Agent Config Root',
+    'workspace.configSource': 'Config Source',
+
+    // Settings Core Config
+    'settings.coreConfig.title': 'Core Config',
+    'settings.coreConfig.authCooldowns': 'Auth Cooldowns',
+    'settings.coreConfig.authProfileOrder': 'Auth Profile Order',
+    'settings.coreConfig.authProfiles': 'Auth Profiles',
+    'settings.coreConfig.provider': 'Provider',
+    'settings.coreConfig.primaryAgentPlaceholder': 'Primary Agent',
+
+    // Instances page additional
+    'instances.cpu': 'CPU',
+    'instances.memory': 'Memory',
+    'instances.port': 'Port',
+
+    // Agents page badges and tabs (English)
+    'agents.badge.multiAgentSystem': 'Multi-Agent System',
+    'agents.badge.enhancement': 'Agent Enhancement',
+    'agents.tab.list': 'Agent List',
+    'agents.tab.enhancement': 'Agent Enhancement',
+    'agents.tab.skills': 'Agent Skills',
+    'agents.noAgentsTitle': 'No Agents Found',
+    'agents.noAgentsDesc': 'No agents are configured in your OpenClaw installation.',
+    'agents.infoFooter': 'Agent data is loaded from {configPath}. Configuration files are located at {agentPath}.',
+
+    // Skills page badge (English)
+    'skills.badge.management': 'Skills Management',
+
+    // Sessions page tooltips (English)
+    'sessions.exportJson': 'Export JSON',
+    'sessions.copyKey': 'Copy Key',
+    'sessions.closeSession': 'Close Session',
   },
   zh: {
     dashboard: '仪表板',
@@ -1401,6 +1500,8 @@ export const translations = {
     'agent.nameLabel': '智能体名称',
     'agent.nameRequired': '请输入智能体名称',
     'agent.nameInvalid': '智能体名称只能包含英文字母、数字、连字符（-）和下划线（_），因为它会作为文件系统路径使用。',
+    // 保留名称错误提示（中文）
+    'agent.nameReserved': '智能体名称为系统保留名称，请更换其他名称。',
     'agent.nameHint': '仅支持英文字母、数字、连字符（-）和下划线（_），将用于文件系统路径。',
     'agent.workspaceRequired': '请输入 Workspace 路径',
     'agent.modelLabel': '模型（可选）',
@@ -1465,9 +1566,16 @@ export const translations = {
     'sessions.loadFailed': '加载会话失败，请检查 OpenClaw 服务是否正常运行。',
     'sessions.noMessages': '暂无消息',
     'sessions.noMessagesHint': '发送一条消息开始对话',
+    'sessions.cronSessionHint': '这是由 cron 定时任务触发的会话，对话记录文件可能尚未生成或已被 runtime 清理。',
     'sessions.sendPlaceholder': '输入消息内容...',
     'sessions.send': '发送',
     'sessions.sending': '发送中...',
+    'sessions.sendUnsupported': '暂不支持直接发送消息，会话由 OpenClaw runtime 管理。',
+    'sessions.sendFailed': '消息发送失败',
+    'sessions.waitingReply': '等待回复中...',
+    'sessions.replyTimeout': '回复超时，请重试',
+    'sessions.replyFailed': '获取回复失败',
+    'sessions.retry': '重试',
     'sessions.createTitle': '创建新会话',
     'sessions.agentName': '智能体名称',
     'sessions.agentNamePlaceholder': '输入智能体名称（如 cto-development-director）',
@@ -1662,5 +1770,23 @@ export const translations = {
     'skills.depGuide.installing': '安装中...',
     'skills.depGuide.installSuccess': '安装成功',
     'skills.depGuide.close': '关闭',
+
+    // Agents page badges and tabs (Chinese)
+    'agents.badge.multiAgentSystem': '多智能体系统',
+    'agents.badge.enhancement': '智能体增强',
+    'agents.tab.list': '智能体列表',
+    'agents.tab.enhancement': '智能体增强',
+    'agents.tab.skills': '智能体技能',
+    'agents.noAgentsTitle': '未找到智能体',
+    'agents.noAgentsDesc': '当前 OpenClaw 安装中没有配置智能体。',
+    'agents.infoFooter': '智能体数据从 {configPath} 加载，配置文件位于 {agentPath}。',
+
+    // Skills page badge (Chinese)
+    'skills.badge.management': '技能管理',
+
+    // Sessions page tooltips (Chinese)
+    'sessions.exportJson': '导出 JSON',
+    'sessions.copyKey': '复制 Key',
+    'sessions.closeSession': '关闭会话',
   },
 };

@@ -42,6 +42,14 @@ interface AppSettings {
   theme?: 'light' | 'dark' | 'system';
   sidebarCollapsed?: boolean;
   sidebarWidth?: number;
+
+  // Setup Wizard 偏好：仅保存在 electron-store，不写入 openclaw.json
+  /** 是否安装后台 Daemon 服务（Setup Wizard done 步骤偏好） */
+  setupInstallDaemon?: boolean;
+  /** Daemon 运行时类型：node（系统 Node.js）或 bundled（内置运行时） */
+  setupDaemonRuntime?: 'node' | 'bundled';
+  /** 是否安装推荐 Skills 套件（Setup Wizard done 步骤偏好） */
+  setupInstallRecommendedSkills?: boolean;
 }
 
 interface OpenClawRootDiagnostic {

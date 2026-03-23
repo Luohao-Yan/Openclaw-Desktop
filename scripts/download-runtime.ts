@@ -48,7 +48,7 @@ interface RuntimeManifest {
 // ============================================================
 
 /** 项目根目录 */
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PROJECT_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 
 /** 运行时清单路径 */
 const MANIFEST_PATH = path.join(PROJECT_ROOT, 'scripts', 'runtime-manifest.json');

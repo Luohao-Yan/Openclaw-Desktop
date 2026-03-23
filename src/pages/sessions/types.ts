@@ -25,6 +25,14 @@ export interface Session {
   model: string;
   channel: string;
   status: string;
+  /** sessions.json 中的真实 session uuid，用于 openclaw agent --session-id */
+  sessionId?: string;
+  /** 从 sessions.json 读取的投递上下文，用于 openclaw message send */
+  deliveryContext?: {
+    channel: string;
+    to: string;
+    accountId?: string;
+  };
 }
 
 /** 会话统计 */

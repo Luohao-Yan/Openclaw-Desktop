@@ -89,6 +89,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentsListWorkspaceEntries: (agentId, targetPath) => ipcRenderer.invoke('agents:listWorkspaceEntries', agentId, targetPath),
   agentsGetCount: () => ipcRenderer.invoke('agents:getCount'),
   agentsUpdateIdentity: (agentId, identity) => ipcRenderer.invoke('agents:updateIdentity', agentId, identity),
+  // Agent 配置完整性检查与修复
+  agentsCheckCompleteness: (agentId) => ipcRenderer.invoke('agents:checkCompleteness', agentId),
+  agentsRepairCompleteness: (agentId) => ipcRenderer.invoke('agents:repairCompleteness', agentId),
+  agentsRename: (agentId, newName) => ipcRenderer.invoke('agents:rename', agentId, newName),
+  agentsWriteModelsJson: (agentId, content) => ipcRenderer.invoke('agents:writeModelsJson', agentId, content),
   
   // Agent Enhancement - 智能体增强功能
   agentsGetPerformance: (agentId) => ipcRenderer.invoke('agents:getPerformance', agentId),
@@ -123,7 +128,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sessionsGet: (sessionId) => ipcRenderer.invoke('sessions:get', sessionId),
   sessionsTranscript: (agentId, sessionKey) => ipcRenderer.invoke('sessions:transcript', agentId, sessionKey),
   sessionsCreate: (agent, model) => ipcRenderer.invoke('sessions:create', agent, model),
-  sessionsSend: (sessionId, message) => ipcRenderer.invoke('sessions:send', sessionId, message),
+  sessionsSend: (sessionId, message, meta) => ipcRenderer.invoke('sessions:send', sessionId, message, meta),
+  sessionsSendStatus: (sessionKey) => ipcRenderer.invoke('sessions:sendStatus', sessionKey),
   sessionsClose: (sessionId) => ipcRenderer.invoke('sessions:close', sessionId),
   sessionsExport: (sessionId, format) => ipcRenderer.invoke('sessions:export', sessionId, format),
   sessionsImport: (data, format) => ipcRenderer.invoke('sessions:import', data, format),
@@ -212,6 +218,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 依赖安装（技能缺失依赖的自动安装）
   skillsInstallDependency: (payload) => ipcRenderer.invoke('skills:installDependency', payload),
 
+  // 本地文件安装（选择文件/文件夹并安装）
+  skillsInstallFromLocal: () => ipcRenderer.invoke('skills:installFromLocal'),
+  skillsInstallLocalFile: (filePath) => ipcRenderer.invoke('skills:installLocalFile', filePath),
+
+  // Agent专属技能管理
+  skillsBindToAgents: (skillId, agentIds) => ipcRenderer.invoke('skills:bindToAgents', skillId, agentIds),
+  skillsUnbindFromAgents: (skillId, agentIds) => ipcRenderer.invoke('skills:unbindFromAgents', skillId, agentIds),
+  skillsGetBoundAgents: (skillId) => ipcRenderer.invoke('skills:getBoundAgents', skillId),
+  skillsGetAgentSkills: (agentId) => ipcRenderer.invoke('skills:getAgentAgentSkills', agentId),
+  skillsCheckPermission: (agentId, skillId) => ipcRenderer.invoke('skills:checkPermission', agentId, skillId),
+  skillsGetAllBindings: () => ipcRenderer.invoke('skills:getAllBindings'),
+
   // Approvals — exec approvals 图形化管理
   approvalsGet: (target) => ipcRenderer.invoke('approvals:get', target),
   approvalsAllowlistAdd: (pattern, agent, target) => ipcRenderer.invoke('approvals:allowlist:add', pattern, agent, target),
@@ -274,4 +292,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 运行时解析（三级回退策略）
   resolveRuntime: () => ipcRenderer.invoke('system:resolveRuntime'),
+  // 截图功能
+  screenshotTake: (filename) => ipcRenderer.invoke('screenshot:take', filename),
+  screenshotNavigateAndTake: (route, filename) => ipcRenderer.invoke('screenshot:navigateAndTake', route, filename),
 });

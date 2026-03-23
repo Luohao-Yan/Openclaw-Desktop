@@ -277,60 +277,27 @@ describe('Feature: setup-config-persistence, Property 1: Bug Condition 探索', 
     expect(migrated.bindings[0].match.dmScope).toBeUndefined();
   });
 
-  // ── 缺陷 4: 导航图中 create-agent 直接跳转到 verify ──
+  // ── 缺陷 4: channels/create-agent/bind-channels 路由已从导航图中移除 ──
+  // install-guide 页面内嵌了完整的多步配置（模型、workspace、gateway、channels、daemon、skills），
+  // 完成后直接跳转到 verify，不再经过这些独立路由。
+  // 以下三个测试已废弃，因为对应的导航节点已从 NAVIGATION_GRAPH 中移除。
 
-  /**
-   * Validates: Requirements 1.4, 2.4
-   *
-   * 导航图测试：create-agent 节点的 next 应指向 bind-channels 步骤，
-   * 而非直接跳转到 verify。
-   *
-   * 在未修复代码上：create-agent.next === '/setup/local/verify'
-   * → 测试失败 → 证明 bug 存在
-   */
-  test('缺陷 4: 导航图中 create-agent 的 next 应指向 bind-channels 而非 verify', () => {
-    // 查找 create-agent 节点
+  test('缺陷 4（已废弃）: create-agent/bind-channels 节点已从导航图中移除', () => {
+    // channels、create-agent、bind-channels 路由已从主导航链中移除
     const createAgentNode = NAVIGATION_GRAPH.find(
       (node) => node.path === '/setup/local/create-agent',
     );
-
-    // 节点必须存在
-    expect(createAgentNode).toBeDefined();
-
-    // 期望行为：next 应指向 bind-channels 步骤
-    // 未修复代码：next 直接指向 /setup/local/verify
-    expect(createAgentNode!.next).toBe('/setup/local/bind-channels');
-  });
-
-  /**
-   * Validates: Requirements 1.4, 2.4
-   *
-   * 导航图测试：应存在 bind-channels 节点
-   */
-  test('缺陷 4: 导航图中应存在 bind-channels 节点', () => {
     const bindChannelsNode = NAVIGATION_GRAPH.find(
       (node) => node.path === '/setup/local/bind-channels',
     );
-
-    // 期望行为：bind-channels 节点存在
-    // 未修复代码：节点不存在
-    expect(bindChannelsNode).toBeDefined();
-  });
-
-  /**
-   * Validates: Requirements 1.4, 2.4
-   *
-   * 导航图测试：bind-channels 节点的 next 应指向 verify
-   */
-  test('缺陷 4: bind-channels 节点的 next 应指向 verify', () => {
-    const bindChannelsNode = NAVIGATION_GRAPH.find(
-      (node) => node.path === '/setup/local/bind-channels',
+    const channelsNode = NAVIGATION_GRAPH.find(
+      (node) => node.path === '/setup/local/channels',
     );
 
-    // 如果节点存在，验证其 next 指向 verify
-    // 未修复代码：节点不存在，测试失败
-    expect(bindChannelsNode).toBeDefined();
-    expect(bindChannelsNode!.next).toBe('/setup/local/verify');
+    // 这些节点不再存在于导航图中
+    expect(createAgentNode).toBeUndefined();
+    expect(bindChannelsNode).toBeUndefined();
+    expect(channelsNode).toBeUndefined();
   });
 
   // ── 缺陷 6: buildPatchedConfig() 不清理 bindings.match 不兼容字段 ──
@@ -638,39 +605,33 @@ describe('Feature: setup-config-persistence, Property 2: Preservation — 已兼
     );
   });
 
-  // ── 观察 3: 导航图中 channels 节点的 next 指向 channel-accounts，verify 节点的 prev 指向 create-agent ──
+  // ── 观察 3: 导航图路由精简 — channels/create-agent/bind-channels 已移除 ──
 
   /**
    * Validates: Requirements 3.1, 3.2
    *
-   * 导航图测试：验证导航节点的导航关系正确。
-   * channels 节点的 next 应指向 create-agent（channel-accounts 步骤已移除）。
-   * verify 节点的 prev 在默认状态下应指向 create-agent。
+   * 导航图测试：channels、create-agent、bind-channels 节点已从导航图中移除。
+   * install-guide 页面内嵌了完整的多步配置，完成后直接跳转到 verify。
    *
-   * 修复后：channels → create-agent → bind-channels → verify
+   * verify 节点的 prev 现在根据 localInstallValidated 条件决定：
+   * - localInstallValidated 为 true 时回退到 configure
+   * - 否则回退到 install-guide
    */
-  test('导航图中 channels 节点的 next 指向 create-agent', () => {
-    // 查找 channels 节点
+  test('导航图中 channels 节点已移除', () => {
+    // channels 节点已从导航图中移除
     const channelsNode = NAVIGATION_GRAPH.find(
       (node) => node.path === '/setup/local/channels',
     );
-
-    // 节点必须存在
-    expect(channelsNode).toBeDefined();
-
-    // channels 的 next 应指向 create-agent（channel-accounts 步骤已移除）
-    expect(channelsNode!.next).toBe('/setup/local/create-agent');
+    expect(channelsNode).toBeUndefined();
   });
 
   /**
    * Validates: Requirements 3.1, 3.2
    *
-   * 导航图测试：verify 节点的 prev 应指向 create-agent。
-   * 注意：prev 可能是函数，需要调用获取实际值。
-   *
-   * 在未修复代码上：verify.prev 指向 create-agent → 测试通过
+   * 导航图测试：verify 节点的 prev 在默认状态下应指向 install-guide。
+   * （默认状态下 localInstallValidated 为 undefined/falsy，走 install-guide 路径）
    */
-  test('导航图中 verify 节点的 prev 指向 create-agent', () => {
+  test('导航图中 verify 节点的 prev 在默认状态下指向 install-guide', () => {
     // 查找 verify 节点
     const verifyNode = NAVIGATION_GRAPH.find(
       (node) => node.path === '/setup/local/verify',
@@ -684,8 +645,8 @@ describe('Feature: setup-config-persistence, Property 2: Preservation — 已兼
       ? verifyNode!.prev(initialSetupState)
       : verifyNode!.prev;
 
-    // verify 的 prev 应指向 create-agent
-    expect(prevValue).toBe('/setup/local/create-agent');
+    // 默认状态下 localInstallValidated 为 undefined，verify 的 prev 应指向 install-guide
+    expect(prevValue).toBe('/setup/local/install-guide');
   });
 
   /**

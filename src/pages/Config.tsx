@@ -56,7 +56,7 @@ const Config: React.FC = () => {
     setLoading(false);
     
     if (result.success) {
-      setMessage('success:Configuration saved successfully!');
+      setMessage('success:配置保存成功！');
     } else {
       setMessage('error:' + result.error);
     }
@@ -74,7 +74,7 @@ const Config: React.FC = () => {
   };
 
   const handleAddField = () => {
-    const newKey = prompt('Enter field name:');
+    const newKey = prompt('请输入字段名称：');
     if (newKey && newKey.trim()) {
       const trimmedKey = newKey.trim();
       setEditing({
@@ -89,7 +89,7 @@ const Config: React.FC = () => {
   };
 
   const handleDeleteField = (key: string) => {
-    if (confirm('Are you sure you want to delete "' + key + '"?')) {
+    if (confirm('确定要删除 "' + key + '" 吗？')) {
       const newEditing = { ...editing };
       delete newEditing[key];
       setEditing(newEditing);
@@ -103,7 +103,7 @@ const Config: React.FC = () => {
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
             <Settings size={24} className="animate-pulse" style={{ color: 'var(--app-text-muted)' }} />
           </div>
-          <p style={{ color: 'var(--app-text-muted)' }}>Loading configuration...</p>
+          <p style={{ color: 'var(--app-text-muted)' }}>加载配置中...</p>
         </div>
       </div>
     );
@@ -117,8 +117,8 @@ const Config: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="w-2 h-8 bg-gradient-to-b from-tech-cyan to-tech-green rounded-full" />
           <div>
-            <h1 className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>Configuration</h1>
-            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>Manage your OpenClaw settings</p>
+            <h1 className="text-2xl font-semibold" style={{ color: 'var(--app-text)' }}>配置管理</h1>
+            <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>管理您的 OpenClaw 设置</p>
           </div>
         </div>
         
@@ -127,7 +127,7 @@ const Config: React.FC = () => {
           className="btn-secondary flex items-center gap-2"
         >
           <Plus size={16} />
-          Add Field
+          添加字段
         </button>
       </div>
 
@@ -167,7 +167,7 @@ const Config: React.FC = () => {
                         border: '1px solid var(--app-border)',
                       }}
                 >
-                  True
+                  是
                 </button>
                 <button
                   onClick={() => handleFieldChange(key, 'false')}
@@ -184,7 +184,7 @@ const Config: React.FC = () => {
                         border: '1px solid var(--app-border)',
                       }}
                 >
-                  False
+                  否
                 </button>
               </div>
             ) : editing[key].type === 'number' ? (
@@ -211,10 +211,10 @@ const Config: React.FC = () => {
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
                 <FileJson size={24} style={{ color: 'var(--app-text-muted)' }} />
               </div>
-              <p className="mb-2" style={{ color: 'var(--app-text-muted)' }}>No configuration fields found</p>
+              <p className="mb-2" style={{ color: 'var(--app-text-muted)' }}>暂无配置字段</p>
               <button onClick={handleAddField} className="btn-secondary inline-flex items-center gap-2">
                 <Plus size={16} />
-                Add your first field
+                添加第一个字段
               </button>
             </div>
           </GlassCard>
@@ -233,7 +233,7 @@ const Config: React.FC = () => {
             disabled={loading}
             className="w-full btn-primary flex items-center justify-center gap-2 py-3 text-base"
           >
-            {loading ? 'Saving...' : 'Save Configuration'}
+            {loading ? '保存中...' : '保存配置'}
           </button>
           
           {message && (

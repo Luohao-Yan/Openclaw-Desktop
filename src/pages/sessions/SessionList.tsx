@@ -3,7 +3,7 @@
  * 左侧面板，紧凑卡片式列表，支持选中高亮
  */
 import React from 'react';
-import { MessageSquare, Bot } from 'lucide-react';
+import { MessageSquare, Bot, RefreshCw } from 'lucide-react';
 import type { Session, TFunc } from './types';
 
 interface SessionListProps {
@@ -13,12 +13,14 @@ interface SessionListProps {
   selectedSession: Session | null;
   /** 选中会话回调 */
   onSelect: (session: Session) => void;
+  /** 正在等待回复的 session Map */
+  pendingSessions?: Map<string, any>;
   /** 翻译函数 */
   t: TFunc;
 }
 
 /** 左侧会话列表面板 */
-const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, onSelect, t }) => (
+const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, onSelect, pendingSessions, t }) => (
   <div className="w-[280px] shrink-0 flex flex-col rounded-2xl border overflow-hidden"
     style={{ backgroundColor: 'var(--app-bg-elevated)', borderColor: 'var(--app-border)' }}>
 
@@ -46,6 +48,7 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, on
         <div className="p-1.5 space-y-0.5">
           {sessions.map((s) => {
             const isSelected = selectedSession?.id === s.id;
+            const isPending = pendingSessions?.has(s.id) ?? false;
             return (
               <button key={s.id} onClick={() => onSelect(s)}
                 className="w-full text-left px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group"
@@ -55,11 +58,19 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, on
                 }}>
                 <div className="flex items-center gap-2.5">
                   {/* 智能体头像 */}
-                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 relative"
                     style={{
                       backgroundColor: isSelected ? 'rgba(96,165,250,0.18)' : 'rgba(148,163,184,0.08)',
                     }}>
                     <Bot size={15} style={{ color: isSelected ? '#60a5fa' : 'var(--app-text-muted)' }} />
+                    {/* pending 脉冲动画指示器 */}
+                    {isPending && (
+                      <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: '#60a5fa' }}>
+                        <div className="absolute inset-0 rounded-full animate-ping"
+                          style={{ backgroundColor: '#60a5fa', opacity: 0.6 }} />
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
                     {/* 智能体名 + 渠道标签 */}

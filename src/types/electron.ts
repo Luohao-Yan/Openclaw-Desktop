@@ -111,7 +111,6 @@ export type CronScheduleDraft =
 export interface CronPayloadSystemEvent {
   kind: 'systemEvent';
   text: string;
-  mode?: 'now' | 'next-heartbeat';
 }
 
 export interface CronPayloadAgentTurn {
@@ -652,6 +651,28 @@ export interface SkillEntryConfig {
   config?: Record<string, unknown>;
 }
 
+/** 技能与Agent的绑定关系（Agent专属技能功能） */
+export interface SkillAgentBinding {
+  /** 技能ID */
+  skillId: string;
+  /** Agent ID */
+  agentId: string;
+  /** 绑定时间（ISO 8601格式） */
+  bindTime: string;
+  /** 绑定用户ID（可选） */
+  bindUserId?: string;
+}
+
+/** Agent的专属技能信息（包含全局技能和专属技能） */
+export interface AgentSkillInfo {
+  /** Agent ID */
+  agentId: string;
+  /** 全局可用技能列表（所有Agent均可调用） */
+  globalSkills: SkillInfo[];
+  /** 专属技能列表（仅该Agent可调用） */
+  exclusiveSkills: SkillInfo[];
+}
+
 /** 插件信息 */
 export interface PluginInfo {
   id: string;
@@ -763,7 +784,17 @@ export interface ElectronAPI {
   agentsGetCount: () => Promise<any>;
   /** 更新智能体 Identity 配置 */
   agentsUpdateIdentity: (agentId: string, identity: { name?: string; theme?: string; emoji?: string; avatar?: string }) => Promise<{ success: boolean; error?: string }>;
-  
+
+  // ── 智能体配置完整性 API ──────────────────────────────────────────────────────────
+  /** 检查 agent 配置完整性 */
+  agentsCheckCompleteness?: (agentId: string) => Promise<{ success: boolean; report?: any; error?: string }>;
+  /** 执行 agent 配置完整性修复 */
+  agentsRepairCompleteness?: (agentId: string) => Promise<{ success: boolean; repairedItems?: string[]; error?: string }>;
+  /** 重命名 agent */
+  agentsRename?: (agentId: string, newName: string) => Promise<{ success: boolean; error?: string }>;
+  /** 写入 agent 的 models.json */
+  agentsWriteModelsJson?: (agentId: string, content: object) => Promise<{ success: boolean; error?: string }>;
+
   // ── 智能体增强功能 API ──────────────────────────────────────────────────────────
   /** 获取智能体性能指标 */
   agentsGetPerformance: (agentId: string) => Promise<{ success: boolean; metrics?: AgentPerformanceMetrics; error?: string }>;
@@ -811,6 +842,8 @@ export interface ElectronAPI {
   sessionsTranscript: (agentId: string, sessionKey: string) => Promise<any>;
   sessionsCreate: (agent: string, model?: string) => Promise<any>;
   sessionsSend: (sessionId: string, message: string, meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } }) => Promise<any>;
+  /** 查询指定 session 的异步发送状态 */
+  sessionsSendStatus: (sessionKey: string) => Promise<{ status: 'idle' | 'processing' | 'completed' | 'error' | 'timeout'; startedAt?: number; error?: string }>;
   sessionsClose: (sessionId: string) => Promise<any>;
   sessionsExport: (sessionId: string, format: 'json' | 'markdown') => Promise<any>;
   sessionsImport: (data: string, format: string) => Promise<any>;
@@ -882,12 +915,18 @@ export interface ElectronAPI {
   pluginsDisable: (id: string) => Promise<{ success: boolean; error?: string }>;
   /** 查看插件详情 */
   pluginsInspect: (id: string) => Promise<{ success: boolean; detail?: Record<string, unknown>; error?: string }>;
-  /** 插件诊断 */
+  /** /** 插件诊断 */
   pluginsDoctor: () => Promise<{ success: boolean; report?: Record<string, unknown>; error?: string }>;
 
   // ── 依赖安装 API（需求 12.2）──
   /** 执行依赖安装命令 */
   skillsInstallDependency: (payload: { command: string; args: string[] }) => Promise<{ success: boolean; output?: string; error?: string }>;
+
+  // ── 本地文件安装 API ──────────────────────────────────────────────────────
+  /** 选择本地文件进行安装（弹出文件选择对话框） */
+  skillsInstallFromLocal: () => Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
+  /** 安装本地文件（.zip 或文件夹） */
+  skillsInstallLocalFile: (filePath: string) => Promise<{ success: boolean; skillId?: string; error?: string }>;
 
   /** 修复环境问题（安装/升级/修复PATH） */
   fixEnvironment: (action: 'install' | 'upgrade' | 'fixPath', ...args: any[]) => Promise<import('./setup').FixResult>;
@@ -973,4 +1012,35 @@ export interface ElectronAPI {
   modelsModelUpdate: (providerId: string, modelId: string, updates: { [key: string]: any }) => Promise<BasicSuccessResult>;
   /** 保存提供商配置（baseUrl、apiKey 等） */
   modelsProviderConfigSave: (providerId: string, config: { baseUrl?: string; apiKey?: string; [key: string]: any }) => Promise<BasicSuccessResult>;
+
+  // ── Agent专属技能管理 ───────────────────────────────────────────────────
+  /** 将技能绑定到一个或多个Agent */
+  skillsBindToAgents: (skillId: string, agentIds: string[]) => Promise<BasicSuccessResult>;
+  /** 从一个或多个Agent解绑技能 */
+  skillsUnbindFromAgents: (skillId: string, agentIds: string[]) => Promise<BasicSuccessResult>;
+  /** 获取技能绑定的所有Agent列表 */
+  skillsGetBoundAgents: (skillId: string) => Promise<{
+    success: boolean;
+    bindings?: SkillAgentBinding[];
+    error?: string;
+  }>;
+  /** 获取Agent的专属技能信息（全局技能+专属技能） */
+  skillsGetAgentSkills: (agentId: string) => Promise<{
+    success: boolean;
+    agentSkills?: AgentSkillInfo;
+    error?: string;
+  }>;
+  /** 检查Agent是否有权限调用指定技能 */
+  skillsCheckPermission: (agentId: string, skillId: string) => Promise<{
+    success: boolean;
+    allowed: boolean;
+    reason?: string;
+    error?: string;
+  }>;
+  /** 获取所有技能与Agent的绑定关系 */
+  skillsGetAllBindings: () => Promise<{
+    success: boolean;
+    bindings?: SkillAgentBinding[];
+    error?: string;
+  }>;
 }

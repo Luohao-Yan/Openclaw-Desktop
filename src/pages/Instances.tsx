@@ -201,7 +201,7 @@ const Instances: React.FC = () => {
           <div className="flex items-center space-x-2">
             <HardDrive className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
             <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Memory</div>
+              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>内存</div>
               <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{instance.memoryUsage} MB</div>
             </div>
           </div>
@@ -211,7 +211,7 @@ const Instances: React.FC = () => {
           <div className="flex items-center space-x-2">
             <Clock className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
             <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Uptime</div>
+              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>运行时间</div>
               <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
                 {Math.floor(instance.uptime / 3600)}h {Math.floor((instance.uptime % 3600) / 60)}m
               </div>
@@ -223,7 +223,7 @@ const Instances: React.FC = () => {
           <div className="flex items-center space-x-2">
             <Server className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
             <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Port</div>
+              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>端口</div>
               <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{instance.port}</div>
             </div>
           </div>

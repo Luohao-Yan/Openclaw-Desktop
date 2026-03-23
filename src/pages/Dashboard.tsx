@@ -31,6 +31,7 @@ interface OpenClawRootDiagnostic {
   error?: string;
 }
 import { useNavigate } from 'react-router-dom';
+import { takeAllScreenshots } from '../utils/screenshot';
 
 interface GatewayStatus {
   status: 'running' | 'stopped' | 'error' | 'checking';
@@ -535,6 +536,13 @@ function Dashboard() {
                 icon={<Settings2 size={16} />}
               >
                 查看高级设置
+              </AppButton>
+              <AppButton
+                variant="secondary"
+                onClick={() => void takeAllScreenshots()}
+                icon={<Settings2 size={16} />}
+              >
+                截取所有页面截图
               </AppButton>
             </div>
           </div>

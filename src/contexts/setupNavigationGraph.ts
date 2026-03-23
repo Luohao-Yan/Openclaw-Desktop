@@ -37,10 +37,14 @@ export interface NavigationNode {
  * 包含所有引导步骤节点及其导航关系
  *
  * 导航分支说明：
- * - 本地路径: welcome → local/intro → local/environment → local/check →
- *            (confirm-existing OR install-guide) → local/configure →
- *            local/channels → local/create-agent → local/bind-channels → local/verify → complete
+ * - 本地路径（新安装）: welcome → local/intro → local/environment → local/check →
+ *            install-guide（内嵌多步配置）→ local/verify → complete
+ * - 本地路径（已有安装）: welcome → local/intro → local/environment → local/check →
+ *            confirm-existing → local/configure → local/verify → complete
  * - 远程路径: welcome → remote/intro → remote/config → remote/verify → complete
+ *
+ * 注意：channels、create-agent、bind-channels 路由仍保留在导航图中以兼容旧状态恢复，
+ * 但新安装流程中 install-guide 的 done 子步骤会直接跳转到 verify，不再经过这些中间路由。
  *
  * @see 需求 4.1 — Navigation_Graph 使用声明式配置定义所有步骤及其前进/后退关系
  * @see 需求 4.3 — Navigation_Graph 支持条件导航
@@ -99,13 +103,13 @@ export const NAVIGATION_GRAPH: NavigationNode[] = [
   },
   {
     path: '/setup/local/install-guide',
-    next: '/setup/local/configure',
+    next: '/setup/local/verify',
     prev: () => '/setup/local/check',
     label: '安装指南',
   },
   {
     path: '/setup/local/configure',
-    next: '/setup/local/channels',
+    next: '/setup/local/verify',
     // 条件导航：根据 localInstallValidated 决定回退目标
     prev: (state) =>
       state.settings.localInstallValidated
@@ -113,43 +117,20 @@ export const NAVIGATION_GRAPH: NavigationNode[] = [
         : '/setup/local/install-guide',
     label: '配置',
   },
-  {
-    path: '/setup/local/channels',
-    next: '/setup/local/create-agent',
-    prev: () => '/setup/local/configure',
-    label: '渠道配置',
-  },
-  {
-    path: '/setup/local/create-agent',
-    next: '/setup/local/bind-channels',
-    prev: () => '/setup/local/channels',
-    label: '智能体配置',
-  },
-  {
-    path: '/setup/local/bind-channels',
-    next: '/setup/local/verify',
-    prev: () => '/setup/local/create-agent',
-    // 跳过条件：没有已创建 agent 时跳过（无 agent 可绑定）
-    // 注意：不再检查 channelAddResults，绑定页面会通过 IPC 查询系统中可用渠道
-    skip: (state) => {
-      const hasCreatedAgent = state.agent.created !== null;
-      return !hasCreatedAgent;
-    },
-    label: '绑定渠道',
-  },
+  // 注意：channels、create-agent、bind-channels 路由已从主导航链中移除。
+  // install-guide 页面内嵌了完整的多步配置（模型、workspace、gateway、channels、daemon、skills），
+  // 完成后直接跳转到 verify，不再经过这些独立路由。
+  // 路由定义仍保留在 App.tsx 中以兼容旧状态恢复，但不再参与导航图的 next/prev 链。
   {
     path: '/setup/local/verify',
     next: '/setup/complete',
-    // 条件导航：根据 bind-channels 是否被跳过决定回退目标
-    // 与 bind-channels 的 skip 条件保持一致：只检查有没有创建 agent
-    prev: (state) => {
-      const hasCreatedAgent = state.agent.created !== null;
-      // 如果 bind-channels 会被跳过（没创建 agent），直接回退到 create-agent
-      if (!hasCreatedAgent) {
-        return '/setup/local/create-agent';
-      }
-      return '/setup/local/bind-channels';
-    },
+    // 条件导航：根据来源路径决定回退目标
+    // - 从 install-guide 的 done 子步骤直接跳转过来时，回退到 install-guide
+    // - 从 confirm-existing → configure 路径过来时，回退到 configure
+    prev: (state) =>
+      state.settings.localInstallValidated
+        ? '/setup/local/configure'
+        : '/setup/local/install-guide',
     label: '验证',
   },
 

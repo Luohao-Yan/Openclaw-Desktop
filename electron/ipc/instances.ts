@@ -141,14 +141,15 @@ async function getAgentInstances(): Promise<InstanceInfo[]> {
 }
 
 // 获取所有节点实例
+// 使用短超时（4s），避免命令挂起拖慢整体加载
 async function getNodeInstances(): Promise<InstanceInfo[]> {
   const instances: InstanceInfo[] = [];
   
   try {
-    // 检查节点配置
-    const result = await runOpenClawCommand(['nodes', 'status']);
+    // 检查节点配置，限制超时 4s
+    const result = await runShellCommand(resolveOpenClawCommand(), ['--no-color', 'nodes', 'status'], { timeoutMs: 4_000 });
     if (result.success) {
-      const output = result.output;
+      const output = stripAnsiAndControlChars(result.output || '');
       if (output.includes('paired nodes')) {
         instances.push({
           id: 'local-node',
@@ -160,6 +161,7 @@ async function getNodeInstances(): Promise<InstanceInfo[]> {
       }
     }
   } catch (error) {
+    // 节点状态获取失败时静默降级，不阻塞主流程
     console.error('Error getting node instances:', error);
   }
   
@@ -170,15 +172,18 @@ export function setupInstancesIPC() {
   // 获取所有实例
   ipcMain.handle('instances:getAll', async (): Promise<{ success: boolean; instances?: InstanceInfo[]; error?: string }> => {
     try {
-      // 获取网关状态（即使命令返回非零退出码，输出里也可能有状态信息）
-      const statusResult = await runOpenClawCommand(['gateway', 'status']);
+      // 并行执行 gateway status 和 node instances 查询，缩短总等待时间
+      // gateway status 限制 5s 超时，避免命令挂起
+      const [statusResult, nodeInstances] = await Promise.all([
+        runShellCommand(resolveOpenClawCommand(), ['--no-color', 'gateway', 'status'], { timeoutMs: 5_000 })
+          .then(r => ({ ...r, output: stripAnsiAndControlChars(r.output || '') })),
+        getNodeInstances(),
+      ]);
+
       const gatewayInstances = parseOpenClawStatus(statusResult.output);
       
-      // 获取 Agent 实例
+      // Agent 实例始终为空（Agent 是配置定义，不是独立运行时进程）
       const agentInstances = await getAgentInstances();
-      
-      // 获取节点实例
-      const nodeInstances = await getNodeInstances();
       
       // 合并所有实例
       const allInstances = [
@@ -293,10 +298,15 @@ export function setupInstancesIPC() {
     error?: string 
   }> => {
     try {
-      const result = await runOpenClawCommand(['gateway', 'status']);
-      const instances = parseOpenClawStatus(result.output);
+      // 并行获取 gateway status 和 node instances
+      const [statusResult, nodeInstances] = await Promise.all([
+        runShellCommand(resolveOpenClawCommand(), ['--no-color', 'gateway', 'status'], { timeoutMs: 5_000 })
+          .then(r => ({ ...r, output: stripAnsiAndControlChars(r.output || '') })),
+        getNodeInstances(),
+      ]);
+
+      const instances = parseOpenClawStatus(statusResult.output);
       const agentInstances = await getAgentInstances();
-      const nodeInstances = await getNodeInstances();
       
       const allInstances = [...instances, ...agentInstances, ...nodeInstances];
       

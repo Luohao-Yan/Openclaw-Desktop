@@ -16,12 +16,14 @@ import {
   ExternalLink, Pencil,
   Plus, Stethoscope,
   AlertTriangle,
+  Users,
 } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import AppModal from '../components/AppModal';
 import AppBadge from '../components/AppBadge';
 import GlobalLoading from '../components/GlobalLoading';
-import type { SkillInfo } from '../types/electron';
+import type { SkillInfo, AgentInfo } from '../types/electron';
+import { useI18n } from '../i18n/I18nContext';
 
 // ── 子组件导入 ──────────────────────────────────────────────────────────────
 import CreateSkillDialog from '../components/skills/CreateSkillDialog';
@@ -32,6 +34,7 @@ import SkillDetailPanel from '../components/skills/SkillDetailPanel';
 import SkillConfigEditor from '../components/skills/SkillConfigEditor';
 import PluginsTab from '../components/skills/PluginsTab';
 import DiagnosticsPanel from '../components/skills/DiagnosticsPanel';
+import AgentBindingDialog from '../components/skills/AgentBindingDialog';
 
 // ── 标签页类型 ──────────────────────────────────────────────────────────────
 type TabKey = 'local' | 'market' | 'plugins';
@@ -253,6 +256,7 @@ interface LocalSkillCardProps {
   onClick: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onBindView?: () => void;  // 关联Agent按钮回调
 }
 
 /** 获取状态颜色 */
@@ -276,7 +280,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 /** 本地技能卡片 */
 const LocalSkillCard: React.FC<LocalSkillCardProps> = ({
-  skill, isSelected, onClick, onEdit, onDelete,
+  skill, isSelected, onClick, onEdit, onDelete, onBindView,
 }) => {
   const statusColor = getStatusColor(skill.status);
   const isCustom = skill.isCustom || skill.source === 'custom';
@@ -335,31 +339,39 @@ const LocalSkillCard: React.FC<LocalSkillCardProps> = ({
             </div>
           )}
         </div>
-        {/* 操作按钮（仅自定义技能） */}
-        {isCustom && (
-          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-            {onEdit && (
-              <button
-                onClick={onEdit}
-                className="p-1.5 rounded-lg transition-colors hover:opacity-80"
-                style={{ color: 'var(--app-text-muted)' }}
-                title="编辑"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={onDelete}
-                className="p-1.5 rounded-lg transition-colors hover:opacity-80"
-                style={{ color: '#EF4444' }}
-                title="删除"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
+        {/* 操作按钮 */}
+        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {onBindView && (
+            <button
+              onClick={onBindView}
+              className="p-1.5 rounded-lg transition-colors hover:opacity-80"
+              style={{ color: 'var(--app-text-muted)' }}
+              title="关联到Agent"
+            >
+              <Users className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {isCustom && onEdit && (
+            <button
+              onClick={onEdit}
+              className="p-1.5 rounded-lg transition-colors hover:opacity-80"
+              style={{ color: 'var(--app-text-muted)' }}
+              title="编辑"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {isCustom && onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded-lg transition-colors hover:opacity-80"
+              style={{ color: '#EF4444' }}
+              title="删除"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -412,6 +424,19 @@ const Skills: React.FC = () => {
     skillName: string;
     missingDeps: Array<{ name: string; installCommand?: string; installLabel?: string }>;
   } | null>(null);
+
+  // ── Agent专属绑定 ────────────────────────────────────────────────────
+  /** Agent绑定对话框 */
+  const [bindingDialog, setBindingDialog] = useState<{
+    skillId: string;
+    skillName: string;
+  } | null>(null);
+  /** 所有Agent列表 */
+  const [allAgents, setAllAgents] = useState<AgentInfo[]>([]);
+  /** 技能绑定的Agent列表 */
+  const [boundAgents, setBoundAgents] = useState<AgentInfo[]>([]);
+  /** 加载Agent列表 */
+  const [loadingAgents, setLoadingAgents] = useState(false);
 
   // ── 市场搜索状态 ────────────────────────────────────────────────────────
   /** 市场搜索关键词 */
@@ -546,6 +571,74 @@ const Skills: React.FC = () => {
   const configSkill = configSkillId
     ? skills.find((s) => s.id === configSkillId) ?? null
     : null;
+
+  // ── 加载Agent列表 ───────────────────────────────────────────────────
+  const loadAgents = useCallback(async () => {
+    setLoadingAgents(true);
+    try {
+      const result = await window.electronAPI.agentsGetAll();
+      if (result.success && result.agents) {
+        setAllAgents(result.agents);
+      }
+    } catch (err) {
+      console.error('加载Agent列表失败:', err);
+    } finally {
+      setLoadingAgents(false);
+    }
+  }, []);
+
+  // ── 加载技能绑定的Agent列表 ───────────────────────────────────────
+  const loadBoundAgents = useCallback(async (skillId: string) => {
+    try {
+      const result = await window.electronAPI.skillsGetBoundAgents(skillId);
+      if (result.success && result.bindings) {
+        const agentIds = result.bindings.map((b) => b.agentId);
+        const agents = allAgents.filter((a) => agentIds.includes(a.id));
+        setBoundAgents(agents);
+      }
+    } catch (err) {
+      console.error('加载绑定Agent失败:', err);
+    }
+  }, [allAgents]);
+
+  // ── 打开Agent绑定对话框 ───────────────────────────────────────────
+  const handleOpenBindingDialog = useCallback(async (skill: SkillInfo) => {
+    // 先加载Agent列表
+    if (allAgents.length === 0) {
+      await loadAgents();
+    }
+    // 加载已绑定的Agent
+    await loadBoundAgents(skill.id);
+    // 打开对话框
+    setBindingDialog({
+      skillId: skill.id,
+      skillName: skill.name,
+    });
+  }, [allAgents, loadAgents, loadBoundAgents]);
+
+  // ── 绑定Agent ───────────────────────────────────────────────────────
+  const handleBindAgents = useCallback(async (agentIds: string[]) => {
+    if (!bindingDialog) return { success: false, error: '未选择技能' };
+
+    const result = await window.electronAPI.skillsBindToAgents(bindingDialog.skillId, agentIds);
+    if (result.success) {
+      // 刷新绑定列表
+      await loadBoundAgents(bindingDialog.skillId);
+    }
+    return result;
+  }, [bindingDialog, loadBoundAgents]);
+
+  // ── 解绑Agent ───────────────────────────────────────────────────────
+  const handleUnbindAgents = useCallback(async (agentIds: string[]) => {
+    if (!bindingDialog) return { success: false, error: '未选择技能' };
+
+    const result = await window.electronAPI.skillsUnbindFromAgents(bindingDialog.skillId, agentIds);
+    if (result.success) {
+      // 刷新绑定列表
+      await loadBoundAgents(bindingDialog.skillId);
+    }
+    return result;
+  }, [bindingDialog, loadBoundAgents]);
 
   // ── 渲染 ─────────────────────────────────────────────────────────────────
   return (
@@ -772,6 +865,7 @@ const Skills: React.FC = () => {
                             ? () => setDeleteSkill(skill)
                             : undefined
                         }
+                        onBindView={() => handleOpenBindingDialog(skill)}
                       />
                     ))}
                   </div>
@@ -959,6 +1053,25 @@ const Skills: React.FC = () => {
           skillName={depGuide.skillName}
           missingDeps={depGuide.missingDeps}
           onRefresh={() => void loadSkills()}
+        />
+      )}
+
+      {/* ── Agent绑定对话框 ─────────────────────────────────────────────── */}
+      {bindingDialog && (
+        <AgentBindingDialog
+          isOpen={true}
+          onClose={() => setBindingDialog(null)}
+          skillId={bindingDialog.skillId}
+          skillName={bindingDialog.skillName}
+          boundAgents={boundAgents}
+          allAgents={allAgents}
+          onBind={handleBindAgents}
+          onUnbind={handleUnbindAgents}
+          onRefresh={() => {
+            if (bindingDialog) {
+              void loadBoundAgents(bindingDialog.skillId);
+            }
+          }}
         />
       )}
     </div>

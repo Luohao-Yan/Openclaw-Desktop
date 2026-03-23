@@ -3,8 +3,9 @@
  * Feature: setup-guided-completion, Property 5: 步骤回退映射的完整性和一致性
  *
  * 对于任意引导流程中的步骤路径，getPreviousStep 函数应返回一个有效的路由路径或 null（仅对首步）。
- * 特别地，/setup/local/create-agent 的上一步应为 /setup/local/channels，
- * /setup/local/verify 的上一步应为 /setup/local/create-agent。
+ * 特别地，/setup/local/verify 的上一步根据 localInstallValidated 条件决定：
+ *   - localInstallValidated 为 true 时回退到 /setup/local/configure
+ *   - 否则回退到 /setup/local/install-guide
  *
  * **Validates: Requirements 4.3**
  */
@@ -25,8 +26,6 @@ const setupRoutePatterns = [
   '/setup/local/confirm-existing',
   '/setup/local/install-guide',
   '/setup/local/configure',
-  '/setup/local/channels',
-  '/setup/local/create-agent',
   '/setup/local/verify',
   '/setup/remote/intro',
   '/setup/remote/config',
@@ -72,6 +71,16 @@ function getPreviousStep(
     return '/setup/local/install-guide';
   }
 
+  // 特殊情况：验证页面根据安装验证状态决定回退目标
+  // - localInstallValidated 为 true 时，走 confirm-existing → configure 路径，回退到 configure
+  // - 否则走 install-guide 路径（内嵌多步配置后直接跳到 verify），回退到 install-guide
+  if (step === '/setup/local/verify') {
+    if (setupSettings.localInstallValidated) {
+      return '/setup/local/configure';
+    }
+    return '/setup/local/install-guide';
+  }
+
   // 特殊情况：完成页面根据模式决定回退目标
   if (step === '/setup/complete') {
     return mode === 'remote'
@@ -89,9 +98,6 @@ function getPreviousStep(
     '/setup/local/check': '/setup/local/environment',
     '/setup/local/confirm-existing': '/setup/local/check',
     '/setup/local/install-guide': '/setup/local/check',
-    '/setup/local/channels': '/setup/local/configure',
-    '/setup/local/create-agent': '/setup/local/channels',
-    '/setup/local/verify': '/setup/local/create-agent',
     '/setup/remote/intro': '/setup/welcome',
     '/setup/remote/config': '/setup/remote/intro',
     '/setup/remote/verify': '/setup/remote/config',
@@ -148,28 +154,20 @@ describe('Property 5: 步骤回退映射的完整性和一致性', () => {
     );
   });
 
-  test('/setup/local/create-agent 的上一步为 /setup/local/channels', () => {
-    fc.assert(
-      fc.property(
-        setupSettingsArb(),
-        setupModeArb(),
-        (settings, mode) => {
-          const prev = getPreviousStep('/setup/local/create-agent', settings, mode);
-          expect(prev).toBe('/setup/local/channels');
-        },
-      ),
-      { numRuns: 100 },
-    );
-  });
-
-  test('/setup/local/verify 的上一步为 /setup/local/create-agent', () => {
+  test('/setup/local/verify 的上一步根据 localInstallValidated 条件决定', () => {
     fc.assert(
       fc.property(
         setupSettingsArb(),
         setupModeArb(),
         (settings, mode) => {
           const prev = getPreviousStep('/setup/local/verify', settings, mode);
-          expect(prev).toBe('/setup/local/create-agent');
+          if (settings.localInstallValidated) {
+            // 走 confirm-existing → configure 路径时，回退到 configure
+            expect(prev).toBe('/setup/local/configure');
+          } else {
+            // 走 install-guide 路径时（内嵌多步配置后直接跳到 verify），回退到 install-guide
+            expect(prev).toBe('/setup/local/install-guide');
+          }
         },
       ),
       { numRuns: 100 },
@@ -216,6 +214,7 @@ describe('Property 5: 步骤回退映射的完整性和一致性', () => {
     // 其余路由通过 backMap 处理
     const specialCaseRoutes: SetupRoute[] = [
       '/setup/local/configure',
+      '/setup/local/verify',
       '/setup/complete',
     ];
 
@@ -226,9 +225,6 @@ describe('Property 5: 步骤回退映射的完整性和一致性', () => {
       '/setup/local/check',
       '/setup/local/confirm-existing',
       '/setup/local/install-guide',
-      '/setup/local/channels',
-      '/setup/local/create-agent',
-      '/setup/local/verify',
       '/setup/remote/intro',
       '/setup/remote/config',
       '/setup/remote/verify',

@@ -6,6 +6,9 @@
 /** 智能体名称正则：仅允许 ASCII 字母、数字、连字符、下划线 */
 export const AGENT_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 
+/** CLI 保留的智能体名称列表（不区分大小写），这些名称不允许用户创建 */
+export const RESERVED_AGENT_NAMES = ['main'];
+
 /** 默认勾选的核心文件列表 */
 const DEFAULT_SELECTED_FILES = ['AGENTS.md', 'SOUL.md', 'TOOLS.md'];
 
@@ -25,6 +28,9 @@ export function validateBasicInfo(
     errors.name = t('agent.nameRequired');
   } else if (!AGENT_NAME_REGEX.test(trimmedName)) {
     errors.name = t('agent.nameInvalid');
+  } else if (RESERVED_AGENT_NAMES.includes(trimmedName.toLowerCase())) {
+    // 检查是否为系统保留名称（不区分大小写）
+    errors.name = t('agent.nameReserved');
   }
 
   if (!data.workspace.trim()) {

@@ -51,7 +51,7 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
         <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--app-border)', backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
           <ToggleRow
             checked={settings.playMenuBarAnimations}
-            label="Play menu bar icon animations"
+            label="菜单栏图标动画"
             description="保留状态图标的轻量动态反馈。"
             onChange={(value) => void onSettingChange('playMenuBarAnimations', value)}
           />

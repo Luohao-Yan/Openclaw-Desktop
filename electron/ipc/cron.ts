@@ -25,7 +25,6 @@ export type CronScheduleDraft = CronScheduleAt | CronScheduleEvery | CronSchedul
 export interface CronPayloadSystemEvent {
   kind: 'systemEvent';
   text: string;
-  mode?: 'now' | 'next-heartbeat';
 }
 
 export interface CronPayloadAgentTurn {
@@ -147,7 +146,7 @@ function tryParseJson<T>(value?: string): T | null {
   }
 }
 
-function toResultMessage(result: CommandResult, fallback: string) {
+function toResultMessage(result: { success: boolean; output: string; error?: string }, fallback: string) {
   // 优先从 error 字段提取可读信息，再尝试 output
   const raw = result.error || result.output || '';
   return extractErrorMessage(raw) || fallback;
@@ -178,9 +177,8 @@ function buildScheduleArgs(schedule: CronScheduleDraft): string[] {
 function buildPayloadArgs(payload: CronPayloadDraft, sessionTarget?: 'main' | 'isolated'): string[] {
   if (payload.kind === 'systemEvent') {
     const args = ['--system-event', payload.text];
-    if (payload.mode) {
-      args.push('--mode', payload.mode);
-    }
+    // 注意：mode 字段存储的是 wakeMode（now / next-heartbeat），
+    // 已在 buildCronCreateArgs 中通过 --wake 传递，此处不再重复传递
     if (sessionTarget) {
       args.push('--session', sessionTarget);
     }

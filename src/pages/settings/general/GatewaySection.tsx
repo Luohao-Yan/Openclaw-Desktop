@@ -86,7 +86,7 @@ const GatewaySection: React.FC<GatewaySectionProps> = ({
       >
         <ToggleRow
           checked={settings.openclawActive}
-          label="OpenClaw active"
+          label="OpenClaw 运行中"
           description="暂停后将停止本机 Gateway，新的请求不会继续被处理。"
           disabled={isGatewayActionPending}
           onChange={(value) => void onGatewayToggle(value)}
@@ -107,7 +107,7 @@ const GatewaySection: React.FC<GatewaySectionProps> = ({
                 color: 'var(--app-text)',
               }}
             >
-              <option value="local">Local (this Mac)</option>
+              <option value="local">本机（当前 Mac）</option>
             </select>
           </div>
           <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>

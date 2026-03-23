@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { AgentInfo } from '../../types/electron';
-import { 
+import type { AgentInfo, SkillInfo } from '../../types/electron';
+import type { AgentSkillInfo } from '../../types/electron';
+import {
   Users, Cpu, Hash,
   RefreshCw, AlertCircle, CheckCircle,
   User, FileText, Settings, ArrowRight,
@@ -11,6 +12,7 @@ import {
   Trash2,
   Download, Upload, History,
   MessageSquare, Clock, Coins, Globe,
+  Link2,
 } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import AppIconButton from '../components/AppIconButton';
@@ -25,13 +27,14 @@ import CreateAgentWizard from './settings/CreateAgentWizard';
 import ExportAgentDialog from './settings/ExportAgentDialog';
 import ImportAgentDialog from './settings/ImportAgentDialog';
 import ExportHistoryPanel from './settings/ExportHistoryPanel';
+import AgentSkillsPanel from '../components/agents/AgentSkillsPanel';
 
 const Agents: React.FC = () => {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<'list' | 'enhance'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'enhance' | 'skills'>('list');
   const [wizardOpen, setWizardOpen] = useState(false);
   // 创建后引导面板状态
   const [postGuideAgent, setPostGuideAgent] = useState<AgentInfo | null>(null);
@@ -61,6 +64,40 @@ const Agents: React.FC = () => {
   }>>({});
   const { t } = useI18n();
   const navigate = useNavigate();
+
+  // Agent专属技能信息
+  const [agentSkills, setAgentSkills] = useState<AgentSkillInfo | null>(null);
+  // 加载专属技能状态
+  const [loadingSkills, setLoadingSkills] = useState(false);
+  // 所有可用技能列表（用于添加专属技能）
+  const [allSkills, setAllSkills] = useState<SkillInfo[]>([]);
+
+  // 加载Agent专属技能
+  const loadAgentSkills = async (agentId: string) => {
+    setLoadingSkills(true);
+    try {
+      const result = await window.electronAPI.skillsGetAgentSkills(agentId);
+      if (result.success && result.agentSkills) {
+        setAgentSkills(result.agentSkills);
+      }
+    } catch (err) {
+      console.error('加载专属技能失败:', err);
+    } finally {
+      setLoadingSkills(false);
+    }
+  };
+
+  // 加载所有技能列表
+  const loadAllSkills = async () => {
+    try {
+      const result = await window.electronAPI.skillsGetAll();
+      if (result.success && result.skills) {
+        setAllSkills(result.skills);
+      }
+    } catch (err) {
+      console.error('加载技能列表失败:', err);
+    }
+  };
 
   const loadAgents = async () => {
     setLoading(true);
@@ -202,7 +239,15 @@ const Agents: React.FC = () => {
 
   useEffect(() => {
     loadAgents();
+    loadAllSkills();
   }, []);
+
+  // 当切换到skills标签页时，加载对应Agent的专属技能
+  useEffect(() => {
+    if (activeTab === 'skills' && selectedAgent) {
+      loadAgentSkills(selectedAgent.id);
+    }
+  }, [activeTab, selectedAgent]);
 
   const AgentCard = ({ agent }: { agent: AgentInfo }) => {
     // 检查该 Agent 的绑定状态
@@ -241,7 +286,7 @@ const Agents: React.FC = () => {
               </AppBadge>
               {agent.agentDir && (
                 /* 已配置状态 badge */
-                <AppBadge variant="success" size="sm">Configured</AppBadge>
+                <AppBadge variant="success" size="sm">已配置</AppBadge>
               )}
             </div>
           </div>
@@ -585,9 +630,17 @@ const Agents: React.FC = () => {
                 label: 'Agent Enhancement',
                 icon: <Zap className="w-4 h-4" />,
               },
+              {
+                key: 'skills',
+                label: 'Agent Skills',
+                icon: <Link2 className="w-4 h-4" />,
+              },
             ]}
             onChange={(key) => {
               if (key === 'enhance' && agents.length > 0 && !selectedAgent) {
+                setSelectedAgent(agents[0]);
+              }
+              if (key === 'skills' && agents.length > 0 && !selectedAgent) {
                 setSelectedAgent(agents[0]);
               }
               setActiveTab(key);
@@ -694,7 +747,7 @@ const Agents: React.FC = () => {
                       <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{deleteTarget.id}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Workspace</span>
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>工作区</span>
                       <span className="text-xs font-mono truncate max-w-[60%]" style={{ color: 'var(--app-text)' }}>{deleteTarget.workspace}</span>
                     </div>
                   </div>
@@ -752,7 +805,7 @@ const Agents: React.FC = () => {
                       <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{postGuideAgent.id}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>Workspace</span>
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>工作区</span>
                       <span className="text-xs font-mono truncate max-w-[60%]" style={{ color: 'var(--app-text)' }}>{postGuideAgent.workspace}</span>
                     </div>
                   </div>
@@ -812,10 +865,40 @@ const Agents: React.FC = () => {
               onClose={() => setHistoryOpen(false)}
             />
           </>
+        ) : activeTab === 'skills' ? (
+          <>
+            {selectedAgent ? (
+              <AgentSkillsPanel
+                agentId={selectedAgent.id}
+                agentName={selectedAgent.name}
+                agentSkills={agentSkills}
+                loading={loadingSkills}
+                onRefresh={() => {
+                  if (selectedAgent) {
+                    loadAgentSkills(selectedAgent.id);
+                  }
+                }}
+                onAddExclusiveSkill={async (skillId) => {
+                  return await window.electronAPI.skillsBindToAgents(skillId, [selectedAgent.id]);
+                }}
+                onUnbindSkill={async (skillId) => {
+                  return await window.electronAPI.skillsUnbindFromAgents(skillId, [selectedAgent.id]);
+                }}
+                allSkills={allSkills}
+              />
+            ) : (
+              <GlassCard className="p-12 text-center">
+                <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm mb-4" style={{ color: 'var(--app-text-muted)' }}>
+                  请先选择一个智能体
+                </p>
+              </GlassCard>
+            )}
+          </>
         ) : (
           <>
             {selectedAgent ? (
-              <AgentEnhancer 
+              <AgentEnhancer
                 agentId={selectedAgent.id}
                 agentName={selectedAgent.name}
                 onEnhancementToggle={(id, enabled) => {

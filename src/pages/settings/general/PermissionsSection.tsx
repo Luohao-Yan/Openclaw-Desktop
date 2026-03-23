@@ -43,7 +43,7 @@ const PermissionsSection: React.FC<PermissionsSectionProps> = ({
         <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--app-border)', backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
           <ToggleRow
             checked={settings.allowCamera}
-            label="Allow Camera"
+            label="允许摄像头"
             description="允许调用本机摄像头进行拍照或短视频捕捉。"
             onChange={(value) => void onSettingChange('allowCamera', value)}
           />

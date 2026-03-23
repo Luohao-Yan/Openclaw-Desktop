@@ -2488,7 +2488,7 @@ const AgentWorkspace: React.FC = () => {
                   </code>
                 </div>
                 <div>
-                  <div style={{ color: 'var(--app-text-muted)' }}>Agent Config Root</div>
+                  <div style={{ color: 'var(--app-text-muted)' }}>智能体配置根目录</div>
                   <code className="block mt-1 break-all" style={{ color: 'var(--app-text)' }}>
                     {details?.agentConfigRoot || '-'}
                   </code>

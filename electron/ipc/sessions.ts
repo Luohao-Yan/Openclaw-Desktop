@@ -3,6 +3,7 @@ const { ipcMain } = pkg;
 import { resolveOpenClawCommand, runCommand as runShellCommand } from './settings.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { asyncSendManager } from './asyncSendManager.js';
 // WebSocket 方案已废弃：Gateway 要求设备配对认证（connect.challenge），
 // 无法从 Electron 主进程直接建立连接。改用 CLI 方案。
 
@@ -733,40 +734,42 @@ export function setupSessionsIPC() {
     };
   });
 
-  // 向 session 发送消息，通过 CLI `openclaw agent --session-id <uuid> --message <text> --json`
-  // 发送成功后直接返回最新 transcript，前端无需再发额外请求
+  // 向 session 发送消息（异步非阻塞模式）
+  // 通过 AsyncSendManager 在子进程中启动 CLI 命令后立即返回，不等待 agent 回复
+  // 前端收到 { pending: true } 后启动轮询机制检测 agent 回复
   ipcMain.handle('sessions:send', async (
     _event,
     sessionKey: string,   // session key（保留参数兼容性，实际用 meta.sessionId）
     message: string,
     meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } },
-  ): Promise<{ success: boolean; response?: string; transcript?: any[]; error?: string }> => {
+  ): Promise<{ success: boolean; response?: string; transcript?: any[]; pending?: boolean; error?: string }> => {
     const sessionId = meta?.sessionId;
     if (!sessionId) {
       return { success: false, error: '缺少 sessionId，无法发送消息' };
     }
-    console.log(`[sessions:send] sessionId=${sessionId}, key=${sessionKey}, message="${message.substring(0, 50)}"`);
+    const agentId = meta?.agentId || sessionKey.split(':')[1] || 'main';
+    console.log(`[sessions:send] 异步发送: sessionId=${sessionId}, key=${sessionKey}, message="${message.substring(0, 50)}"`);
 
-    const sendResult = await sendViaAgentCli(sessionId, message, 120_000);
+    // 委托给 AsyncSendManager，立即返回不等待 CLI 完成
+    const result = await asyncSendManager.enqueue({
+      sessionId,
+      sessionKey,
+      message,
+      agentId,
+    });
 
-    if (!sendResult.success) {
-      return sendResult;
+    // enqueue 成功后让缓存失效，确保后续轮询能读到最新 transcript
+    if (result.success) {
+      invalidateStoresCache();
     }
 
-    // 发消息成功后，让缓存失效并立即读取最新 transcript 一并返回
-    // 这样前端只需一次 IPC 往返就能拿到最新对话，不需要再调用 sessionsGet
-    invalidateStoresCache();
-    try {
-      const stores = await getStoresCached();
-      const agentId = meta?.agentId || sessionKey.split(':')[1] || 'main';
-      const transcript = await readSessionTranscript(agentId, sessionKey, stores);
-      console.log(`[sessions:send] 发送成功，transcript count=${transcript.length}`);
-      return { success: true, response: sendResult.response, transcript };
-    } catch (err) {
-      // transcript 读取失败不影响发送成功的结果
-      console.error('[sessions:send] transcript 读取失败:', err);
-      return { success: true, response: sendResult.response };
-    }
+    return result;
+  });
+
+  // 查询指定 session 的异步发送状态
+  // 前端用于恢复 pending 状态（如页面刷新后）和轮询进度
+  ipcMain.handle('sessions:sendStatus', async (_event, sessionKey: string) => {
+    return asyncSendManager.getStatus(sessionKey);
   });
 
   // 关闭 session

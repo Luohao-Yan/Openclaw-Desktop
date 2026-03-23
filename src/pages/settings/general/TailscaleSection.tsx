@@ -149,14 +149,14 @@ const TailscaleSection: React.FC<TailscaleSectionProps> = ({
             disabled={isTailscaleActionPending || tailscaleStatus.running}
             onClick={() => void onStartTailscale()}
           >
-            Start Tailscale
+            启动 Tailscale
           </AppButton>
         </div>
 
         <div className="mt-5">
           <ToggleRow
             checked={settings.requireCredentials}
-            label="Require credentials"
+            label="需要凭据认证"
             description="使用 Tailscale 身份信息保护访问请求，无需单独设置密码。"
             disabled={settings.exposureMode === 'off' || isSaving}
             onChange={(value) => void onSettingChange('requireCredentials', value)}

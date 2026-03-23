@@ -467,6 +467,13 @@ export interface Settings {
     gravatarEmail?: string;
     theme?: 'light' | 'dark' | 'system';
   };
+  // Setup Wizard 偏好：仅保存在 electron-store，不写入 openclaw.json
+  /** 是否安装后台 Daemon 服务（Setup Wizard done 步骤偏好） */
+  setupInstallDaemon?: boolean;
+  /** Daemon 运行时类型：node（系统 Node.js）或 bundled（内置运行时） */
+  setupDaemonRuntime?: 'node' | 'bundled';
+  /** 是否安装推荐 Skills 套件（Setup Wizard done 步骤偏好） */
+  setupInstallRecommendedSkills?: boolean;
 }
 
 export interface SettingsActions {
@@ -631,6 +638,16 @@ export interface AgentsActions {
   agentsGetCount(): Promise<{ success: boolean; count?: number; error?: string }>;
   /** 更新智能体 Identity 配置 */
   agentsUpdateIdentity(agentId: string, identity: { name?: string; theme?: string; emoji?: string; avatar?: string }): Promise<{ success: boolean; error?: string }>;
+
+  // ── 智能体配置完整性 API ──────────────────────────────────────────────────────────
+  /** 检查 agent 配置完整性 */
+  agentsCheckCompleteness?(agentId: string): Promise<{ success: boolean; report?: any; error?: string }>;
+  /** 执行 agent 配置完整性修复 */
+  agentsRepairCompleteness?(agentId: string): Promise<{ success: boolean; repairedItems?: string[]; error?: string }>;
+  /** 重命名 agent */
+  agentsRename?(agentId: string, newName: string): Promise<{ success: boolean; error?: string }>;
+  /** 写入 agent 的 models.json */
+  agentsWriteModelsJson?(agentId: string, content: object): Promise<{ success: boolean; error?: string }>;
 }
 
 export interface ConfigActions {
@@ -717,7 +734,10 @@ export interface SessionsActions {
   sessionsGet(sessionId: string): Promise<SessionDetail | null>;
   sessionsTranscript(agentId: string, sessionKey: string): Promise<{ success: boolean; transcript: any[]; error?: string }>;
   sessionsCreate(agent: string, model?: string): Promise<{ success: boolean; sessionId?: string; error?: string }>;
-  sessionsSend(sessionId: string, message: string, meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } }): Promise<{ success: boolean; response?: string; error?: string }>;
+  /** 向指定 session 发送消息，异步模式返回 pending 标志，前端需轮询获取回复 */
+  sessionsSend(sessionId: string, message: string, meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } }): Promise<{ success: boolean; response?: string; transcript?: any[]; pending?: boolean; error?: string }>;
+  /** 查询指定 session 的异步发送状态 */
+  sessionsSendStatus(sessionKey: string): Promise<{ status: 'idle' | 'processing' | 'completed' | 'error' | 'timeout'; startedAt?: number; error?: string }>;
   sessionsClose(sessionId: string): Promise<{ success: boolean; error?: string }>;
   sessionsExport(sessionId: string, format: 'json' | 'markdown'): Promise<{ success: boolean; data?: string; error?: string }>;
   sessionsImport(data: string, format: 'json' | 'markdown'): Promise<{ success: boolean; sessionId?: string; error?: string }>;
@@ -888,6 +908,28 @@ export interface SkillDiagnosticItem {
 export interface SkillDiagnosticReport {
   items: SkillDiagnosticItem[];
   summary: { ok: number; warning: number; error: number };
+}
+
+/** 技能与Agent的绑定关系（Agent专属技能功能） */
+export interface SkillAgentBinding {
+  /** 技能ID */
+  skillId: string;
+  /** Agent ID */
+  agentId: string;
+  /** 绑定时间（ISO 8601格式） */
+  bindTime: string;
+  /** 绑定用户ID（可选） */
+  bindUserId?: string;
+}
+
+/** Agent的专属技能信息（包含全局技能和专属技能） */
+export interface AgentSkillInfo {
+  /** Agent ID */
+  agentId: string;
+  /** 全局可用技能列表（所有Agent均可调用） */
+  globalSkills: SkillInfo[];
+  /** 专属技能列表（仅该Agent可调用） */
+  exclusiveSkills: SkillInfo[];
 }
 
 // ── 技能操作接口 ──────────────────────────────────────────────────────────────
