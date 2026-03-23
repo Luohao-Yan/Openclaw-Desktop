@@ -1,7 +1,7 @@
 {
   "name": "openclaw-desktop",
   "version": "0.3.13-preview-9",
-  "description": "OpenClaw Desktop Electron Application",
+  "description": "OpenClaw Desktop - 基于 Electron 的多智能体 AI 系统桌面管理客户端 | Desktop management client for OpenClaw multi-agent AI system",
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron:watch\" \"npm run dev:electron\"",
@@ -30,10 +30,19 @@
   },
   "keywords": [
     "openclaw",
+    "openclaw-desktop",
     "electron",
     "desktop",
+    "ai-agent",
+    "multi-agent",
+    "agent-management",
     "dashboard",
-    "monitoring"
+    "monitoring",
+    "react",
+    "typescript",
+    "tailwindcss",
+    "macos",
+    "windows"
   ],
   "author": "OpenClaw Team",
   "license": "AGPL-3.0-only",
