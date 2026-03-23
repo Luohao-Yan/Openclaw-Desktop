@@ -30,9 +30,8 @@ import {
   SetupRemoteVerifyPage,
   SetupWelcomePage,
 } from './pages/setup/SetupPages';
-import { SetupChannelsPage } from './pages/setup/SetupChannelsPage';
-import { SetupCreateAgentPage } from './pages/setup/SetupCreateAgentPage';
-import { SetupBindChannelsPage } from './pages/setup/SetupBindChannelsPage';
+// Bug 2 修复：移除独立的 channels / create-agent / bind-channels 页面导入
+// 这些步骤已内嵌到 SetupLocalInstallGuidePage 的子步骤中
 
 /** 应用初始化加载屏 —— 使用全局 Loading 组件 */
 const AppLoadingScreen: React.FC = () => (
@@ -87,12 +86,9 @@ const SetupRoutes: React.FC = () => {
       <Route path="/setup/local/confirm-existing" element={<SetupLocalConfirmExistingPage />} />
       <Route path="/setup/local/install-guide" element={<SetupLocalInstallGuidePage />} />
       <Route path="/setup/local/configure" element={<SetupLocalConfigurePage />} />
-      {/* 渠道绑定步骤：位于配置确认之后、创建 Agent 之前 */}
-      <Route path="/setup/local/channels" element={<SetupChannelsPage />} />
-      {/* 创建 Agent 步骤：位于渠道配置之后、绑定渠道之前 */}
-      <Route path="/setup/local/create-agent" element={<SetupCreateAgentPage />} />
-      {/* Agent-Channel 绑定步骤：位于创建 Agent 之后、最终验证之前 */}
-      <Route path="/setup/local/bind-channels" element={<SetupBindChannelsPage />} />
+      {/* Bug 2 修复：移除 channels / create-agent / bind-channels 路由
+          这些步骤已内嵌到 install-guide 页面的子步骤中，
+          保留独立路由会导致浏览器后退时进入重复/混乱的页面 */}
       <Route path="/setup/local/verify" element={<SetupLocalVerifyPage />} />
       <Route path="/setup/remote/intro" element={<SetupRemoteIntroPage />} />
       <Route path="/setup/remote/config" element={<SetupRemoteConfigPage />} />

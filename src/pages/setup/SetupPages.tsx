@@ -859,8 +859,8 @@ export const SetupLocalConfigurePage: React.FC = () => {
       openclawPath: detectedPath,
       openclawRootDir: detectedRootDir,
     });
-    // 导航到渠道绑定步骤（配置确认 → 渠道绑定 → 最终验证）
-    navigate('/setup/local/channels');
+    // 导航到最终验证步骤（配置确认 → 最终验证）
+    navigate('/setup/local/verify');
   };
 
   return (
@@ -936,6 +936,7 @@ export const SetupLocalConfigurePage: React.FC = () => {
 };
 
 export const SetupLocalVerifyPage: React.FC = () => {
+  const navigate = useNavigate();
   const {
     completeSetup,
     error,
@@ -957,6 +958,10 @@ export const SetupLocalVerifyPage: React.FC = () => {
       stepLabel="步骤 6 / 6"
       footer={
         <div className="flex flex-wrap items-center gap-3">
+          {/* Bug 2 修复：添加"返回上一步"按钮，导航回安装引导页 */}
+          <AppButton variant="secondary" onClick={() => navigate('/setup/local/install-guide')}>
+            返回上一步
+          </AppButton>
           <AppButton variant="primary" onClick={() => void handleVerify()} disabled={isBusy} icon={<ShieldCheck size={16} />}>
             开始验证
           </AppButton>
