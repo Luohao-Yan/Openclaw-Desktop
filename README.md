@@ -6,7 +6,7 @@
 
 OpenClaw 多智能体 AI 系统的桌面管理客户端
 
-[![Latest Release](https://img.shields.io/github/v/release/Luohao-Yan/Openclaw-Desktop?label=最新版本&color=blue)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/Luohao-Yan/Openclaw-Desktop?include_prereleases&label=最新版本&color=blue)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Luohao-Yan/Openclaw-Desktop/total?label=下载量&color=green)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases)
 [![License](https://img.shields.io/github/license/Luohao-Yan/Openclaw-Desktop?label=许可证)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Luohao-Yan/Openclaw-Desktop?style=social)](https://github.com/Luohao-Yan/Openclaw-Desktop/stargazers)
