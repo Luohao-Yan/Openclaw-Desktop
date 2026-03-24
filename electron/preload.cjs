@@ -292,7 +292,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 运行时解析（三级回退策略）
   resolveRuntime: () => ipcRenderer.invoke('system:resolveRuntime'),
-  // 截图功能
-  screenshotTake: (filename) => ipcRenderer.invoke('screenshot:take', filename),
-  screenshotNavigateAndTake: (route, filename) => ipcRenderer.invoke('screenshot:navigateAndTake', route, filename),
+  // 打开外部链接
+  openExternal: (url) => ipcRenderer.invoke('system:openExternal', url),
 });

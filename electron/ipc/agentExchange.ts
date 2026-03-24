@@ -21,10 +21,13 @@ import {
   serializeBundle,
   deserializeBundle,
   stripSensitiveFields,
+  stripPathFields,
+  sanitizeModelsJson,
   resolveAgentName,
   extractChannelBindings,
   collectSkillManifest,
   createExportHistoryRecord,
+  deobfuscatePassphrase,
   OCAGENT_MAGIC,
   FORMAT_VERSION,
   type AgentConfigPayload,
@@ -301,6 +304,16 @@ export function setupAgentExchangeIPC(): void {
         const history = (store.get(EXPORT_HISTORY_KEY, []) as ExportHistoryRecord[]);
         // 按导出时间倒序排列
         history.sort((a, b) => new Date(b.exportTime).getTime() - new Date(a.exportTime).getTime());
+        // 解混淆 passphrase，向渲染进程返回原始明文（用户可见）
+        for (const record of history) {
+          if (record.passphrase) {
+            try {
+              record.passphrase = deobfuscatePassphrase(record.passphrase);
+            } catch {
+              // 解混淆失败（可能是旧版明文记录），保持原值
+            }
+          }
+        }
         return { success: true, history };
       } catch (error) {
         return { success: true, history: [] };
@@ -373,8 +386,9 @@ export function setupAgentExchangeIPC(): void {
           }
         }
 
-        // 5. 过滤敏感字段
-        const cleanedEntry = stripSensitiveFields(agentEntry as Record<string, unknown>);
+        // 5. 过滤敏感字段，然后清理平台特定路径字段
+        const sensitiveFiltered = stripSensitiveFields(agentEntry as Record<string, unknown>);
+        const cleanedEntry = stripPathFields(sensitiveFiltered);
 
         // 6. 提取 Channel 绑定模板
         const bindings = config?.bindings || [];
@@ -401,11 +415,11 @@ export function setupAgentExchangeIPC(): void {
             id: agentEntry.id || agentId,
             name: agentEntry.name || 'Unnamed Agent',
             model: agentEntry.model || 'Unknown',
-            workspace: actualWorkspaceDir || agentEntry.workspace || '',
+            workspace: '',  // 不嵌入源机器绝对路径，导入端使用新创建 Agent 的本地路径
           },
           agentEntry: cleanedEntry,
           workspaceFiles,
-          modelsJson,
+          modelsJson: sanitizeModelsJson(modelsJson),
           skills,
           channelBindings,
         };
@@ -555,6 +569,8 @@ export function setupAgentExchangeIPC(): void {
         // ==================================================================
         sendProgress(3, '写入配置文件', 'running');
 
+        // 注意：仅使用新创建 Agent 的本地路径（agentRecord.workspace / agentRecord.agentDir），
+        // 忽略 payload 中 agentEntry 的旧路径字段（可能来自源机器的绝对路径）
         try {
           // 重新读取配置获取新 Agent 的目录信息
           const configAfterCreate = readConfig();
@@ -812,13 +828,15 @@ function getInstalledSkillsList(): Array<{ id: string; name: string; path?: stri
 }
 
 /**
- * 读取私有 Skill 的所有文件内容
+ * 读取私有 Skill 的所有文件内容（支持递归子目录）
  *
- * 扫描 skill 目录下的所有文件，读取其文本内容。
+ * 递归扫描 skill 目录下的所有文件，读取其文本内容。
+ * 文件路径 key 统一规范化为 POSIX 风格（使用 `/` 分隔符），
+ * 使用相对路径（相对于 skill 根目录）作为 key。
  * 用于导出时收集私有 skill 的完整文件。
  *
  * @param skillId - skill 的唯一标识（目录名）
- * @returns 文件名到文件内容的映射
+ * @returns 文件相对路径到文件内容的映射
  */
 function readPrivateSkillFiles(skillId: string): Record<string, string> {
   const files: Record<string, string> = {};
@@ -833,18 +851,8 @@ function readPrivateSkillFiles(skillId: string): Record<string, string> {
     if (!existsSync(skillDir)) continue;
 
     try {
-      const entries = readdirSync(skillDir);
-      for (const entry of entries) {
-        const entryPath = join(skillDir, entry);
-        try {
-          const stat = statSync(entryPath);
-          if (stat.isFile()) {
-            files[entry] = readFileSync(entryPath, 'utf8');
-          }
-        } catch {
-          // 单个文件读取失败，跳过
-        }
-      }
+      // 递归读取目录下所有文件
+      readDirRecursive(skillDir, skillDir, files);
       // 找到第一个有效目录后停止
       if (Object.keys(files).length > 0) break;
     } catch {
@@ -853,4 +861,34 @@ function readPrivateSkillFiles(skillId: string): Record<string, string> {
   }
 
   return files;
+}
+
+/**
+ * 递归读取目录下的所有文件
+ *
+ * 遍历目录中的所有条目，对文件读取内容并以 POSIX 风格相对路径为 key 存储，
+ * 对子目录递归处理。
+ *
+ * @param baseDir - skill 根目录（用于计算相对路径）
+ * @param currentDir - 当前正在遍历的目录
+ * @param files - 文件路径到内容的映射（累积结果）
+ */
+function readDirRecursive(baseDir: string, currentDir: string, files: Record<string, string>): void {
+  const entries = readdirSync(currentDir);
+  for (const entry of entries) {
+    const entryPath = join(currentDir, entry);
+    try {
+      const stat = statSync(entryPath);
+      if (stat.isFile()) {
+        // 计算相对路径并规范化为 POSIX 风格（将 \ 替换为 /）
+        const relativePath = entryPath.substring(baseDir.length + 1).replace(/\\/g, '/');
+        files[relativePath] = readFileSync(entryPath, 'utf8');
+      } else if (stat.isDirectory()) {
+        // 递归处理子目录
+        readDirRecursive(baseDir, entryPath, files);
+      }
+    } catch {
+      // 单个文件/目录读取失败，跳过
+    }
+  }
 }

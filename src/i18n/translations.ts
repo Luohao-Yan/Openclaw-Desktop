@@ -916,6 +916,15 @@ export const translations = {
     'sessions.exportJson': 'Export JSON',
     'sessions.copyKey': 'Copy Key',
     'sessions.closeSession': 'Close Session',
+
+    // ClawHub CLI 相关翻译
+    'setup.env.clawhub.label': 'ClawHub CLI Tool',
+    'setup.env.clawhub.ready': 'Ready ({version})',
+    'setup.env.clawhub.missing': 'Not installed, required for skill marketplace search',
+    'setup.env.clawhub.installing': 'Installing ClawHub CLI...',
+    'setup.env.clawhub.installSuccess': 'ClawHub CLI installed successfully',
+    'setup.env.clawhub.installFailed': 'ClawHub CLI installation failed',
+    'skills.market.clawhubNotInstalled': 'ClawHub CLI is not installed. Go to Settings → Environment Check to install, or run: npm install -g @nicepkg/clawhub',
   },
   zh: {
     dashboard: '仪表板',
@@ -1788,5 +1797,14 @@ export const translations = {
     'sessions.exportJson': '导出 JSON',
     'sessions.copyKey': '复制 Key',
     'sessions.closeSession': '关闭会话',
+
+    // ClawHub CLI 相关翻译
+    'setup.env.clawhub.label': 'ClawHub CLI 工具',
+    'setup.env.clawhub.ready': '已就绪（{version}）',
+    'setup.env.clawhub.missing': '未安装，技能市场搜索功能需要此依赖',
+    'setup.env.clawhub.installing': '正在安装 ClawHub CLI…',
+    'setup.env.clawhub.installSuccess': 'ClawHub CLI 安装成功',
+    'setup.env.clawhub.installFailed': 'ClawHub CLI 安装失败',
+    'skills.market.clawhubNotInstalled': 'ClawHub CLI 未安装。请前往「设置 → 环境自检」页面安装，或手动执行 npm install -g @nicepkg/clawhub',
   },
 };

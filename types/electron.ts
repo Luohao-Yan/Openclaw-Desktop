@@ -58,6 +58,10 @@ export interface SetupEnvironmentCheckResult {
   recommendedInstallCommand: string;
   recommendedInstallLabel: string;
   notes: string[];
+  /** ClawHub CLI 是否已安装 */
+  clawhubInstalled: boolean;
+  /** ClawHub CLI 版本号 */
+  clawhubVersion?: string;
 }
 
 export interface SetupInstallResult {
@@ -163,6 +167,9 @@ export interface RuntimeActions {
 
   /** 解析运行时环境（三级回退策略） */
   resolveRuntime(): Promise<RuntimeResolution>;
+
+  /** 在系统默认浏览器中打开外部链接 */
+  openExternal(url: string): Promise<{ success: boolean; error?: string }>;
 }
 
 export interface TailscaleActions {
@@ -1309,7 +1316,7 @@ export interface AgentExchangeActions {
   /** 调用系统文件选择对话框选择 .ocagent 文件 */
   agentsSelectImportFile(): Promise<{ success: boolean; filePath?: string; error?: string }>;
   /** 监听导入进度事件 */
-  onImportProgress(callback: (progress: ImportProgress) => void): void;
+  onImportProgress(callback: (progress: ImportProgress) => void): () => void;
   /** 获取导出历史记录列表 */
   agentsGetExportHistory(): Promise<{ success: boolean; history: ExportHistoryRecord[] }>;
   /** 删除指定的导出历史记录 */

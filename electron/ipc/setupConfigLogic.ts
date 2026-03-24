@@ -15,7 +15,8 @@
  * 具体过滤规则：
  * 1. 若 skills.install.recommended 存在，则删除该字段
  * 2. 若根级 daemon 字段存在，则删除
- * 3. 所有其他字段原样保留
+ * 3. 若 gateway 对象存在但缺少 mode 字段，自动补全 mode: 'local'；缺少 host 字段则补全 host: '127.0.0.1'
+ * 4. 所有其他字段原样保留
  *
  * 纯函数：使用深拷贝，不修改原始输入对象。
  * 幂等：多次调用结果一致。
@@ -43,6 +44,18 @@ export function sanitizeSetupConfig(raw: Record<string, unknown>): Record<string
   // openclaw schema 不包含根级 daemon 字段，daemon 管理由 CLI 独立处理
   if ('daemon' in result) {
     delete result.daemon;
+  }
+
+  // ── 规则 3：确保 gateway.mode 始终存在 ──────────────────────────────
+  // 防御性兜底：若 gateway 对象存在但缺少 mode 或 host，自动补全默认值
+  if (result.gateway !== null && typeof result.gateway === 'object') {
+    const gw = result.gateway as Record<string, unknown>;
+    if (!gw.mode) {
+      gw.mode = 'local';
+    }
+    if (!gw.host) {
+      gw.host = '127.0.0.1';
+    }
   }
 
   return result;

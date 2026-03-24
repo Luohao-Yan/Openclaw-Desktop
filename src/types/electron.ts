@@ -16,6 +16,10 @@ export interface SetupEnvironmentCheckResult {
   recommendedInstallCommand: string;
   recommendedInstallLabel: string;
   notes: string[];
+  /** ClawHub CLI 是否已安装 */
+  clawhubInstalled: boolean;
+  /** ClawHub CLI 版本号 */
+  clawhubVersion?: string;
 }
 
 export interface SetupInstallResult {
@@ -831,7 +835,7 @@ export interface ElectronAPI {
   /** 调用系统文件选择对话框选择 .ocagent 文件 */
   agentsSelectImportFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>;
   /** 监听导入进度事件 */
-  onImportProgress: (callback: (progress: ImportProgress) => void) => void;
+  onImportProgress: (callback: (progress: ImportProgress) => void) => () => void;
   /** 获取导出历史记录列表 */
   agentsGetExportHistory: () => Promise<{ success: boolean; history: ExportHistoryRecord[] }>;
   /** 删除指定的导出历史记录 */
@@ -936,6 +940,9 @@ export interface ElectronAPI {
 
   /** 解析运行时环境（三级回退策略） */
   resolveRuntime: () => Promise<import('./setup').LegacyRuntimeResolution>;
+
+  /** 在系统默认浏览器中打开外部链接 */
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 
   // Approvals 类型
   approvalsGet: (target: ApprovalsTarget) => Promise<ApprovalsGetResult>;

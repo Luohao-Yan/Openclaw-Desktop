@@ -122,8 +122,8 @@ const ImportAgentDialog: React.FC<ImportAgentDialogProps> = ({ open, onClose, on
 
     const removeListener = window.electronAPI.onImportProgress((progress: ImportProgress) => {
       setSteps((prev) => prev.map((s) => s.step === progress.step ? { ...progress } : s));
-    }) as unknown as (() => void) | undefined;
-    if (removeListener) cleanupRef.current = removeListener;
+    });
+    cleanupRef.current = removeListener;
 
     setView('progress');
     try {

@@ -12,6 +12,7 @@ import {
 } from './skillsLogic.js';
 import type { SkillInfo, SkillDiagnosticReport, SkillDiagnosticItem, SkillEntryConfig, PluginInfo } from '../../types/electron.js';
 import type { SkillMdData } from './skillsLogic.js';
+import { formatClawHubSearchError } from './clawhubInstallLogic.js';
 import {
   bindSkillToAgents,
   unbindSkillFromAgents,
@@ -411,15 +412,29 @@ export function setupSkillsIPC() {
     } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
   });
 
-  // ClawHub 市场搜索：调用独立的 clawhub CLI（路径通过 PATH 解析）
+  // ClawHub 市场搜索：优先使用 openclaw 子命令，回退到独立 clawhub CLI
   ipcMain.handle('skills:clawHubSearch', async (_, query: string) => {
     try {
       if (!query || !query.trim()) return { success: false, error: '搜索关键词不能为空' };
-      // clawhub 是独立 CLI，需要用完整 shell PATH 才能找到（Electron 主进程 PATH 不含 npm global bin）
-      const searchResult = await runShellCommand('clawhub', ['search', query.trim(), '--limit', '20']);
+
+      const trimmedQuery = query.trim();
+      const searchArgs = ['search', trimmedQuery, '--limit', '20'];
+
+      // 优先尝试 openclaw clawhub search（openclaw 子命令）
+      let searchResult = await runCommand(['clawhub', ...searchArgs]);
+
+      // 如果 openclaw 子命令不支持，回退到独立 clawhub CLI
+      if (!searchResult.success && (searchResult.error?.includes('ENOENT') || searchResult.error?.includes('unknown command'))) {
+        searchResult = await runShellCommand('clawhub', searchArgs);
+      }
+
       if (!searchResult.success) {
-        // rate limit 给出友好提示
         const errMsg = searchResult.error || 'ClawHub 搜索失败';
+        // ENOENT 说明 clawhub CLI 未安装，使用友好的安装引导信息
+        const friendlyError = formatClawHubSearchError(errMsg);
+        if (friendlyError) {
+          return { success: false, error: friendlyError };
+        }
         const friendlyMsg = errMsg.toLowerCase().includes('rate limit')
           ? '搜索频率超限，请稍后再试'
           : errMsg;

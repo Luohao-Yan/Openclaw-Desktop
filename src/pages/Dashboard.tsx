@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Settings2,
   Wrench,
+  ExternalLink,
 } from 'lucide-react';
 
 import GlassCard from '../components/GlassCard';
@@ -31,7 +32,6 @@ interface OpenClawRootDiagnostic {
   error?: string;
 }
 import { useNavigate } from 'react-router-dom';
-import { takeAllScreenshots } from '../utils/screenshot';
 
 interface GatewayStatus {
   status: 'running' | 'stopped' | 'error' | 'checking';
@@ -539,10 +539,17 @@ function Dashboard() {
               </AppButton>
               <AppButton
                 variant="secondary"
-                onClick={() => void takeAllScreenshots()}
-                icon={<Settings2 size={16} />}
+                onClick={() => {
+                  // 构建 gateway web 控制页面 URL 并在浏览器中打开
+                  const host = gatewayStatus.host || '127.0.0.1';
+                  const port = gatewayStatus.port || 18789;
+                  const url = `http://${host}:${port}`;
+                  window.electronAPI.openExternal(url);
+                }}
+                disabled={gatewayStatus.status !== 'running'}
+                icon={<ExternalLink size={16} />}
               >
-                截取所有页面截图
+                打开 Web 控制页面
               </AppButton>
             </div>
           </div>

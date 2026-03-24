@@ -664,6 +664,91 @@ export function collectSkillManifest(
   return result;
 }
 
+// ============================================================================
+// Bug 修复相关纯函数（Stub 版本 — 尚未实现真正逻辑）
+// ============================================================================
+
+/** 需要从 agentEntry 中移除的路径字段列表 */
+export const PATH_FIELDS_TO_STRIP = [
+  'workspace',
+  'workspaceRoot',
+  'workspaceDir',
+  'agentDir',
+  'agentConfigRoot',
+  'configSource',
+] as const;
+
+/**
+ * 移除 agentEntry 中的平台特定路径字段
+ *
+ * 从 agentEntry 对象中移除 workspace、workspaceRoot、workspaceDir、
+ * agentDir、agentConfigRoot、configSource 等路径字段，
+ * 确保导出的配置不包含源机器的绝对路径。
+ *
+ * @param agentEntry - 待清理的 Agent 配置条目
+ * @returns 移除路径字段后的新对象（不修改原始对象）
+ */
+export function stripPathFields(agentEntry: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const fieldsToStrip = new Set<string>(PATH_FIELDS_TO_STRIP);
+
+  for (const [key, value] of Object.entries(agentEntry)) {
+    if (!fieldsToStrip.has(key)) {
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 清理 modelsJson 字符串中的绝对路径引用
+ *
+ * 使用正则表达式检测并移除 modelsJson 中的绝对路径引用，
+ * 匹配 Unix 风格（/Users/...、/home/...、/var/...、/opt/...、/tmp/...）
+ * 和 Windows 风格（C:\...、D:\... 等）路径。
+ * 将匹配到的绝对路径值替换为空字符串。
+ *
+ * @param modelsJson - 待清理的 modelsJson 字符串，可能为 undefined
+ * @returns 清理后的字符串；输入为 undefined 时返回 undefined
+ */
+export function sanitizeModelsJson(modelsJson: string | undefined): string | undefined {
+  if (modelsJson === undefined) return undefined;
+
+  // 匹配 JSON 字符串值中的绝对路径（Unix 和 Windows 风格）
+  // Unix: /Users/xxx, /home/xxx, /var/xxx, /opt/xxx, /tmp/xxx
+  // Windows: C:\xxx, D:\xxx 等（在 JSON 中反斜杠被转义为 \\）
+  const absolutePathInJsonRegex = /(?:\/(?:Users|home|var|opt|tmp)\/[^\s"',}]+)|(?:[A-Z]:\\\\[^\s"',}]+)|(?:[A-Z]:\\[^\s"',}]+)/g;
+
+  return modelsJson.replace(absolutePathInJsonRegex, '');
+}
+
+/**
+ * 对 passphrase 进行 Base64 混淆编码
+ *
+ * 使用 Base64 编码对 passphrase 进行基础混淆处理，
+ * 避免在 electron-store 中以明文形式存储。
+ * 注意：这不是加密，仅为基础混淆以防止直接读取。
+ *
+ * @param passphrase - 原始明文 passphrase
+ * @returns Base64 编码后的混淆字符串
+ */
+export function obfuscatePassphrase(passphrase: string): string {
+  return Buffer.from(passphrase, 'utf8').toString('base64');
+}
+
+/**
+ * 对混淆后的 passphrase 进行 Base64 解码还原
+ *
+ * 将 Base64 编码的混淆字符串解码还原为原始明文 passphrase。
+ *
+ * @param obfuscated - Base64 编码的混淆字符串
+ * @returns 还原后的原始明文 passphrase
+ */
+export function deobfuscatePassphrase(obfuscated: string): string {
+  return Buffer.from(obfuscated, 'base64').toString('utf8');
+}
+
 /**
  * 创建导出历史记录
  *
@@ -690,7 +775,7 @@ export function createExportHistoryRecord(
     agentName,
     exportTime: new Date().toISOString(),
     filePath,
-    passphrase,
+    passphrase: obfuscatePassphrase(passphrase),
     fileSize,
   };
 }

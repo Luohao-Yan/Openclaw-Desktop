@@ -323,6 +323,8 @@ interface CheckItem {
   fixable?: boolean;
   /** 修复动作类型 */
   fixAction?: 'install' | 'upgrade' | 'fixPath';
+  /** 修复时传递的 issueId（用于区分不同的 install 动作） */
+  fixIssueId?: string;
   /** 是否可选 */
   optional?: boolean;
   /** 是否被内置运行环境覆盖 */
@@ -338,12 +340,13 @@ interface CheckGroup {
 }
 
 /**
- * 根据 fixableIssues 查找指定 action 对应的可修复问题。
+ * 根据 fixableIssues 查找指定 action（和可选 id）对应的可修复问题。
  */
 const findFixableIssue = (
   issues: FixableIssue[],
   action: 'install' | 'upgrade' | 'fixPath',
-): FixableIssue | undefined => issues.find((i) => i.action === action);
+  id?: string,
+): FixableIssue | undefined => issues.find((i) => i.action === action && (!id || i.id === id));
 
 export const SetupLocalEnvironmentPage: React.FC = () => {
   const navigate = useNavigate();
@@ -397,8 +400,8 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
   const isFixing = fixProgress.status === 'running';
 
   /** 处理一键修复按钮点击 */
-  const handleFix = (action: 'install' | 'upgrade' | 'fixPath') => {
-    void fixEnvironment(action);
+  const handleFix = (action: 'install' | 'upgrade' | 'fixPath', issueId?: string) => {
+    void fixEnvironment(action, issueId);
   };
 
   // ── 构建检测项分组 ──────────────────────────────────────────────────────
@@ -463,6 +466,21 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
         : '尚未创建，后续步骤会自动生成',
       optional: true,
     },
+    {
+      label: 'ClawHub CLI 工具',
+      ok: environmentCheck.clawhubInstalled,
+      detail: bundled
+        ? '已由内置运行环境覆盖'
+        : environmentCheck.clawhubInstalled
+          ? `已就绪（${environmentCheck.clawhubVersion || ''}）`
+          : '未安装，技能市场搜索功能需要此依赖',
+      optional: true,
+      coveredByBundled: bundled,
+      fixable: !bundled && !environmentCheck.clawhubInstalled
+        && Boolean(findFixableIssue(fixableIssues, 'install', 'clawhub-not-installed')),
+      fixAction: 'install',
+      fixIssueId: 'clawhub-not-installed',
+    },
   ];
 
   // 检测 PATH 修复按钮：Node.js 已安装但 PATH 未检测到
@@ -526,7 +544,7 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
             <AppButton
               size="xs"
               variant="primary"
-              onClick={() => handleFix(item.fixAction!)}
+              onClick={() => handleFix(item.fixAction!, item.fixIssueId)}
               disabled={isBusy || isFixing}
               icon={<Wrench size={12} />}
             >

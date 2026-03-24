@@ -130,6 +130,10 @@ export interface SetupEnvironmentCheckData {
   notes: string[];
   /** 可自动修复的问题列表 */
   fixableIssues: FixableIssue[];
+  /** ClawHub CLI 是否已安装 */
+  clawhubInstalled: boolean;
+  /** ClawHub CLI 版本号 */
+  clawhubVersion?: string;
 }
 
 /**
@@ -445,6 +449,10 @@ export interface SetupEnvironmentCheck {
   runtimeTier: RuntimeTier;
   /** 可自动修复的问题列表 */
   fixableIssues: FixableIssue[];
+  /** ClawHub CLI 是否已安装 */
+  clawhubInstalled: boolean;
+  /** ClawHub CLI 版本号 */
+  clawhubVersion?: string;
 }
 
 /** 本地安装检测结果 */

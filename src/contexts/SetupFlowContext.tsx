@@ -108,7 +108,7 @@ interface SetupFlowContextValue {
   runtimeResolution: LegacyRuntimeResolution | null;
 
   // 环境修复
-  fixEnvironment: (action: 'install' | 'upgrade' | 'fixPath') => Promise<FixResult>;
+  fixEnvironment: (action: 'install' | 'upgrade' | 'fixPath', issueId?: string) => Promise<FixResult>;
   fixProgress: FixProgressState;
 
   // 渠道绑定
@@ -240,6 +240,8 @@ const mapToLegacyEnvironmentCheck = (
     bundledOpenClawPath: data.bundledOpenClawPath,
     runtimeTier,
     fixableIssues: data.fixableIssues || [],
+    clawhubInstalled: data.clawhubInstalled ?? false,
+    clawhubVersion: data.clawhubVersion,
   };
 };
 
@@ -272,6 +274,8 @@ const mapIpcResultToEnvironmentCheckResult = (
       recommendedInstallLabel: raw.recommendedInstallLabel || '',
       notes: raw.notes || [],
       fixableIssues: raw.fixableIssues || [],
+      clawhubInstalled: raw.clawhubInstalled || false,
+      clawhubVersion: raw.clawhubVersion,
     },
   };
 };
@@ -848,7 +852,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // ========================================================================
   // 环境修复
   // ========================================================================
-  const fixEnvironment = React.useCallback(async (action: 'install' | 'upgrade' | 'fixPath'): Promise<FixResult> => {
+  const fixEnvironment = React.useCallback(async (action: 'install' | 'upgrade' | 'fixPath', issueId?: string): Promise<FixResult> => {
     // 重置进度状态为运行中
     dispatch({
       type: 'SET_FIX_PROGRESS',
@@ -885,7 +889,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return unavailable;
       }
 
-      const result = await window.electronAPI.fixEnvironment(action);
+      const result = await window.electronAPI.fixEnvironment(action, issueId);
 
       // 更新最终进度状态
       dispatch({

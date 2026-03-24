@@ -1,5 +1,5 @@
 import pkg from 'electron';
-const { app, ipcMain } = pkg;
+const { app, ipcMain, shell } = pkg;
 import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
@@ -15,6 +15,7 @@ import {
 import { resolveRuntime, getBundledNodePath, getBundledOpenClawCLIPath } from './runtime.js';
 import type { RuntimeTier } from './runtimeLogic.js';
 import { buildModelTestUrl } from './modelTestLogic.js';
+import { resolveClawHubStatus, buildClawHubFixableIssue } from './clawhubInstallLogic.js';
 // 统一命令执行入口（供后续迁移使用）
 import { spawnWithShellPath } from './spawnHelper.js';
 
@@ -414,6 +415,10 @@ interface SetupEnvironmentCheckResult {
   runtimeTier: RuntimeTier;
   /** 可自动修复的问题列表 */
   fixableIssues: FixableIssue[];
+  /** ClawHub CLI 是否已安装 */
+  clawhubInstalled: boolean;
+  /** ClawHub CLI 版本号 */
+  clawhubVersion?: string;
 }
 
 interface SetupInstallResult {
@@ -714,6 +719,9 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
       bundledOpenClawPath: bundledOpenClawPath || undefined,
       runtimeTier: runtime.tier,
       fixableIssues, // bundled 模式下无需修复
+      // bundled 模式下视为 clawhub 已可用
+      clawhubInstalled: true,
+      clawhubVersion: undefined,
     };
   }
 
@@ -794,6 +802,33 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     notes.push('尚未检测到 openclaw.json，首次安装完成后会自动生成配置。');
   }
 
+  // ── 第五步：检测 ClawHub CLI 可用性 ───────────────────────────────────────
+  let clawhubInstalled = false;
+  let clawhubVersion: string | undefined;
+  try {
+    // 先尝试 openclaw clawhub --version，失败后尝试独立 clawhub --version
+    const openclawClawhubResult = await runCommand(
+      effectiveOpenClawCommand, ['clawhub', '--version'],
+    );
+    const standaloneClawhubResult = openclawClawhubResult.success
+      ? { success: false, output: '' } // openclaw 子命令已成功，无需再试独立命令
+      : await runCommand('clawhub', ['--version']);
+
+    const clawhubStatus = resolveClawHubStatus(openclawClawhubResult, standaloneClawhubResult);
+    clawhubInstalled = clawhubStatus.installed;
+    clawhubVersion = clawhubStatus.version;
+
+    // 生成 FixableIssue（如需要）
+    const clawhubIssue = buildClawHubFixableIssue(clawhubStatus, runtime.tier);
+    if (clawhubIssue) {
+      fixableIssues.push(clawhubIssue);
+    }
+  } catch {
+    // 检测异常不影响其他检测项
+    clawhubInstalled = false;
+    notes.push('ClawHub CLI 检测过程中出现异常。');
+  }
+
   return {
     platform,
     platformLabel,
@@ -820,6 +855,8 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     bundledOpenClawPath: bundledOpenClawPath || undefined,
     runtimeTier: runtime.tier,
     fixableIssues,
+    clawhubInstalled,
+    clawhubVersion,
   };
 }
 
@@ -1151,6 +1188,25 @@ export function setupSystemIPC() {
   ipcMain.handle('system:testModelConnection', (_event, params) => testModelConnection(params));
   ipcMain.handle('runtime:info', getRuntimeInfo);
   ipcMain.handle('runtime:capabilities', getRuntimeCapabilities);
+
+  /**
+   * system:openExternal - 在系统默认浏览器中打开外部链接
+   * 仅允许 http/https 协议，防止恶意链接
+   */
+  ipcMain.handle('system:openExternal', async (_event, url: string) => {
+    try {
+      // 安全校验：仅允许 http/https 协议
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { success: false, error: '仅支持 http/https 协议' };
+      }
+      const { shell } = pkg;
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || '打开链接失败' };
+    }
+  });
 
   /**
    * system:doctorFix - 执行 openclaw doctor --fix 自动修复配置

@@ -13,6 +13,7 @@ import { existsSync, statSync } from 'fs';
 import fs from 'fs/promises';
 import { spawn } from 'child_process';
 import { getVersionManagerPaths, runCommand, getShellPath, resetShellPathCache } from './settings.js';
+import { buildClawHubInstallCommand, validateInstallResult } from './clawhubInstallLogic.js';
 
 // ─── 类型定义（与 src/types/setup.ts 中的 FixResult 保持一致）────────────────
 
@@ -635,6 +636,135 @@ async function runSpawnCommand(
   });
 }
 
+// ─── ClawHub CLI 安装 ───────────────────────────────────────────────────────
+
+/** 3 分钟超时保护 */
+const CLAWHUB_INSTALL_TIMEOUT_MS = 3 * 60 * 1000;
+
+/**
+ * 自动安装 ClawHub CLI
+ *
+ * 执行 npm install -g @nicepkg/clawhub，使用完整 shell PATH。
+ * 安装完成后验证 clawhub --version，并清除 PATH 缓存。
+ *
+ * @param sender - 渲染进程 WebContents，用于推送进度事件
+ * @returns 修复结果
+ */
+async function installClawHub(sender: Electron.WebContents): Promise<FixResult> {
+  try {
+    sendFixProgress(sender, 'running', '正在安装 ClawHub CLI…');
+
+    // 获取完整 shell PATH 并构建安装命令
+    const shellPath = await getShellPath();
+    const { command, args, env } = buildClawHubInstallCommand(
+      process.env as Record<string, string | undefined>,
+      shellPath,
+    );
+
+    // 执行 npm install -g @nicepkg/clawhub
+    const installResult = await new Promise<{ success: boolean; output: string; error?: string }>((resolve) => {
+      try {
+        const child = spawn(command, args, {
+          env,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+
+        let output = '';
+        let errorOutput = '';
+        let settled = false;
+
+        const finish = (result: { success: boolean; output: string; error?: string }) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+
+        child.stdout?.on('data', (data: Buffer) => {
+          const text = data.toString();
+          output += text;
+          sendFixProgress(sender, 'running', text.trim().slice(-200));
+        });
+
+        child.stderr?.on('data', (data: Buffer) => {
+          errorOutput += data.toString();
+        });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            finish({ success: true, output: output.trim() });
+          } else {
+            finish({
+              success: false,
+              output: output.trim(),
+              error: errorOutput.trim() || `进程退出码 ${code}`,
+            });
+          }
+        });
+
+        child.on('error', (err) => {
+          finish({ success: false, output: '', error: err.message });
+        });
+
+        // 超时保护
+        setTimeout(() => {
+          try { child.kill(); } catch {}
+          finish({ success: false, output: output.trim(), error: '安装超时（3 分钟）' });
+        }, CLAWHUB_INSTALL_TIMEOUT_MS);
+      } catch (err: any) {
+        resolve({ success: false, output: '', error: err.message });
+      }
+    });
+
+    if (!installResult.success) {
+      const errMsg = installResult.error || '未知错误';
+      // 权限不足（EACCES）时提供手动安装建议
+      const hint = errMsg.includes('EACCES')
+        ? '。建议使用 sudo npm install -g @nicepkg/clawhub 或修改 npm 全局目录权限'
+        : '。可手动执行 npm install -g @nicepkg/clawhub';
+      sendFixProgress(sender, 'error', `ClawHub CLI 安装失败: ${errMsg}`);
+      return {
+        success: false,
+        message: `ClawHub CLI 安装失败: ${errMsg}${hint}`,
+        action: 'install',
+        error: errMsg,
+      };
+    }
+
+    // 验证安装结果
+    sendFixProgress(sender, 'running', '正在验证 ClawHub CLI…');
+    const versionCheck = await runCommand('clawhub', ['--version']);
+    const validation = validateInstallResult(versionCheck);
+
+    // 清除 PATH 缓存
+    resetShellPathCache();
+
+    if (validation.success) {
+      sendFixProgress(sender, 'done', `ClawHub CLI 安装成功 (${validation.version})`);
+      return {
+        success: true,
+        message: `ClawHub CLI 安装成功 (${validation.version})`,
+        action: 'install',
+      };
+    }
+
+    sendFixProgress(sender, 'error', 'ClawHub CLI 安装后验证失败');
+    return {
+      success: false,
+      message: 'ClawHub CLI 安装后验证失败，可能需要重启终端',
+      action: 'install',
+      error: validation.error,
+    };
+  } catch (err: any) {
+    sendFixProgress(sender, 'error', `ClawHub CLI 安装异常: ${err.message}`);
+    return {
+      success: false,
+      message: `ClawHub CLI 安装异常: ${err.message}`,
+      action: 'install',
+      error: err.message,
+    };
+  }
+}
+
 // ─── IPC 注册 ───────────────────────────────────────────────────────────────
 
 /**
@@ -646,8 +776,13 @@ async function runSpawnCommand(
 export function setupEnvironmentFixerIPC(): void {
   ipcMain.handle(
     'system:fixEnvironment',
-    async (event, action: 'install' | 'upgrade' | 'fixPath') => {
+    async (event, action: 'install' | 'upgrade' | 'fixPath', issueId?: string) => {
       const sender = event.sender;
+
+      // 当 action 为 install 且 issueId 为 clawhub-not-installed 时，分发到 clawhub 安装
+      if (action === 'install' && issueId === 'clawhub-not-installed') {
+        return installClawHub(sender);
+      }
 
       switch (action) {
         case 'install':

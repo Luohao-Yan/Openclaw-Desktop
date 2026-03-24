@@ -7,7 +7,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const electronEntry = path.join(projectRoot, 'dist-electron', 'electron', 'main.js');
 const electronWatchDir = path.join(projectRoot, 'dist-electron', 'electron');
 const electronSourceDir = path.join(projectRoot, 'electron');
-const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5174';
+const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:51741';
 const electronBinary = process.platform === 'win32'
   ? path.join(projectRoot, 'node_modules', '.bin', 'electron.cmd')
   : path.join(projectRoot, 'node_modules', '.bin', 'electron');

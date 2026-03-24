@@ -1065,6 +1065,10 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                   },
                   gateway: {
                     ...(base.gateway ?? {}),
+                    // 显式设置本地模式，覆盖 base.gateway 中可能存在的任何值
+                    mode: 'local',
+                    // 为全新安装提供合理的默认 host 值
+                    host: '127.0.0.1',
                     port: parseInt(gatewayPort, 10) || 18789,
                     auth: gatewayAuth === 'none' ? undefined : { mode: gatewayAuth },
                     bind: gatewayBind,

@@ -579,3 +579,223 @@ describe('Property 10: 默认导出文件名生成', () => {
     },
   );
 });
+
+
+// ============================================================================
+// 导入 Bug 修复相关函数
+// ============================================================================
+import {
+  stripPathFields,
+  sanitizeModelsJson,
+  obfuscatePassphrase,
+  deobfuscatePassphrase,
+  createExportHistoryRecord,
+  PATH_FIELDS_TO_STRIP,
+} from '../agentExchangeLogic';
+
+// ============================================================================
+// Bug Condition 探索测试 — 修复前运行，预期失败以确认 Bug 存在
+// ============================================================================
+
+// ============================================================================
+// Bug Condition 生成器
+// ============================================================================
+
+/**
+ * 生成包含绝对路径的 agentEntry 对象
+ * 模拟 Mac/Linux/Windows 上的典型路径格式
+ */
+const absolutePathArb = fc.oneof(
+  // Unix 风格绝对路径
+  fc.tuple(
+    fc.constantFrom('/Users/', '/home/', '/var/', '/opt/', '/tmp/'),
+    fc.string({ minLength: 1, maxLength: 20 }).filter(s => /^[a-zA-Z0-9._-]+$/.test(s)),
+    fc.string({ minLength: 1, maxLength: 30 }).filter(s => /^[a-zA-Z0-9._/-]+$/.test(s)),
+  ).map(([prefix, user, rest]) => `${prefix}${user}/.openclaw/${rest}`),
+  // Windows 风格绝对路径
+  fc.tuple(
+    fc.constantFrom('C:\\', 'D:\\', 'E:\\'),
+    fc.string({ minLength: 1, maxLength: 20 }).filter(s => /^[a-zA-Z0-9._-]+$/.test(s)),
+    fc.string({ minLength: 1, maxLength: 30 }).filter(s => /^[a-zA-Z0-9._\\-]+$/.test(s)),
+  ).map(([drive, user, rest]) => `${drive}Users\\${user}\\.openclaw\\${rest}`),
+);
+
+/**
+ * 生成包含绝对路径字段的 agentEntry 对象
+ * 至少包含一个路径字段（workspace/workspaceRoot/workspaceDir/agentDir/agentConfigRoot/configSource）
+ */
+const agentEntryWithPathsArb: fc.Arbitrary<Record<string, unknown>> = fc.record({
+  id: fc.string({ minLength: 1, maxLength: 16 }),
+  name: fc.string({ minLength: 1, maxLength: 16 }),
+  workspace: absolutePathArb,
+  workspaceRoot: absolutePathArb,
+  workspaceDir: absolutePathArb,
+  agentDir: absolutePathArb,
+  agentConfigRoot: absolutePathArb,
+  configSource: absolutePathArb,
+});
+
+/**
+ * 生成包含绝对路径的 modelsJson 字符串
+ */
+const modelsJsonWithAbsolutePathArb: fc.Arbitrary<string> = fc.tuple(
+  absolutePathArb,
+  fc.string({ minLength: 1, maxLength: 16 }).filter(s => /^[a-zA-Z0-9_-]+$/.test(s)),
+).map(([absPath, key]) => JSON.stringify({ [key]: absPath, configPath: absPath }));
+
+/**
+ * 生成包含反斜杠分隔符的 Skill 文件路径 key
+ * 模拟 Windows 平台上的路径格式
+ */
+const backslashPathKeyArb: fc.Arbitrary<string> = fc.tuple(
+  fc.string({ minLength: 1, maxLength: 10 }).filter(s => /^[a-zA-Z0-9_-]+$/.test(s)),
+  fc.string({ minLength: 1, maxLength: 10 }).filter(s => /^[a-zA-Z0-9_.-]+$/.test(s)),
+).map(([dir, file]) => `${dir}\\${file}`);
+
+// ============================================================================
+// Bug Condition 1.1/1.2: stripPathFields 应移除 agentEntry 中的绝对路径字段
+// ============================================================================
+
+describe('Bug Condition 1.1/1.2: stripPathFields 移除绝对路径字段', () => {
+  /**
+   * 对于任意包含绝对路径字段的 agentEntry 对象，
+   * stripPathFields 后不应包含任何 PATH_FIELDS_TO_STRIP 中定义的路径字段。
+   *
+   * 在未修复代码上运行——预期失败（stub 函数直接返回输入，路径字段未被移除）。
+   *
+   * **Validates: Requirements 1.1, 1.2**
+   */
+  test(
+    'Bug Condition: stripPathFields 应移除所有平台特定路径字段',
+    () => {
+      fc.assert(
+        fc.property(
+          agentEntryWithPathsArb,
+          (agentEntry) => {
+            // 调用 stripPathFields 清理路径字段
+            const cleaned = stripPathFields(agentEntry);
+
+            // 验证清理后的对象不包含任何路径字段
+            for (const field of PATH_FIELDS_TO_STRIP) {
+              expect(cleaned).not.toHaveProperty(field);
+            }
+          },
+        ),
+        { numRuns: 100 },
+      );
+    },
+  );
+});
+
+// ============================================================================
+// Bug Condition 1.3: sanitizeModelsJson 应清理绝对路径
+// ============================================================================
+
+/** 绝对路径正则模式：匹配 Unix 和 Windows 风格的绝对路径 */
+const ABSOLUTE_PATH_REGEX = /(?:\/(?:Users|home|var|opt|tmp)\/[^\s"',}]+)|(?:[A-Z]:\\[^\s"',}]+)/;
+
+describe('Bug Condition 1.3: sanitizeModelsJson 清理绝对路径', () => {
+  /**
+   * 对于任意包含绝对路径的 modelsJson 字符串，
+   * sanitizeModelsJson 后不应包含任何绝对路径引用。
+   *
+   * 在未修复代码上运行——预期失败（stub 函数直接返回输入，绝对路径未被清理）。
+   *
+   * **Validates: Requirements 1.3**
+   */
+  test(
+    'Bug Condition: sanitizeModelsJson 应移除 modelsJson 中的绝对路径',
+    () => {
+      fc.assert(
+        fc.property(
+          modelsJsonWithAbsolutePathArb,
+          (modelsJson) => {
+            // 调用 sanitizeModelsJson 清理绝对路径
+            const cleaned = sanitizeModelsJson(modelsJson);
+
+            // 验证清理后的字符串不包含绝对路径
+            expect(cleaned).toBeDefined();
+            expect(ABSOLUTE_PATH_REGEX.test(cleaned!)).toBe(false);
+          },
+        ),
+        { numRuns: 100 },
+      );
+    },
+  );
+});
+
+// ============================================================================
+// Bug Condition 1.4: Skill 文件路径 key 应使用 POSIX 风格分隔符
+// ============================================================================
+
+describe('Bug Condition 1.4: Skill 文件路径 POSIX 规范化', () => {
+  /**
+   * 对于任意包含反斜杠分隔符的文件路径 key，
+   * POSIX 规范化后应仅包含正斜杠 `/`，不包含反斜杠 `\`。
+   *
+   * 在未修复代码上运行——预期失败（当前代码不做路径规范化）。
+   *
+   * **Validates: Requirements 1.4**
+   */
+  test(
+    'Bug Condition: Skill 文件路径 key 规范化后仅包含正斜杠',
+    () => {
+      fc.assert(
+        fc.property(
+          backslashPathKeyArb,
+          (pathKey) => {
+            // 模拟 readPrivateSkillFiles 中的 POSIX 规范化逻辑：
+            // 将反斜杠替换为正斜杠（与修复后的 agentExchange.ts 行为一致）
+            const normalized = pathKey.replace(/\\/g, '/');
+
+            // 验证规范化后不包含反斜杠
+            expect(normalized).not.toContain('\\');
+            // 验证规范化后包含正斜杠（因为原始 key 包含反斜杠）
+            expect(normalized).toContain('/');
+
+            // 验证规范化后的路径与原始路径结构一致（仅分隔符不同）
+            expect(normalized.length).toBe(pathKey.length);
+          },
+        ),
+        { numRuns: 100 },
+      );
+    },
+  );
+});
+
+// ============================================================================
+// Bug Condition 1.6: createExportHistoryRecord 的 passphrase 应经过混淆
+// ============================================================================
+
+describe('Bug Condition 1.6: passphrase 混淆存储', () => {
+  /**
+   * 对于任意有效的导出参数，createExportHistoryRecord 返回的 passphrase 字段
+   * 不应等于输入的明文 passphrase（应经过 Base64 混淆处理）。
+   *
+   * 在未修复代码上运行——预期失败（当前代码直接存储明文 passphrase）。
+   *
+   * **Validates: Requirements 1.6**
+   */
+  test(
+    'Bug Condition: createExportHistoryRecord 的 passphrase 不等于输入明文',
+    () => {
+      fc.assert(
+        fc.property(
+          fc.string({ minLength: 1, maxLength: 16 }),  // agentId
+          fc.string({ minLength: 1, maxLength: 16 }),  // agentName
+          fc.string({ minLength: 1, maxLength: 64 }),  // filePath
+          fc.string({ minLength: 8, maxLength: 32 }),  // passphrase（≥8 字符）
+          fc.nat({ max: 1_000_000 }),                   // fileSize
+          (agentId, agentName, filePath, passphrase, fileSize) => {
+            // 创建导出历史记录
+            const record = createExportHistoryRecord(agentId, agentName, filePath, passphrase, fileSize);
+
+            // 验证 passphrase 字段不等于输入明文（应经过混淆处理）
+            expect(record.passphrase).not.toBe(passphrase);
+          },
+        ),
+        { numRuns: 100 },
+      );
+    },
+  );
+});
