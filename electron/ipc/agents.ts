@@ -16,6 +16,7 @@ import { basename, dirname, extname, join, relative, resolve } from 'path';
 import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand } from './settings.js';
 import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError, needsAgentDirRepair, planAgentDirRepair } from './agentCreateLogic.js';
 import { checkAgentCompleteness, planAgentCompletenessRepair, validateAgentRename } from './agentCompletenessLogic.js';
+import { buildDeleteCleanupPlan } from './agentDeleteCleanupLogic.js';
 
 /**
  * 构建 doctor --fix 命令的环境变量（纯函数）
@@ -2042,6 +2043,16 @@ export function setupAgentsIPC() {
         return { success: false, error: '智能体 ID 不能为空' };
       }
 
+      // CLI 执行前缓存 agent 配置（CLI 执行后配置会被删除，届时无法再读取）
+      let cachedAgent: any = null;
+      try {
+        const record = getAgentRecord(trimmedId);
+        cachedAgent = record.agent;
+      } catch {
+        // 读取失败不阻断删除流程（agent 可能已不存在于配置中）
+        cachedAgent = null;
+      }
+
       const openclawCmd = resolveOpenClawCommand();
       const shellPath = await getShellPath();
 
@@ -2058,6 +2069,39 @@ export function setupAgentsIPC() {
 
         child.on('close', (code) => {
           if (code === 0) {
+            // CLI 成功后执行 workspace 清理
+            try {
+              const openclawRoot = getOpenClawRoot();
+              const plan = buildDeleteCleanupPlan({
+                agentId: trimmedId,
+                agentRecord: cachedAgent,
+                cliExitCode: code,
+                openclawRoot,
+              });
+
+              if (plan.shouldCleanWorkspace && plan.workspacePath) {
+                const wpPath = resolve(plan.workspacePath);
+                const rootPath = resolve(openclawRoot);
+
+                // 安全校验：确保 workspace 路径位于 OpenClaw 根目录下，防止误删
+                const isUnderRoot = wpPath.startsWith(rootPath + '/') || wpPath.startsWith(rootPath + '\\');
+                if (!isUnderRoot) {
+                  console.warn(`[agents:delete] workspace 路径不在 OpenClaw 根目录下，跳过清理: ${wpPath}`);
+                } else if (existsSync(wpPath) && statSync(wpPath).isDirectory()) {
+                  try {
+                    rmSync(wpPath, { recursive: true, force: true });
+                    console.log(`[agents:delete] 已清理 workspace 目录: ${wpPath}`);
+                  } catch (rmErr) {
+                    // 删除失败仅打印警告，不影响成功返回
+                    console.warn(`[agents:delete] workspace 目录清理失败: ${wpPath}`, rmErr);
+                  }
+                }
+              }
+            } catch (cleanupErr) {
+              // 清理逻辑异常不影响删除结果
+              console.warn(`[agents:delete] workspace 清理过程异常:`, cleanupErr);
+            }
+
             resolvePromise({ success: true, output: stdout });
           } else {
             // 提取友好错误信息

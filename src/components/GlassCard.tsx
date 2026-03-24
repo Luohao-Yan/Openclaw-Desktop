@@ -60,16 +60,17 @@ const GlassCard: React.FC<GlassCardProps> = ({
   const getInlineStyle = (): React.CSSProperties => {
     if (variant === 'default') {
       return {
-        /* 玻璃液态：半透明白色叠加 + 主题边框 */
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+        /* 玻璃液态：使用主题感知 CSS 自定义属性，浅色/暗色主题自动适配 */
+        background: 'var(--app-glass-bg)',
         border: '1px solid var(--app-border)',
         ...style,
       };
     }
     if (variant === 'elevated') {
       return {
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)',
-        border: '1px solid rgba(255,255,255,0.14)',
+        /* 提升变体：使用主题感知 CSS 自定义属性 */
+        background: 'var(--app-glass-elevated-bg)',
+        border: '1px solid var(--app-glass-elevated-border)',
         ...style,
       };
     }

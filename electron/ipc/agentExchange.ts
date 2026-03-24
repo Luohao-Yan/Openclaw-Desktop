@@ -28,6 +28,8 @@ import {
   collectSkillManifest,
   createExportHistoryRecord,
   deobfuscatePassphrase,
+  buildImportAgentCreateArgs,
+  resolveImportWorkspacePath,
   OCAGENT_MAGIC,
   FORMAT_VERSION,
   type AgentConfigPayload,
@@ -526,20 +528,17 @@ export function setupAgentExchangeIPC(): void {
           const existingNames = (config?.agents?.list || []).map((a: any) => a.name || '');
           const resolvedName = resolveAgentName(payload.agent.name, existingNames);
 
-          // 构建 CLI 参数：openclaw agents add --non-interactive --json
+          // 构建 CLI 参数：复用 buildImportAgentCreateArgs 纯函数
           const openclawCmd = resolveOpenClawCommand();
           const shellPath = await getShellPath();
           const env = buildDoctorFixEnv(process.env, shellPath);
 
-          const cliArgs = [
-            '--no-color',
-            'agents', 'add',
-            '--name', resolvedName,
-            '--non-interactive',
-            '--json',
-          ];
+          // 构造导入 Agent 的 workspace 路径
+          const workspacePath = resolveImportWorkspacePath(getOpenClawRoot(), resolvedName);
+          // 使用纯函数构建正确格式的 CLI 参数（位置参数 + --workspace）
+          const args = buildImportAgentCreateArgs({ name: resolvedName, workspace: workspacePath });
 
-          const cliResult = await runCliCommand(openclawCmd, cliArgs, env);
+          const cliResult = await runCliCommand(openclawCmd, ['--no-color', ...args], env);
 
           if (!cliResult.success) {
             const errorMsg = cliResult.stderr.trim() || cliResult.stdout.trim() || '创建 Agent 失败';

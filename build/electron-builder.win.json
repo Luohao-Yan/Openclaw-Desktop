@@ -1,0 +1,41 @@
+{
+  "appId": "com.openclaw.desktop",
+  "productName": "OpenClaw Desktop",
+  "artifactName": "${productName}-${version}-win-${arch}.${ext}",
+  "icon": "resources/win/icon_win.ico",
+  "directories": {
+    "output": "release-artifacts/win"
+  },
+  "extraResources": [
+    {
+      "from": "resources/node/",
+      "to": "node/"
+    },
+    {
+      "from": "resources/bin/",
+      "to": "bin/"
+    }
+  ],
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "dist-electron/**/*",
+    "resources/**/*"
+  ],
+  "win": {
+    "icon": "resources/win/icon_win.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "resources/win/icon_win.ico",
+    "uninstallerIcon": "resources/win/icon_win.ico",
+    "installerHeaderIcon": "resources/win/icon_win.ico"
+  }
+}

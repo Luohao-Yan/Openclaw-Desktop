@@ -74,6 +74,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -102,6 +103,9 @@ function createWindow() {
       console.error('Failed to load development server:', err);
     });
   } else {
+    // 生产环境 indexPath：tsc 编译后 __dirname 为 dist-electron/electron/，
+    // 回溯两级到项目根目录下的 dist/index.html，
+    // 打包后 .app 包内同样适用（app/ 目录下包含 dist-electron/ 和 dist/）
     const indexPath = path.join(__dirname, '../../dist/index.html');
     mainWindow.loadFile(indexPath).catch(err => {
       console.error('Failed to load production build:', err);

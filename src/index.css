@@ -93,6 +93,20 @@
   --app-table-row-hover-bg: rgba(148, 163, 184, 0.06);
   --app-table-cell-text: var(--app-text);
   --app-table-cell-muted-text: var(--app-text-muted);
+
+  /* GlassCard 玻璃卡片主题属性 */
+  --app-glass-bg: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+  --app-glass-border: var(--app-border);
+  --app-glass-elevated-bg: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%);
+  --app-glass-elevated-border: rgba(255,255,255,0.14);
+
+  /* Toast 提示主题属性 */
+  --app-toast-success-bg: rgba(16, 185, 129, 0.14);
+  --app-toast-success-border: rgba(16, 185, 129, 0.28);
+  --app-toast-success-text: #6ee7b7;
+  --app-toast-error-bg: rgba(239, 68, 68, 0.14);
+  --app-toast-error-border: rgba(239, 68, 68, 0.28);
+  --app-toast-error-text: #fca5a5;
   
   /* 间距 */
   --space-1: 0.25rem;
@@ -229,6 +243,21 @@ body {
   --app-table-row-hover-bg: rgba(148, 163, 184, 0.08);
   --app-table-cell-text: var(--app-text);
   --app-table-cell-muted-text: var(--app-text-muted);
+
+  /* GlassCard 玻璃卡片浅色主题属性 */
+  --app-glass-bg: linear-gradient(135deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.01) 100%);
+  --app-glass-border: var(--app-border);
+  --app-glass-elevated-bg: linear-gradient(135deg, rgba(15,23,42,0.06) 0%, rgba(15,23,42,0.02) 100%);
+  --app-glass-elevated-border: rgba(15,23,42,0.10);
+
+  /* Toast 提示浅色主题属性 */
+  --app-toast-success-bg: rgba(16, 185, 129, 0.10);
+  --app-toast-success-border: rgba(16, 185, 129, 0.22);
+  --app-toast-success-text: #065F46;
+  --app-toast-error-bg: rgba(239, 68, 68, 0.10);
+  --app-toast-error-border: rgba(239, 68, 68, 0.22);
+  --app-toast-error-text: #DC2626;
+
   background-color: var(--app-bg);
   color: var(--app-text);
 }

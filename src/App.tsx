@@ -52,6 +52,7 @@ const MainAppLayout: React.FC = () => {
         color: 'var(--app-text)',
       }}
     >
+      {/* macOS hiddenInset 标题栏：为红绿灯按钮留出拖拽区域 */}
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />

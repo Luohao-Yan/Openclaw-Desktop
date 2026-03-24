@@ -7,6 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
+  // 使用相对路径，确保 Electron 打包后在 file:// 协议下资源引用正确（./assets/... 而非 /assets/...）
+  base: './',
   plugins: [react()],
   server: {
     // 开发服务器端口（仅此一处定义，其他文件通过环境变量或默认值同步）

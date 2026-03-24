@@ -7,6 +7,8 @@
  */
 
 import crypto from 'node:crypto';
+import { join } from 'path';
+import { buildAgentCreateArgs } from './agentCreateLogic.js';
 
 // ============================================================================
 // 常量定义
@@ -778,4 +780,36 @@ export function createExportHistoryRecord(
     passphrase: obfuscatePassphrase(passphrase),
     fileSize,
   };
+}
+
+
+// ============================================================================
+// 导入流程 CLI 参数构建纯函数
+// ============================================================================
+
+/**
+ * 构建导入 Agent 时的 CLI 参数数组
+ *
+ * 内部复用 agentCreateLogic.ts 的 buildAgentCreateArgs 纯函数，
+ * 确保导入流程与正常创建流程使用一致的参数格式。
+ *
+ * @param params - 包含 name 和 workspace 的参数对象
+ * @returns CLI 参数数组（如 ['agents', 'add', '<name>', '--workspace', '<path>', '--non-interactive', '--json']）
+ */
+export function buildImportAgentCreateArgs(params: { name: string; workspace: string }): string[] {
+  return buildAgentCreateArgs({ name: params.name, workspace: params.workspace });
+}
+
+/**
+ * 构造导入 Agent 的 workspace 路径
+ *
+ * 使用 OpenClaw 根目录和 Agent 名称拼接 workspace 路径，
+ * 与 CLI 自动分配 workspace 的命名规则一致。
+ *
+ * @param openclawRoot - OpenClaw 根目录路径（如 ~/.openclaw）
+ * @param agentName - Agent 名称（已解决冲突后的名称）
+ * @returns 构造的 workspace 路径（如 ~/.openclaw/workspace-<agentName>）
+ */
+export function resolveImportWorkspacePath(openclawRoot: string, agentName: string): string {
+  return join(openclawRoot, `workspace-${agentName}`);
 }

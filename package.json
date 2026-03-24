@@ -21,6 +21,7 @@
     "pack:mac:dmg:arm64:tahoe": "rm -rf release-artifacts/mac-arm64-tahoe && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --config build/electron-builder.tahoe.json",
     "pack:mac:dmg:x64": "rm -rf release-artifacts/mac-x64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --x64 --config.directories.output=release-artifacts/mac-x64",
     "pack:mac:dmg:universal": "rm -rf release-artifacts/mac-universal && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --mac dmg --universal --config.directories.output=release-artifacts/mac-universal",
+    "pack:win": "rm -rf release-artifacts/win && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --config build/electron-builder.win.json",
     "pack:win:nsis": "rm -rf release-artifacts/win-arm64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --win nsis --config.directories.output=release-artifacts/win-arm64",
     "pack:win:nsis:x64": "rm -rf release-artifacts/win-x64 && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --win nsis --x64 --config.directories.output=release-artifacts/win-x64",
     "pack:win:zip": "rm -rf release-artifacts/win-arm64-zip && npm run build:vite && npm run build:main && env -u ELECTRON_MIRROR ELECTRON_BUILDER_BINARIES_MIRROR=https://github.com/electron-userland/electron-builder-binaries/releases/download/ electron-builder --win zip --config.directories.output=release-artifacts/win-arm64-zip",
@@ -91,7 +92,7 @@
     "artifactName": "${productName}-${version}-${arch}.${ext}",
     "icon": "resources/icns/icon_1024.icns",
     "directories": {
-      "output": "dist"
+      "output": "release-artifacts"
     },
     "extraResources": [
       {

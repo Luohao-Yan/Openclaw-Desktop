@@ -6,9 +6,11 @@ import {
   ArrowLeft,
   Bot,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Folder,
   Info,
+  Link2,
   Pencil,
   RefreshCw,
   RotateCcw,
@@ -18,6 +20,7 @@ import {
 import type {
   AgentGlobalConfigOverview,
   AgentManagedFileDetail,
+  AgentSkillInfo,
   AgentWorkspaceBrowseResult,
   AgentWorkspaceDetails,
   AgentWorkspaceEntry,
@@ -26,6 +29,7 @@ import type {
   AgentMemoryFileDetail,
   AgentWorkspaceFileSummary,
   AgentWorkspaceTrashEntry,
+  SkillInfo,
 } from '../../types/electron';
 import AppButton from '../components/AppButton';
 import AppModal from '../components/AppModal';
@@ -34,6 +38,7 @@ import AppSelect, { type AppSelectOption } from '../components/AppSelect';
 import JsonFormEditor, { type JsonFormSchema, type JsonFormTabItem } from '../components/JsonFormEditor';
 import AppTable from '../components/AppTable';
 import GlassCard from '../components/GlassCard';
+import AgentSkillsPanel from '../components/agents/AgentSkillsPanel';
 import { useI18n } from '../i18n/I18nContext';
 
 const CORE_FILES: AgentWorkspaceFileName[] = [
@@ -390,6 +395,12 @@ const AgentWorkspace: React.FC = () => {
   const [managedViewMode, setManagedViewMode] = useState<'conversation' | 'table' | 'raw'>('raw');
   const [selectedSessionEvent, setSelectedSessionEvent] = useState<SessionEventRecord | null>(null);
 
+  // 专属技能面板状态
+  const [skillsPanelOpen, setSkillsPanelOpen] = useState(false);
+  const [agentSkills, setAgentSkills] = useState<AgentSkillInfo | null>(null);
+  const [loadingSkills, setLoadingSkills] = useState(false);
+  const [allSkills, setAllSkills] = useState<SkillInfo[]>([]);
+
   const loadWorkspace = async () => {
     if (!agentId) {
       setError('缺少 Agent ID');
@@ -428,6 +439,34 @@ const AgentWorkspace: React.FC = () => {
       setError(`加载 Agent Workspace 时发生异常: ${loadError instanceof Error ? loadError.message : String(loadError)}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 加载当前 Agent 的专属技能信息
+  const loadAgentSkills = async () => {
+    if (!agentId) return;
+    setLoadingSkills(true);
+    try {
+      const result = await window.electronAPI.skillsGetAgentSkills(agentId);
+      if (result.success && result.agentSkills) {
+        setAgentSkills(result.agentSkills);
+      }
+    } catch (err) {
+      console.error('加载专属技能失败:', err);
+    } finally {
+      setLoadingSkills(false);
+    }
+  };
+
+  // 加载所有可用技能列表
+  const loadAllSkills = async () => {
+    try {
+      const result = await window.electronAPI.skillsGetAll();
+      if (result.success && result.skills) {
+        setAllSkills(result.skills);
+      }
+    } catch (err) {
+      console.error('加载技能列表失败:', err);
     }
   };
 
@@ -2473,6 +2512,65 @@ const AgentWorkspace: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </GlassCard>
+
+            {/* ── 专属技能 ── */}
+            <GlassCard className="p-4">
+              <div
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => {
+                  const next = !skillsPanelOpen;
+                  setSkillsPanelOpen(next);
+                  // 展开时按需加载技能数据
+                  if (next && !agentSkills) {
+                    loadAgentSkills();
+                    loadAllSkills();
+                  }
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-5 h-5" style={{ color: '#EC4899' }} />
+                  <h2 className="text-lg font-semibold">专属技能</h2>
+                  {agentSkills && (
+                    <AppBadge variant="neutral" size="sm">
+                      {agentSkills.exclusiveSkills.length}
+                    </AppBadge>
+                  )}
+                </div>
+                <ChevronDown
+                  className={`w-5 h-5 transition-transform duration-200 ${skillsPanelOpen ? 'rotate-180' : ''}`}
+                  style={{ color: 'var(--app-text-muted)' }}
+                />
+              </div>
+              {/* 展开时渲染技能面板 */}
+              {skillsPanelOpen && (
+                <div className="mt-4">
+                  <AgentSkillsPanel
+                    agentId={agentId!}
+                    agentName={details?.agent.name || agentId || ''}
+                    agentSkills={agentSkills}
+                    loading={loadingSkills}
+                    onRefresh={() => {
+                      loadAgentSkills();
+                    }}
+                    onAddExclusiveSkill={async (skillId) => {
+                      const result = await window.electronAPI.skillsBindToAgents(skillId, [agentId!]);
+                      if (result.success) {
+                        loadAgentSkills(); // 刷新技能列表
+                      }
+                      return result;
+                    }}
+                    onUnbindSkill={async (skillId) => {
+                      const result = await window.electronAPI.skillsUnbindFromAgents(skillId, [agentId!]);
+                      if (result.success) {
+                        loadAgentSkills(); // 刷新技能列表
+                      }
+                      return result;
+                    }}
+                    allSkills={allSkills}
+                  />
+                </div>
+              )}
             </GlassCard>
 
             <GlassCard className="p-4">
