@@ -22,6 +22,8 @@
     "dist-electron/**/*",
     "resources/**/*"
   ],
+  "mac": null,
+  "linux": null,
   "win": {
     "icon": "resources/win/icon_win.ico",
     "target": [

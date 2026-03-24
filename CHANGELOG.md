@@ -6,6 +6,43 @@
 
 ---
 
+## [0.3.13-preview-10] - 2026-03-25
+
+### ✨ 新增 (Features)
+
+- **Agent 专属技能迁移至 AgentWorkspace**：Agent 专属技能面板从 Agents 列表页迁移到 AgentWorkspace 工作区页面，支持折叠展开和按需加载，Agent 卡片新增专属技能数量统计
+- **Agent 删除自动清理 workspace**：删除 Agent 时自动清理对应的 workspace 目录，包含安全路径校验（防止误删系统目录），新增 `agentDeleteCleanupLogic.ts` 纯函数模块
+- **Agent 导入 CLI 参数纯函数化**：`agentExchangeLogic.ts` 新增 `buildImportCliArgs` 纯函数，替代原有内联参数构建逻辑
+- **Windows 打包支持**：新增 `build/electron-builder.win.json` 配置和 `pack:win` npm 脚本，支持从 macOS 交叉编译 Windows NSIS 安装包
+- **零基础引导截图**：新增 8 张 Setup 引导流程截图（`public/setup/setup-01~08.png`）
+
+### 🐛 修复 (Fixes)
+
+- **生产环境白屏修复**：`vite.config.ts` 的 `base` 改为 `'./'`，修复 Electron 生产环境 `file://` 协议下资源路径 404 导致的白屏问题
+- **macOS 标题栏修复**：`electron/main.ts` 添加 `titleBarStyle: 'hiddenInset'`，修复 macOS 下窗口标题栏显示异常
+- **Agent 页面暗色主题修复**：全面替换 Agents/AgentWorkspace/AgentSkillsPanel 中的 Tailwind `dark:` 类为 CSS 自定义属性，确保主题切换一致性
+- **GlassCard/Toast 主题适配**：`index.css` 新增 GlassCard 和 Toast 组件的浅色/暗色主题 CSS 变量
+- **electron-builder 输出目录修正**：统一输出目录为 `release-artifacts`
+
+### 📝 文档 (Docs)
+
+- **README 全面重写**：新增项目愿景、零基础入门引导截图、功能特性表格、截图画廊、贡献者头像、特别鸣谢 OpenClaw 开源项目、Star History 图表
+
+### 🗑️ 清理 (Cleanup)
+
+- 删除根目录 30+ 测试垃圾文件（截图脚本、临时 HTML、端口检查脚本、.DS_Store 等）
+- 删除 `electron/automatic-screenshot.cjs`
+
+### 🧪 测试 (Tests)
+
+- 新增 `agentDeleteCleanup.pbt.test.ts` / `agentDeleteCleanupPreservation.pbt.test.ts` 属性测试
+- 新增 `importCliArgsFix.pbt.test.ts` / `importCliArgsFix.unit.test.ts` 测试
+- 新增 `productionBlankPage.pbt.test.ts` / `productionBlankPagePreservation.pbt.test.ts` 属性测试
+- 新增 `agentPageDarkThemeBug.pbt.test.ts` / `agentPageDarkThemePreservation.pbt.test.ts` 属性测试
+- 新增 `agentSkillRedesign.pbt.test.ts` / `agentSkillRedesign.unit.test.ts` 测试
+
+---
+
 ## [0.3.13-preview-9] - 2026-03-23
 
 ### 🐛 修复 (Fixes)
