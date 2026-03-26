@@ -480,11 +480,9 @@ export async function cronDisable(jobId: string) {
   };
 }
 
-export async function cronRun(jobId: string, force = false) {
+export async function cronRun(jobId: string, _force = false) {
+  // 注意：openclaw cron run 不支持 --force 选项，直接执行即可
   const args = ['cron', 'run', jobId];
-  if (force) {
-    args.push('--force');
-  }
 
   const result = await runCommand(resolveOpenClawCommand(), args);
   const parsed = tryParseJson<Record<string, unknown>>(result.output);
