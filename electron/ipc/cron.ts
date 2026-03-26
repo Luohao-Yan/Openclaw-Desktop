@@ -484,7 +484,8 @@ export async function cronRun(jobId: string, _force = false) {
   // 注意：openclaw cron run 不支持 --force 选项，直接执行即可
   const args = ['cron', 'run', jobId];
 
-  const result = await runCommand(resolveOpenClawCommand(), args);
+  // cron 任务执行时间较长（涉及 Agent 调用、网络请求等），超时设为 5 分钟
+  const result = await runCommand(resolveOpenClawCommand(), args, { timeoutMs: 300_000 });
   const parsed = tryParseJson<Record<string, unknown>>(result.output);
 
   if (!result.success) {
