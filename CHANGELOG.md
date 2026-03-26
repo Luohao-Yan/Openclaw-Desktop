@@ -6,6 +6,44 @@
 
 ---
 
+## [0.3.13-preview-11] - 2026-03-26
+
+### ✨ 新增 (Features)
+
+- **IPC 缓存层 `useIpcCache`**：新增 `src/hooks/useIpcCache.ts` 通用缓存 Hook，支持 TTL 过期、stale-while-revalidate 策略、请求去重（同一 key 并发请求共享 Promise）、5 秒超时处理与 `refresh` 重试
+- **页面懒加载**：`App.tsx` 中 Dashboard、Settings、Agents 等 9 个页面组件改为 `React.lazy()` 动态导入，配合 `<Suspense>` 按需加载
+- **骨架屏组件 `PageSkeleton`**：新增 `src/components/PageSkeleton.tsx`，复用全局 `.skeleton` CSS 动画，支持 `lines` 和 `showHeader` 属性，作为懒加载 fallback
+- **Dashboard 关键数据预加载**：Dashboard 页面使用 `useIpcCache` 在启动后主动缓存网关状态和系统信息
+- **Design Token 阴影体系**：`src/index.css` 新增 `--shadow-sm`/`--shadow-md`/`--shadow-lg`/`--shadow-xl` 四级阴影变量，深色模式使用较深阴影值，浅色模式使用较浅阴影值
+- **页面间距/过渡统一工具类**：新增 `.page-content`、`.page-title-gap`、`.transition-token-fast`、`.transition-token-normal` 等 CSS 工具类
+
+### 🐛 修复 (Fixes)
+
+- **GlassCard 玻璃质感透明度修复**：`--app-glass-bg` 和 `--app-glass-elevated-bg` 从 `linear-gradient()` 改为 `rgba()` 纯色半透明背景，修复 `backdrop-filter: blur()` 无法正确穿透的问题
+- **全局 `.glass` 类深色模式背景统一**：深色模式背景从 `rgba(255,255,255,0.05)` 调整为 `rgba(255,255,255,0.04)`，与 GlassCard 变量保持一致
+
+### 📦 构建优化 (Build)
+
+- **DMG 打包瘦身**：`package.json` 及 `build/*.json` 的 `files` 配置移除 `electron/**/*`（TypeScript 源码）和 `resources/**/*`（已通过 extraResources 处理），新增排除 `*.map`、`*.ts`、`*.tsx`、`*.md`、`*.d.ts`、测试文件、文档、示例等非必需文件
+- **Node.js 运行时精简**：`extraResources` 中 `resources/node/` 添加 filter，排除 `include/`、`share/`、`CHANGELOG.md`、`README.md`
+
+### 🎨 样式统一 (Styling)
+
+- **Design Token 主题对称性补全**：`[data-theme="light"]` 中补全 `--space-*`、`--radius-*`、`--shadow-*`、`--transition-*`、`--ease-*` 全部 token，确保深浅模式变量名称一一对应
+- **页面内容区域间距统一**：所有主要页面内容区域内边距统一使用 `--space-6`（1.5rem），页面标题与内容间距使用 `--space-4`（1rem）
+- **交互元素过渡动画统一**：30+ 个文件中的硬编码 `duration-150`/`duration-200`/`duration-300` 替换为 `--transition-fast`（150ms）/ `--transition-normal`（200ms）CSS 变量
+
+### 🧪 测试 (Tests)
+
+- 新增 `src/__tests__/glassCard.pbt.test.ts`：Property 1（GlassCard 变体背景 alpha 值范围）、Property 2（主题切换玻璃背景适配）
+- 新增 `build/__tests__/buildConfig.pbt.test.ts`：Property 3（构建配置排除非必需文件）
+- 新增 `src/hooks/__tests__/useIpcCache.pbt.test.ts`：Property 4（缓存命中）、Property 5（stale-while-revalidate）、Property 6（超时处理）、Property 7（请求去重）
+- 新增 `src/__tests__/designTokens.pbt.test.ts`：Property 8（Design Token 完整性与主题对称性）
+- 新增 `src/__tests__/integration.test.ts`：主题切换 GlassCard 样式适配 + useIpcCache 多实例共享缓存集成测试
+- 共 23 个测试用例，8 个正确性属性，全部通过
+
+---
+
 ## [0.3.13-preview-10] - 2026-03-25
 
 ### ✨ 新增 (Features)
