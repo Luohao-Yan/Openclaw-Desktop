@@ -11,7 +11,7 @@ import {
   Trash2,
   Download, Upload, History,
   MessageSquare, Clock, Coins, Globe,
-  Link2,
+  Link2, FolderOpen,
 } from 'lucide-react';
 import { computeBindingCounts } from '../utils/skillBindingUtils';
 import AppButton from '../components/AppButton';
@@ -422,6 +422,38 @@ const Agents: React.FC = () => {
         ) : (
           <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>未绑定</span>
         )}
+      </div>
+
+      {/* 分组选择行 */}
+      <div className="flex items-center gap-2 mb-3 min-w-0">
+        <FolderOpen className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
+        <span className="text-xs flex-shrink-0" style={{ color: 'var(--app-text-muted)' }}>分组</span>
+        <select
+          className="text-xs rounded px-2 py-1 border-0 outline-none cursor-pointer truncate max-w-[160px]"
+          style={{
+            backgroundColor: 'var(--app-bg-subtle)',
+            color: 'var(--app-text)',
+          }}
+          value={groupMappings[agent.id] || ''}
+          onChange={async (e) => {
+            const groupId = e.target.value;
+            try {
+              if (groupId) {
+                await window.electronAPI.agentGroupsAssignAgent({ agentId: agent.id, groupId });
+              } else {
+                await window.electronAPI.agentGroupsRemoveAgent(agent.id);
+              }
+              /* 刷新映射关系 */
+              const mr = await window.electronAPI.agentGroupsGetMappings();
+              if (mr.success && mr.mappings) setGroupMappings(mr.mappings);
+            } catch { /* 忽略 */ }
+          }}
+        >
+          <option value="">未分组</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>{g.emoji ? `${g.emoji} ` : ''}{g.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* 统计数据网格：会话数、消息数、Token 用量、平均响应时间 */}
