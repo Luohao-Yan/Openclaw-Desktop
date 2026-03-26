@@ -772,7 +772,7 @@ const SettingsChannels: React.FC = () => {
               return (
                 <div
                   key={channelType}
-                  className="cursor-pointer rounded-2xl border p-4 transition-all duration-200"
+                  className="cursor-pointer rounded-2xl border p-4 transition-token-normal"
                   style={{
                     borderColor: isSelected ? 'var(--app-active-border)' : 'var(--app-border)',
                     backgroundColor: isSelected ? 'var(--app-bg-subtle)' : 'var(--app-bg)',

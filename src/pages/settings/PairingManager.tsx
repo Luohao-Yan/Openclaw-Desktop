@@ -417,7 +417,7 @@ const PairingManager: React.FC<PairingManagerProps> = ({ configuredChannels: ext
               key={opt.value}
               type="button"
               onClick={() => handlePolicyChange(opt.value)}
-              className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all duration-200"
+              className="flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-token-normal"
               style={
                 currentPolicy === opt.value
                   ? {

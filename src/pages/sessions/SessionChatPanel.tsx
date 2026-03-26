@@ -3,7 +3,7 @@
  * 右侧面板：会话头部 + 对话记录 + 消息输入栏
  * 优化：更紧凑的头部、更好的消息气泡、markdown 友好的排版
  */
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   MessageSquare,
   Trash2,
@@ -15,6 +15,7 @@ import {
   Settings2,
   RefreshCw,
   AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import type { Session, TranscriptMessage, TFunc } from './types';
@@ -36,6 +37,10 @@ interface SessionChatPanelProps {
   onExport: (sessionId: string, format: 'json' | 'markdown') => void;
   onClose: (sessionId: string) => void;
   t: TFunc;
+  /** 可用模型列表，用于切换模型试用 */
+  availableModels?: { label: string; value: string }[];
+  /** 切换模型回调：创建新 session（同 agent + 新 model） */
+  onSwitchModel?: (model: string) => void;
 }
 
 /** 根据角色返回图标和颜色 */
@@ -54,12 +59,16 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   newMessage, onMessageChange, onSend, sending,
   isPending, sendError, onRetry,
   onExport, onClose, t,
+  availableModels = [], onSwitchModel,
 }) => {
   // 自动滚动到最新消息
   const messagesEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript]);
+
+  // 模型切换下拉状态
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
   /* ── 未选中会话的空状态 ── */
   if (!session) {
@@ -90,10 +99,62 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
           </div>
           <div className="min-w-0">
             <div className="text-xs font-medium truncate" style={{ color: 'var(--app-text)' }}>{session.agent}</div>
-            <div className="text-[11px] truncate" style={{ color: 'var(--app-text-muted)' }}>
-              {session.model}
-              <span className="mx-1.5 opacity-30">·</span>
-              {session.channel}
+            <div className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--app-text-muted)' }}>
+              {/* 模型切换按钮：点击展开下拉选择不同模型 */}
+              {availableModels.length > 0 && onSwitchModel ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowModelPicker((v) => !v)}
+                    className="flex items-center gap-0.5 px-1 py-0.5 -ml-1 rounded hover:opacity-80 transition-opacity cursor-pointer"
+                    style={{ backgroundColor: showModelPicker ? 'var(--app-bg-subtle)' : 'transparent' }}
+                    title="切换模型（创建新会话）"
+                  >
+                    <span className="truncate max-w-[140px]">{session.model}</span>
+                    <ChevronDown size={11} className="shrink-0" />
+                  </button>
+                  {/* 模型选择下拉菜单 */}
+                  {showModelPicker && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowModelPicker(false)} />
+                      <div
+                        className="absolute left-0 top-full mt-1 z-20 min-w-[220px] max-h-[240px] overflow-y-auto rounded-xl shadow-lg py-1"
+                        style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)' }}
+                      >
+                        <div className="px-3 py-1.5 text-[10px] font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                          切换模型（将创建新会话）
+                        </div>
+                        {availableModels.map((m) => (
+                          <button
+                            key={m.value}
+                            onClick={() => {
+                              setShowModelPicker(false);
+                              if (m.value !== session.model) {
+                                onSwitchModel(m.value);
+                              }
+                            }}
+                            className="flex items-center w-full px-3 py-1.5 text-[11px] text-left transition-colors cursor-pointer"
+                            style={{
+                              color: m.value === session.model ? '#60a5fa' : 'var(--app-text)',
+                              backgroundColor: m.value === session.model ? 'rgba(96,165,250,0.08)' : 'transparent',
+                            }}
+                            onMouseEnter={(e) => { if (m.value !== session.model) e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)'; }}
+                            onMouseLeave={(e) => { if (m.value !== session.model) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                          >
+                            <span className="truncate">{m.label}</span>
+                            {m.value === session.model && (
+                              <span className="ml-auto pl-2 text-[10px] shrink-0" style={{ color: '#60a5fa' }}>当前</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <span className="truncate">{session.model}</span>
+              )}
+              <span className="opacity-30">·</span>
+              <span>{session.channel}</span>
             </div>
           </div>
         </div>

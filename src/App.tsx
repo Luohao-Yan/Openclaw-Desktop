@@ -1,21 +1,24 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import DesktopRuntimeProvider from './contexts/DesktopRuntimeContext';
 import { SetupFlowProvider, useSetupFlow } from './contexts/SetupFlowContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { I18nProvider } from './i18n/I18nContext';
 import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import Settings from './pages/Settings';
-import Tasks from './pages/Tasks';
-import Logs from './pages/Logs';
-import Agents from './pages/Agents';
-import AgentWorkspace from './pages/AgentWorkspace';
-import Sessions from './pages/sessions';
-import Instances from './pages/Instances';
-import Skills from './pages/Skills';
 import TitleBar from './components/TitleBar';
 import GlobalLoading from './components/GlobalLoading';
+import PageSkeleton from './components/PageSkeleton';
+
+// 页面级组件使用 React.lazy 懒加载，仅在用户导航到对应路由时加载
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const Tasks = React.lazy(() => import('./pages/Tasks'));
+const Logs = React.lazy(() => import('./pages/Logs'));
+const Agents = React.lazy(() => import('./pages/Agents'));
+const AgentWorkspace = React.lazy(() => import('./pages/AgentWorkspace'));
+const Sessions = React.lazy(() => import('./pages/sessions'));
+const Instances = React.lazy(() => import('./pages/Instances'));
+const Skills = React.lazy(() => import('./pages/Skills'));
 import {
   SetupCompletePage,
   SetupLocalCheckPage,
@@ -60,17 +63,20 @@ const MainAppLayout: React.FC = () => {
           className="flex-1 overflow-auto min-h-full relative"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/logs" element={<Logs />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/agent-workspace/:agentId" element={<AgentWorkspace />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/instances" element={<Instances />} />
-            <Route path="/skills" element={<Skills />} />
-          </Routes>
+          {/* 懒加载页面使用 Suspense 包裹，加载期间显示骨架屏占位 */}
+          <Suspense fallback={<PageSkeleton />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/logs" element={<Logs />} />
+              <Route path="/agents" element={<Agents />} />
+              <Route path="/agent-workspace/:agentId" element={<AgentWorkspace />} />
+              <Route path="/sessions" element={<Sessions />} />
+              <Route path="/instances" element={<Instances />} />
+              <Route path="/skills" element={<Skills />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

@@ -56,7 +56,7 @@ const IntegrationStatusCard: React.FC<IntegrationStatusCardProps> = ({
           <button
             type="button"
             onClick={() => void onOpenLogs()}
-            className="mt-4 inline-flex items-center gap-2 text-sm font-medium transition-opacity duration-200 hover:opacity-80"
+            className="mt-4 inline-flex items-center gap-2 text-sm font-medium transition-token-normal hover:opacity-80"
             style={{ color: '#60A5FA' }}
           >
             <ExternalLink size={14} />

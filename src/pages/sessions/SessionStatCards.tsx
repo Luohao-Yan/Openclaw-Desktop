@@ -17,7 +17,7 @@ const SessionStatCards: React.FC<SessionStatCardsProps> = ({ cards }) => (
       const Icon = card.icon;
       return (
         <div key={card.key}
-          className="relative overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:scale-[1.02]"
+          className="relative overflow-hidden rounded-2xl border p-4 transition-token-normal hover:scale-[1.02]"
           style={{ background: card.gradient, borderColor: `${card.accent}22` }}>
           {/* 装饰性光晕 */}
           <div className="pointer-events-none absolute -right-4 -top-4 h-20 w-20 rounded-full blur-2xl"

@@ -203,7 +203,7 @@ const UserProfileSettings: React.FC = () => {
               {/* 头像预览 */}
               <div className="relative">
                 <div
-                  className="h-32 w-32 rounded-2xl flex items-center justify-center text-3xl font-bold text-white shadow-xl transition-transform duration-300 hover:scale-105"
+                  className="h-32 w-32 rounded-2xl flex items-center justify-center text-3xl font-bold text-white shadow-xl transition-token-normal hover:scale-105"
                   style={avatarPreview ? { backgroundImage: `url(${avatarPreview})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: defaultAvatarStyle }}
                   onClick={() => setShowAvatarPreview(!showAvatarPreview)}
                 >
@@ -238,7 +238,7 @@ const UserProfileSettings: React.FC = () => {
             <div className="space-y-3">
               <button
                 onClick={handleResetToDefault}
-                className="w-full flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02]"
+                className="w-full flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-token-normal cursor-pointer hover:scale-[1.02]"
                 style={{
                   borderColor: 'var(--app-border)',
                   color: 'var(--app-text)',
@@ -251,7 +251,7 @@ const UserProfileSettings: React.FC = () => {
 
               <button
                 onClick={() => window.open('https://gravatar.com', '_blank')}
-                className="w-full flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02]"
+                className="w-full flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-token-normal cursor-pointer hover:scale-[1.02]"
                 style={{
                   borderColor: 'var(--app-border)',
                   color: 'var(--app-text)',
@@ -352,7 +352,7 @@ const UserProfileSettings: React.FC = () => {
                     />
                     <button
                       onClick={handleSetGravatar}
-                      className="rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-105"
+                      className="rounded-lg border px-4 py-2 text-sm font-medium transition-token-normal cursor-pointer hover:scale-105"
                       style={{
                         backgroundColor: 'var(--tech-cyan)',
                         borderColor: 'var(--tech-cyan)',
@@ -379,7 +379,7 @@ const UserProfileSettings: React.FC = () => {
                   {/* 默认头像选项 */}
                   <button
                     onClick={handleResetToDefault}
-                    className={`rounded-lg border p-4 text-left transition-all duration-200 cursor-pointer hover:scale-[1.02] ${
+                    className={`rounded-lg border p-4 text-left transition-token-normal cursor-pointer hover:scale-[1.02] ${
                       userProfile?.avatarType === 'default' ? 'ring-2 ring-tech-cyan' : ''
                     }`}
                     style={{
@@ -406,7 +406,7 @@ const UserProfileSettings: React.FC = () => {
                   {/* Gravatar 选项 */}
                   <button
                     onClick={() => userProfile?.gravatarEmail && handleSetGravatar()}
-                    className={`rounded-lg border p-4 text-left transition-all duration-200 cursor-pointer hover:scale-[1.02] ${
+                    className={`rounded-lg border p-4 text-left transition-token-normal cursor-pointer hover:scale-[1.02] ${
                       userProfile?.avatarType === 'gravatar' ? 'ring-2 ring-tech-cyan' : ''
                     }`}
                     style={{
@@ -432,7 +432,7 @@ const UserProfileSettings: React.FC = () => {
 
                   {/* 自定义头像选项 */}
                   <div
-                    className={`rounded-lg border p-4 text-left transition-all duration-200 ${
+                    className={`rounded-lg border p-4 text-left transition-token-normal ${
                       userProfile?.avatarType === 'custom' ? 'ring-2 ring-tech-cyan' : ''
                     }`}
                     style={{
@@ -464,7 +464,7 @@ const UserProfileSettings: React.FC = () => {
             <button
               onClick={handleSubmit}
               disabled={isSaving}
-              className="flex items-center gap-2 rounded-lg border px-6 py-3 text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-lg border px-6 py-3 text-sm font-medium transition-token-normal cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: 'var(--tech-cyan)',
                 borderColor: 'var(--tech-cyan)',

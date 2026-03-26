@@ -23,7 +23,7 @@ const ToggleRow: React.FC<ToggleRowProps> = ({
         aria-label={label}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-all duration-200"
+        className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-token-normal"
         style={checked
           ? {
               backgroundColor: 'var(--app-active-bg)',

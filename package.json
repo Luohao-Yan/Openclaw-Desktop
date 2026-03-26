@@ -58,6 +58,7 @@
     "electron": "38.0.0",
     "electron-builder": "^26.8.1",
     "fast-check": "^4.6.0",
+    "jsdom": "^29.0.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.1.0"
@@ -97,18 +98,35 @@
     "extraResources": [
       {
         "from": "resources/node/",
-        "to": "node/"
+        "to": "node/",
+        "filter": [
+          "**/*",
+          "!**/include/**",
+          "!**/share/**",
+          "!**/CHANGELOG.md",
+          "!**/README.md"
+        ]
       },
       {
         "from": "resources/bin/",
         "to": "bin/"
       }
     ],
+    "asar": true,
     "files": [
       "dist/**/*",
-      "electron/**/*",
       "dist-electron/**/*",
-      "resources/**/*"
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/*.tsx",
+      "!**/*.md",
+      "!**/node_modules/**/*.d.ts",
+      "!**/node_modules/**/test/**",
+      "!**/node_modules/**/tests/**",
+      "!**/node_modules/**/__tests__/**",
+      "!**/node_modules/**/docs/**",
+      "!**/node_modules/**/example/**",
+      "!**/node_modules/**/examples/**"
     ],
     "mac": {
       "icon": "resources/icns/icon_1024.icns",

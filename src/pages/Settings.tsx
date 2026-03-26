@@ -56,7 +56,8 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className={`flex flex-col p-6 ${isDetailView ? 'h-full overflow-hidden' : 'h-full overflow-y-auto'}`}>
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className={`flex flex-col page-content ${isDetailView ? 'h-full overflow-hidden' : 'h-full overflow-y-auto'}`}>
       {!repairCapabilityAvailable && runtimeInfo && (
         <RuntimeUpdateNotice className="mb-4 shrink-0" runtimeInfo={runtimeInfo} />
       )}

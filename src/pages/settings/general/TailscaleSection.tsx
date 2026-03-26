@@ -114,7 +114,7 @@ const TailscaleSection: React.FC<TailscaleSectionProps> = ({
                   type="button"
                   onClick={() => void onExposureModeChange(option.value)}
                   disabled={isTailscaleActionPending || !tailscaleStatus.installed}
-                  className="rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 disabled:opacity-50"
+                  className="rounded-xl px-5 py-2.5 text-sm font-semibold transition-token-normal disabled:opacity-50"
                   style={active
                     ? {
                         backgroundColor: 'var(--app-segment-active-bg)',

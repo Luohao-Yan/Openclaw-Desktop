@@ -704,6 +704,54 @@ export interface SkillDiagnosticReport {
   summary: { ok: number; warning: number; error: number };
 }
 
+// ── Agent 分组管理类型 ──────────────────────────────────────────────────────
+/** 分组定义 */
+export interface AgentGroup {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  emoji?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 分组元数据 */
+export interface GroupMetadata {
+  name: string;
+  description?: string;
+  color?: string;
+  emoji?: string;
+}
+
+/** 导出进度事件 */
+export interface GroupExportProgressEvent {
+  current: number;
+  total: number;
+  agentName: string;
+  status: 'exporting' | 'success' | 'failed' | 'skipped';
+  error?: string;
+}
+
+/** 导入进度事件 */
+export interface GroupImportProgressEvent {
+  current: number;
+  total: number;
+  agentName: string;
+  step: number;
+  stepName: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'rolling-back' | 'rolled-back';
+  message?: string;
+}
+
+/** 导入结果摘要 */
+export interface GroupImportSummary {
+  successCount: number;
+  failedAgents: Array<{ name: string; error: string }>;
+  warnings: string[];
+  group: { id: string; name: string; merged: boolean };
+}
+
 export interface ElectronAPI {
   runtimeInfo: () => Promise<DesktopRuntimeInfo | null>;
   getCapabilities: () => Promise<DesktopRuntimeCapabilities | null>;
@@ -1050,4 +1098,30 @@ export interface ElectronAPI {
     bindings?: SkillAgentBinding[];
     error?: string;
   }>;
+
+  // ── Agent 分组管理 API ──────────────────────────────────────────────────────
+  /** 获取所有分组列表 */
+  agentGroupsList: () => Promise<{ success: boolean; groups?: AgentGroup[]; error?: string }>;
+  /** 创建新分组 */
+  agentGroupsCreate: (data: { name: string; description?: string; color?: string; emoji?: string }) => Promise<{ success: boolean; group?: AgentGroup; error?: string }>;
+  /** 更新分组属性 */
+  agentGroupsUpdate: (data: { id: string; name?: string; description?: string; color?: string; emoji?: string }) => Promise<{ success: boolean; group?: AgentGroup; error?: string }>;
+  /** 删除分组 */
+  agentGroupsDelete: (groupId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 将 Agent 分配到分组 */
+  agentGroupsAssignAgent: (data: { agentId: string; groupId: string }) => Promise<{ success: boolean; error?: string }>;
+  /** 将 Agent 从分组中移除 */
+  agentGroupsRemoveAgent: (agentId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 获取 Agent-分组映射关系 */
+  agentGroupsGetMappings: () => Promise<{ success: boolean; mappings?: Record<string, string>; error?: string }>;
+  /** 按分组批量导出 Agent 配置 */
+  agentGroupsExportGroup: (data: { groupId: string; passphrase: string; filePath?: string }) => Promise<{ success: boolean; filePath?: string; failedAgents?: Array<{ name: string; error: string }>; error?: string }>;
+  /** 预览 .ocgroup 导入文件信息 */
+  agentGroupsPreviewImport: (filePath: string) => Promise<{ success: boolean; groupMeta?: GroupMetadata; agentCount?: number; error?: string }>;
+  /** 按分组批量导入 Agent 配置 */
+  agentGroupsImportGroup: (data: { filePath: string; passphrase: string }) => Promise<{ success: boolean; summary?: GroupImportSummary; error?: string }>;
+  /** 监听分组导出进度事件 */
+  onAgentGroupsExportProgress: (callback: (event: GroupExportProgressEvent) => void) => () => void;
+  /** 监听分组导入进度事件 */
+  onAgentGroupsImportProgress: (callback: (event: GroupImportProgressEvent) => void) => () => void;
 }

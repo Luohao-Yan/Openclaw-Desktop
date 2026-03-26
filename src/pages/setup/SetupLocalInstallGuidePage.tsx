@@ -105,7 +105,7 @@ const StepBar: React.FC<{ current: SubStep }> = ({ current }) => {
         return (
           <React.Fragment key={s.key}>
             <div
-              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-colors duration-200"
+              className="flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-token-normal"
               style={{
                 backgroundColor: active ? 'var(--app-active-bg)' : done ? 'rgba(16,185,129,0.08)' : 'var(--app-bg)',
                 border: '1px solid',
@@ -1384,7 +1384,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                   '自定义',
                 ].map((p) => (
                   <button key={p} type="button" onClick={() => { setModelProvider(p); setModelName(DEFAULT_MODELS[p] ?? ''); setBaseUrl(''); }}
-                    className="rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 focus:outline-none"
+                    className="rounded-xl border px-4 py-3 text-sm font-medium transition-token-normal hover:-translate-y-0.5 focus:outline-none"
                     style={{
                       backgroundColor: modelProvider === p ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                       borderColor: modelProvider === p ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1411,7 +1411,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                 </label>
                 <input type="text" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder={modelProvider === '自定义' ? '例如 https://api.example.com/v1' : '留空使用默认 endpoint，填写后将覆盖默认值'}
-                  className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                  className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-token-normal focus:ring-2"
                   style={{ ...elevatedBg, color: 'var(--app-text)', outlineColor: 'var(--app-active-border)' }} />
                 <div className="mt-2 text-xs" style={mutedText}>
                   留空则使用该提供商的默认 endpoint；如需使用私有部署或代理地址，请在此填写。
@@ -1428,7 +1428,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                   </label>
                   <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
                     placeholder={modelProvider === '自定义' ? '本地模型可留空' : '请输入 API Key'}
-                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-token-normal focus:ring-2"
                     style={{ ...elevatedBg, color: 'var(--app-text)', outlineColor: 'var(--app-active-border)' }} />
                   <div className="mt-2 text-xs" style={mutedText}>
                     {modelProvider === '自定义'
@@ -1442,7 +1442,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                 <label className="mb-2 block text-sm font-medium">默认模型</label>
                 <input type="text" value={modelName} onChange={(e) => setModelName(e.target.value)}
                   placeholder="provider/model-name"
-                  className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-colors duration-200 focus:ring-2"
+                  className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-token-normal focus:ring-2"
                   style={{ ...elevatedBg, color: 'var(--app-text)', outlineColor: 'var(--app-active-border)' }} />
                 {modelProvider !== '自定义' && (
                   <div className="mt-2 text-xs" style={mutedText}>格式：<code>provider/model</code>，例如 <code>anthropic/claude-opus-4-6</code></div>
@@ -1487,7 +1487,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
               这是 OpenClaw 存储 Agent 文件的目录，默认位置已为你自动填写，通常无需修改。
             </div>
             <input type="text" value={workspaceDir} onChange={(e) => setWorkspaceDir(e.target.value)}
-              className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-colors duration-200 focus:ring-2"
+              className="w-full rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-token-normal focus:ring-2"
               style={{ ...elevatedBg, color: 'var(--app-text)', outlineColor: 'var(--app-active-border)' }} />
           </div>
 
@@ -1528,7 +1528,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                 <div className="flex gap-3">
                   {(['token', 'none'] as const).map((mode) => (
                     <button key={mode} type="button" onClick={() => setGatewayAuth(mode)}
-                      className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 focus:outline-none"
+                      className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-token-normal focus:outline-none"
                       style={{
                         backgroundColor: gatewayAuth === mode ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                         borderColor: gatewayAuth === mode ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1549,7 +1549,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
               <div className="flex gap-2">
                 {(['loopback', 'lan'] as const).map((mode) => (
                   <button key={mode} type="button" onClick={() => setGatewayBind(mode)}
-                    className="flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-all duration-200 focus:outline-none"
+                    className="flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-token-normal focus:outline-none"
                     style={{
                       backgroundColor: gatewayBind === mode ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                       borderColor: gatewayBind === mode ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1566,7 +1566,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
               <div className="flex gap-2">
                 {([false, true] as const).map((val) => (
                   <button key={String(val)} type="button" onClick={() => setGatewayTailscale(val)}
-                    className="flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-all duration-200 focus:outline-none"
+                    className="flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-token-normal focus:outline-none"
                     style={{
                       backgroundColor: gatewayTailscale === val ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                       borderColor: gatewayTailscale === val ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1583,7 +1583,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
               <div className="flex gap-2">
                 {(['per-channel-peer', 'per-channel'] as const).map((val) => (
                   <button key={val} type="button" onClick={() => setDmScope(val)}
-                    className="flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-all duration-200 focus:outline-none"
+                    className="flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-token-normal focus:outline-none"
                     style={{
                       backgroundColor: dmScope === val ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                       borderColor: dmScope === val ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1622,7 +1622,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
               return (
                 <div
                   key={config.key}
-                  className="rounded-2xl border transition-all duration-200"
+                  className="rounded-2xl border transition-token-normal"
                   style={{
                     backgroundColor: 'var(--app-bg)',
                     borderColor: config.enabled ? accentColor : 'var(--app-border)',
@@ -1646,7 +1646,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                       role="switch"
                       aria-checked={config.enabled}
                       onClick={() => handleChannelToggle(config.key, !config.enabled)}
-                      className="relative inline-flex h-7 w-14 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                      className="relative inline-flex h-7 w-14 shrink-0 cursor-pointer items-center rounded-full transition-token-normal focus:outline-none focus:ring-2 focus:ring-offset-2"
                       style={{
                         backgroundColor: config.enabled ? '#22c55e' : '#d1d5db',
                         outlineColor: config.enabled ? '#16a34a' : '#9ca3af',
@@ -1659,7 +1659,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                         {config.enabled ? 'ON' : 'OFF'}
                       </span>
                       <span
-                        className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-md transition-transform duration-200"
+                        className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-md transition-token-normal"
                         style={{ backgroundColor: '#fff', marginLeft: '3px', transform: config.enabled ? 'translateX(28px)' : 'translateX(0)' }}
                       />
                     </button>
@@ -1718,7 +1718,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                                 }}
                                 maxLength={32}
                                 placeholder="例如 my-bot（仅允许字母、数字、连字符、下划线）"
-                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                                className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-token-normal focus:ring-2"
                                 style={{
                                   backgroundColor: 'var(--app-bg)',
                                   borderColor: accountIdValidation.valid ? 'var(--app-border)' : '#ef4444',
@@ -1742,7 +1742,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                                   <select
                                     value={account.fieldValues[field.id] || field.defaultValue || ''}
                                     onChange={(e) => handleChannelFieldChange(config.key, account.accountId, field.id, e.target.value)}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-token-normal focus:ring-2"
                                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                                   >
                                     {field.options.map((opt) => (
@@ -1755,7 +1755,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                                     value={account.fieldValues[field.id] || ''}
                                     onChange={(e) => handleChannelFieldChange(config.key, account.accountId, field.id, e.target.value)}
                                     placeholder={field.placeholder}
-                                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-token-normal focus:ring-2"
                                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                                   />
                                 )}
@@ -1836,7 +1836,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             <div className="flex gap-3">
               {([true, false] as const).map((val) => (
                 <button key={String(val)} type="button" onClick={() => setInstallDaemon(val)}
-                  className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 focus:outline-none"
+                  className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-token-normal focus:outline-none"
                   style={{
                     backgroundColor: installDaemon === val ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                     borderColor: installDaemon === val ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1854,7 +1854,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
               <div className="flex gap-3">
                 {(['node', 'bundled'] as const).map((rt) => (
                   <button key={rt} type="button" onClick={() => setDaemonRuntime(rt)}
-                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 focus:outline-none"
+                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-token-normal focus:outline-none"
                     style={{
                       backgroundColor: daemonRuntime === rt ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                       borderColor: daemonRuntime === rt ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1883,7 +1883,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
             <div className="flex gap-3">
               {([true, false] as const).map((val) => (
                 <button key={String(val)} type="button" onClick={() => setInstallRecommendedSkills(val)}
-                  className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 focus:outline-none"
+                  className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-token-normal focus:outline-none"
                   style={{
                     backgroundColor: installRecommendedSkills === val ? 'var(--app-active-bg)' : 'var(--app-bg-elevated)',
                     borderColor: installRecommendedSkills === val ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -1951,7 +1951,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                     key={agent.id}
                     type="button"
                     onClick={() => setSelectedAgentId(agent.id)}
-                    className="w-full rounded-2xl border px-4 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2"
+                    className="w-full rounded-2xl border px-4 py-3.5 text-left transition-token-normal hover:-translate-y-0.5 focus:outline-none focus:ring-2"
                     style={{
                       backgroundColor: 'var(--app-bg)',
                       borderColor: selectedAgentId === agent.id
@@ -2062,7 +2062,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                         }}
                         placeholder="例如：my-assistant"
                         disabled={isRepairing}
-                        className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                        className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
                         style={{
                           backgroundColor: 'var(--app-bg)',
                           borderColor: claimNameError ? '#ef4444' : 'var(--app-border)',
@@ -2170,7 +2170,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                       if (agentErrors.name) setAgentErrors((prev) => ({ ...prev, name: '' }));
                     }}
                     placeholder="例如：my-assistant"
-                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
                     style={{
                       backgroundColor: 'var(--app-bg)',
                       borderColor: agentErrors.name ? '#ef4444' : 'var(--app-border)',
@@ -2204,7 +2204,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                       if (agentErrors.workspace) setAgentErrors((prev) => ({ ...prev, workspace: '' }));
                     }}
                     placeholder="例如：~/.openclaw/workspace-my-assistant"
-                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
                     style={{
                       backgroundColor: 'var(--app-bg)',
                       borderColor: agentErrors.workspace ? '#ef4444' : 'var(--app-border)',
@@ -2234,7 +2234,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                     value={agentModel}
                     onChange={(e) => setAgentModel(e.target.value)}
                     placeholder="留空使用系统默认模型"
-                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+                    className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
                     style={{
                       backgroundColor: 'var(--app-bg)',
                       borderColor: 'var(--app-border)',
@@ -2363,7 +2363,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
                     return (
                       <label
                         key={a.checkKey}
-                        className="flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200 hover:-translate-y-0.5"
+                        className="flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-token-normal hover:-translate-y-0.5"
                         style={{
                           backgroundColor: 'var(--app-bg)',
                           borderColor: bindChecked[a.checkKey]

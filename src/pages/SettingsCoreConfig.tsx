@@ -16,7 +16,8 @@ import type {
   ApprovalAllowlistEntry,
 } from '../types/electron';
 
-const inputClassName = 'w-full rounded-xl border px-4 py-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-blue-500/20';
+/* 输入框样式：使用 transition-token-normal 统一过渡动画 */
+const inputClassName = 'w-full rounded-xl border px-4 py-3 text-sm outline-none transition-token-normal focus:ring-2 focus:ring-blue-500/20';
 
 const electronAPI = window.electronAPI as unknown as ElectronAPI & {
   coreConfigGetOverview: () => Promise<CoreConfigOverviewResult>;
@@ -717,7 +718,7 @@ const SettingsCoreConfig: React.FC = () => {
         key={tab.id}
         type="button"
         onClick={() => updateDetailTab(navId, tab.id)}
-        className="rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200"
+        className="rounded-full px-4 py-1.5 text-sm font-medium transition-token-normal"
         style={{
           backgroundColor: isActive ? 'rgba(29, 139, 255, 0.15)' : 'transparent',
           color: isActive ? '#1D8BFF' : 'var(--app-text-muted)',
@@ -2706,7 +2707,7 @@ const SettingsCoreConfig: React.FC = () => {
                       key={item.id}
                       type="button"
                       onClick={() => handleSelectNavItem(item.id)}
-                      className="w-full rounded-xl px-3 py-2.5 text-left transition-all duration-150"
+                      className="w-full rounded-xl px-3 py-2.5 text-left transition-token-fast"
                       style={{
                         backgroundColor: isActive ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
                         boxShadow: isActive ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.22)' : 'none',

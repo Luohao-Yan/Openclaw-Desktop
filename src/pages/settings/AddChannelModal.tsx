@@ -39,7 +39,7 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({
             <button
               key={ct.id}
               type="button"
-              className="rounded-xl border px-3 py-3 text-left text-sm transition-all duration-200 hover:scale-[1.02] cursor-pointer"
+              className="rounded-xl border px-3 py-3 text-left text-sm transition-token-normal hover:scale-[1.02] cursor-pointer"
               style={{
                 borderColor: 'var(--app-border)',
                 color: 'var(--app-text)',

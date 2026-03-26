@@ -81,8 +81,8 @@ const Logs: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
-      {/* ── 顶部渐变标题卡片（橙色/琥珀色调） ── */}
-      <div className="px-4 pt-4 pb-0 shrink-0">
+      {/* ── 顶部渐变标题卡片（橙色/琥珀色调）：使用 page-content 统一水平内边距 ── */}
+      <div style={{ padding: 'var(--space-6) var(--space-6) 0' }} className="shrink-0">
         <div
           className="relative rounded-[24px] px-6 py-5 overflow-hidden"
           style={{
@@ -182,8 +182,8 @@ const Logs: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 日志内容区 ── */}
-      <div className="flex-1 overflow-hidden px-4 py-3 flex flex-col gap-2 min-h-0">
+      {/* ── 日志内容区：使用 --space-6 统一水平内边距，--space-4 统一标题与内容间距 ── */}
+      <div className="flex-1 overflow-hidden flex flex-col gap-2 min-h-0" style={{ padding: 'var(--space-4) var(--space-6) var(--space-6)' }}>
         <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
           共 {logs.length} 条{search && `，已过滤显示 ${filteredLogs.length} 条（关键词：「${search}」）`}
         </div>

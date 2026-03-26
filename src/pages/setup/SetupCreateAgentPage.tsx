@@ -279,7 +279,7 @@ export const SetupCreateAgentPage: React.FC = () => {
               key={agent.id}
               type="button"
               onClick={() => setSelectedAgentId(agent.id)}
-              className="w-full rounded-2xl border px-4 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2"
+              className="w-full rounded-2xl border px-4 py-3.5 text-left transition-token-normal hover:-translate-y-0.5 focus:outline-none focus:ring-2"
               style={{
                 backgroundColor: 'var(--app-bg)',
                 borderColor: selectedAgentId === agent.id
@@ -389,7 +389,7 @@ export const SetupCreateAgentPage: React.FC = () => {
               if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
             }}
             placeholder="例如：my-assistant"
-            className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+            className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: errors.name ? '#ef4444' : 'var(--app-border)',
@@ -423,7 +423,7 @@ export const SetupCreateAgentPage: React.FC = () => {
               if (errors.workspace) setErrors((prev) => ({ ...prev, workspace: '' }));
             }}
             placeholder="例如：~/.openclaw/workspace-my-assistant"
-            className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+            className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: errors.workspace ? '#ef4444' : 'var(--app-border)',
@@ -451,7 +451,7 @@ export const SetupCreateAgentPage: React.FC = () => {
             id="agent-model"
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full cursor-pointer rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors duration-200 focus:ring-2"
+            className="w-full cursor-pointer rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: 'var(--app-border)',

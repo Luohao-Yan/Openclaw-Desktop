@@ -515,7 +515,8 @@ const Tasks: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className="space-y-6 page-content">
       {/* 顶部渐变标题卡片 */}
       <GlassCard
         variant="gradient"
@@ -1142,11 +1143,11 @@ const Tasks: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => updateDraft({ enabled: !draft.enabled })}
-                  className="relative h-7 w-14 rounded-full transition-all duration-200"
+                  className="relative h-7 w-14 rounded-full transition-token-normal"
                   style={{ backgroundColor: draft.enabled ? 'var(--app-active-bg)' : 'var(--app-bg-subtle)', border: '1px solid var(--app-border)' }}
                 >
                   <span
-                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-all duration-200"
+                    className="absolute top-0.5 h-6 w-6 rounded-full bg-white transition-token-normal"
                     style={{ left: draft.enabled ? '30px' : '2px' }}
                   />
                 </button>

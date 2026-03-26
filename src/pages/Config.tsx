@@ -98,7 +98,8 @@ const Config: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[50vh]">
+      /* 加载状态：使用 page-content 统一内边距 */
+      <div className="page-content flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
             <Settings size={24} className="animate-pulse" style={{ color: 'var(--app-text-muted)' }} />
@@ -112,7 +113,8 @@ const Config: React.FC = () => {
   const editableFields = Object.keys(editing).filter(key => editing[key].isEditable);
   
   return (
-    <div className="p-6 pb-28 min-h-full animate-fade-in-up">
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className="page-content pb-28 min-h-full animate-fade-in-up">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-2 h-8 bg-gradient-to-b from-tech-cyan to-tech-green rounded-full" />

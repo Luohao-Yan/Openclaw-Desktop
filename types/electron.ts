@@ -1305,6 +1305,70 @@ export interface ExportHistoryRecord {
   fileSize: number;
 }
 
+// ── Agent 分组管理类型 ──────────────────────────────────────────────────────
+/** 分组定义 */
+export interface AgentGroup {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  emoji?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 分组元数据 */
+export interface GroupMetadata {
+  name: string;
+  description?: string;
+  color?: string;
+  emoji?: string;
+}
+
+/** 导出进度事件 */
+export interface GroupExportProgressEvent {
+  current: number;
+  total: number;
+  agentName: string;
+  status: 'exporting' | 'success' | 'failed' | 'skipped';
+  error?: string;
+}
+
+/** 导入进度事件 */
+export interface GroupImportProgressEvent {
+  current: number;
+  total: number;
+  agentName: string;
+  step: number;
+  stepName: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'rolling-back' | 'rolled-back';
+  message?: string;
+}
+
+/** 导入结果摘要 */
+export interface GroupImportSummary {
+  successCount: number;
+  failedAgents: Array<{ name: string; error: string }>;
+  warnings: string[];
+  group: { id: string; name: string; merged: boolean };
+}
+
+/** Agent 分组管理 Actions 接口 */
+export interface AgentGroupsActions {
+  agentGroupsList(): Promise<{ success: boolean; groups?: AgentGroup[]; error?: string }>;
+  agentGroupsCreate(data: { name: string; description?: string; color?: string; emoji?: string }): Promise<{ success: boolean; group?: AgentGroup; error?: string }>;
+  agentGroupsUpdate(data: { id: string; name?: string; description?: string; color?: string; emoji?: string }): Promise<{ success: boolean; group?: AgentGroup; error?: string }>;
+  agentGroupsDelete(groupId: string): Promise<{ success: boolean; error?: string }>;
+  agentGroupsAssignAgent(data: { agentId: string; groupId: string }): Promise<{ success: boolean; error?: string }>;
+  agentGroupsRemoveAgent(agentId: string): Promise<{ success: boolean; error?: string }>;
+  agentGroupsGetMappings(): Promise<{ success: boolean; mappings?: Record<string, string>; error?: string }>;
+  agentGroupsExportGroup(data: { groupId: string; passphrase: string; filePath?: string }): Promise<{ success: boolean; filePath?: string; failedAgents?: Array<{ name: string; error: string }>; error?: string }>;
+  agentGroupsPreviewImport(filePath: string): Promise<{ success: boolean; groupMeta?: GroupMetadata; agentCount?: number; error?: string }>;
+  agentGroupsImportGroup(data: { filePath: string; passphrase: string }): Promise<{ success: boolean; summary?: GroupImportSummary; error?: string }>;
+  onAgentGroupsExportProgress(callback: (event: GroupExportProgressEvent) => void): () => void;
+  onAgentGroupsImportProgress(callback: (event: GroupImportProgressEvent) => void): () => void;
+}
+
 /** Agent 配置加密导入/导出操作接口 */
 export interface AgentExchangeActions {
   /** 导出 Agent 配置为加密 .ocagent 文件 */
@@ -1363,7 +1427,8 @@ export interface ElectronAPI extends
   ModelsActions,
   ChannelsActions,
   AgentEnhancementActions,
-  AgentExchangeActions {}
+  AgentExchangeActions,
+  AgentGroupsActions {}
 
 declare global {
   interface Window {

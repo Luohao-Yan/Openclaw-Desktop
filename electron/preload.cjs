@@ -294,4 +294,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resolveRuntime: () => ipcRenderer.invoke('system:resolveRuntime'),
   // 打开外部链接
   openExternal: (url) => ipcRenderer.invoke('system:openExternal', url),
+
+  // Agent 分组管理
+  agentGroupsList: () => ipcRenderer.invoke('agentGroups:list'),
+  agentGroupsCreate: (data) => ipcRenderer.invoke('agentGroups:create', data),
+  agentGroupsUpdate: (data) => ipcRenderer.invoke('agentGroups:update', data),
+  agentGroupsDelete: (groupId) => ipcRenderer.invoke('agentGroups:delete', groupId),
+  agentGroupsAssignAgent: (data) => ipcRenderer.invoke('agentGroups:assignAgent', data),
+  agentGroupsRemoveAgent: (agentId) => ipcRenderer.invoke('agentGroups:removeAgent', agentId),
+  agentGroupsGetMappings: () => ipcRenderer.invoke('agentGroups:getMappings'),
+  agentGroupsExportGroup: (data) => ipcRenderer.invoke('agentGroups:exportGroup', data),
+  agentGroupsPreviewImport: (filePath) => ipcRenderer.invoke('agentGroups:previewImport', filePath),
+  agentGroupsImportGroup: (data) => ipcRenderer.invoke('agentGroups:importGroup', data),
+  onAgentGroupsExportProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('agentGroups:exportProgress', handler);
+    return () => ipcRenderer.removeListener('agentGroups:exportProgress', handler);
+  },
+  onAgentGroupsImportProgress: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('agentGroups:importProgress', handler);
+    return () => ipcRenderer.removeListener('agentGroups:importProgress', handler);
+  },
 });

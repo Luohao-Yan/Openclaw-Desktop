@@ -66,6 +66,11 @@ const Sessions: React.FC = () => {
   // ── 清理 ──
   const [cleanupResult, setCleanupResult] = useState<string | null>(null);
 
+  // ── 所有 agent 列表（用于筛选下拉和新建会话） ──
+  const [allAgents, setAllAgents] = useState<{ id: string; name: string }[]>([]);
+  // ── 可用模型列表（用于新建会话时选择模型） ──
+  const [availableModels, setAvailableModels] = useState<{ label: string; value: string }[]>([]);
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── 数据加载 ──
@@ -98,6 +103,51 @@ const Sessions: React.FC = () => {
       } else { hasError = true; if (!errorMsg) errorMsg = String(statsResult.reason); }
 
       if (hasError) setError(errorMsg || t('sessions.loadFailed'));
+
+      // 并行加载所有 agent 列表和可用模型（不阻塞主流程）
+      try {
+        const [agentsResult, modelsResult] = await Promise.allSettled([
+          window.electronAPI.agentsGetAll(),
+          window.electronAPI.modelsGetConfig(),
+        ]);
+        // 解析 agent 列表
+        if (agentsResult.status === 'fulfilled') {
+          const ar: any = agentsResult.value;
+          if (ar?.success && Array.isArray(ar.agents)) {
+            setAllAgents(ar.agents.map((a: any) => ({ id: a.id || a.name, name: a.name })));
+          }
+        }
+        // 解析可用模型列表
+        if (modelsResult.status === 'fulfilled') {
+          const mr: any = modelsResult.value;
+          if (mr?.success) {
+            const modelSet = new Map<string, { label: string; value: string }>();
+            // 从 providers 中提取
+            if (mr.providers) {
+              for (const [pid, prov] of Object.entries(mr.providers) as [string, any][]) {
+                if (Array.isArray(prov.models)) {
+                  for (const m of prov.models) {
+                    const fullId = `${pid}/${m.id}`;
+                    const alias = mr.configuredModels?.[fullId]?.alias;
+                    modelSet.set(fullId, { label: alias ? `${alias} (${fullId})` : m.name ? `${m.name} (${fullId})` : fullId, value: fullId });
+                  }
+                }
+              }
+            }
+            // 补充 configuredModels 中的模型
+            if (mr.configuredModels) {
+              for (const [mid, cfg] of Object.entries(mr.configuredModels) as [string, any][]) {
+                if (!modelSet.has(mid)) {
+                  modelSet.set(mid, { label: cfg.alias ? `${cfg.alias} (${mid})` : mid, value: mid });
+                }
+              }
+            }
+            setAvailableModels(Array.from(modelSet.values()));
+          }
+        }
+      } catch {
+        // agent/model 加载失败不影响主流程
+      }
     } catch {
       setError(t('sessions.loadFailed'));
     } finally {
@@ -178,6 +228,34 @@ const Sessions: React.FC = () => {
       if (selectedSession?.id === sessionId) { setSelectedSession(null); setTranscript([]); }
     } catch (err) { console.error('[Sessions] 关闭失败:', err); }
   }, [loadSessions, selectedSession]);
+
+  /**
+   * 切换模型试用：为当前 agent 创建一个使用新模型的 session，不修改 openclaw 配置
+   * 创建成功后自动选中新 session
+   */
+  const handleSwitchModel = useCallback(async (model: string) => {
+    if (!selectedSession) return;
+    const agent = selectedSession.agent;
+    try {
+      const result = await window.electronAPI.sessionsCreate(agent, model);
+      if (result?.success) {
+        await loadSessions();
+        // 尝试找到新创建的 session 并自动选中
+        const listResult: any = await window.electronAPI.sessionsList();
+        if (listResult?.success || Array.isArray(listResult?.sessions)) {
+          const list: Session[] = Array.isArray(listResult) ? listResult : listResult.sessions || [];
+          // 查找匹配 agent + model 的最新 session
+          const newSession = list.find((s) => s.agent === agent && s.model === model);
+          if (newSession) {
+            setSelectedSession(newSession);
+            void loadTranscript(newSession);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Sessions] 切换模型失败:', err);
+    }
+  }, [selectedSession, loadSessions, loadTranscript]);
 
   const handleExportSession = useCallback(async (sessionId: string, format: 'json' | 'markdown') => {
     try {
@@ -384,7 +462,11 @@ const Sessions: React.FC = () => {
   }, [loadSessions]);
 
   // ── 派生数据 ──
-  const uniqueAgents = Array.from(new Set(sessions.map((s) => s.agent).filter(Boolean)));
+  // 合并 session 中的 agent 和全量 agent 列表，确保所有 agent 都出现在筛选下拉中
+  const uniqueAgents = Array.from(new Set([
+    ...sessions.map((s) => s.agent).filter(Boolean),
+    ...allAgents.map((a) => a.id),
+  ]));
   const filteredSessions = sessions.filter((s) => {
     const term = searchTerm.toLowerCase();
     const match = s.key.toLowerCase().includes(term) || s.agent.toLowerCase().includes(term) || s.model.toLowerCase().includes(term);
@@ -570,6 +652,8 @@ const Sessions: React.FC = () => {
           onExport={(id, fmt) => void handleExportSession(id, fmt)}
           onClose={(id) => void handleCloseSession(id)}
           t={t}
+          availableModels={availableModels}
+          onSwitchModel={handleSwitchModel}
         />
       </div>
 
@@ -584,6 +668,8 @@ const Sessions: React.FC = () => {
         onCreate={() => void handleCreateSession()}
         creating={creating}
         t={t}
+        agents={allAgents}
+        models={availableModels}
       />
     </div>
   );

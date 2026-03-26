@@ -199,7 +199,7 @@ const LocationParsingConfig: React.FC<LocationParsingConfigProps> = ({
         <button
           type="button"
           onClick={handleToggleEnabled}
-          className="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: isEnabled
               ? 'var(--app-active-border, #3b82f6)'
@@ -209,7 +209,7 @@ const LocationParsingConfig: React.FC<LocationParsingConfigProps> = ({
           aria-checked={isEnabled}
         >
           <span
-            className="inline-block h-4 w-4 rounded-full transition-transform duration-200"
+            className="inline-block h-4 w-4 rounded-full transition-token-normal"
             style={{
               backgroundColor: 'white',
               transform: isEnabled ? 'translateX(22px)' : 'translateX(4px)',

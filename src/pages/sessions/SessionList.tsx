@@ -51,7 +51,7 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, on
             const isPending = pendingSessions?.has(s.id) ?? false;
             return (
               <button key={s.id} onClick={() => onSelect(s)}
-                className="w-full text-left px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer group"
+                className="w-full text-left px-3 py-2.5 rounded-xl transition-token-fast cursor-pointer group"
                 style={{
                   backgroundColor: isSelected ? 'rgba(96,165,250,0.12)' : 'transparent',
                   border: isSelected ? '1px solid rgba(96,165,250,0.2)' : '1px solid transparent',

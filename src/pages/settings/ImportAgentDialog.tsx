@@ -236,7 +236,7 @@ const ImportAgentDialog: React.FC<ImportAgentDialogProps> = ({ open, onClose, on
               选择配置文件
             </span>
             <div
-              className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all duration-200 hover:opacity-80"
+              className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-token-normal hover:opacity-80"
               style={{ backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)' }}
               onClick={() => void handleSelectFile()}
             >
@@ -285,7 +285,7 @@ const ImportAgentDialog: React.FC<ImportAgentDialogProps> = ({ open, onClose, on
           {formError && (
             <div
               className="rounded-xl border px-4 py-3 text-xs flex items-start gap-2"
-              style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)', color: '#FCA5A5' }}
+              style={{ backgroundColor: 'var(--app-toast-error-bg)', borderColor: 'var(--app-toast-error-border)', color: 'var(--app-toast-error-text)' }}
             >
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{formError}</span>
@@ -326,12 +326,12 @@ const ImportAgentDialog: React.FC<ImportAgentDialogProps> = ({ open, onClose, on
         <div className="space-y-4">
           <div
             className="rounded-xl border px-4 py-4 flex items-start gap-3"
-            style={{ backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.22)' }}
+            style={{ backgroundColor: 'var(--app-toast-success-bg)', borderColor: 'var(--app-toast-success-border)' }}
           >
             <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
             <div className="space-y-1">
-              <p className="text-sm font-semibold" style={{ color: '#6EE7B7' }}>导入成功</p>
-              <p className="text-xs" style={{ color: '#6EE7B7' }}>Agent「{importedAgent?.name || '未知'}」已成功导入</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--app-toast-success-text)' }}>导入成功</p>
+              <p className="text-xs" style={{ color: 'var(--app-toast-success-text)' }}>Agent「{importedAgent?.name || '未知'}」已成功导入</p>
             </div>
           </div>
 
@@ -371,20 +371,20 @@ const ImportAgentDialog: React.FC<ImportAgentDialogProps> = ({ open, onClose, on
         <div className="space-y-4">
           <div
             className="rounded-xl border px-4 py-4 flex items-start gap-3"
-            style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)' }}
+            style={{ backgroundColor: 'var(--app-toast-error-bg)', borderColor: 'var(--app-toast-error-border)' }}
           >
             <XCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
             <div className="space-y-1">
-              <p className="text-sm font-semibold" style={{ color: '#FCA5A5' }}>导入失败</p>
-              <p className="text-xs" style={{ color: '#FCA5A5' }}>{failError}</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--app-toast-error-text)' }}>导入失败</p>
+              <p className="text-xs" style={{ color: 'var(--app-toast-error-text)' }}>{failError}</p>
             </div>
           </div>
           <div
             className="rounded-xl border px-4 py-3 flex items-start gap-2"
-            style={{ backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.18)' }}
+            style={{ backgroundColor: 'var(--app-toast-success-bg)', borderColor: 'var(--app-toast-success-border)' }}
           >
             <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-            <p className="text-xs" style={{ color: '#6EE7B7' }}>
+            <p className="text-xs" style={{ color: 'var(--app-toast-success-text)' }}>
               已自动清理，未影响现有配置。你可以重新输入密钥或选择其他文件后重试。
             </p>
           </div>

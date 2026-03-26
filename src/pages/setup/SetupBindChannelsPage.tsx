@@ -317,7 +317,7 @@ export const SetupBindChannelsPage: React.FC = () => {
             return (
               <label
                 key={a.checkKey}
-                className="flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-200 hover:-translate-y-0.5"
+                className="flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 transition-token-normal hover:-translate-y-0.5"
                 style={{
                   backgroundColor: 'var(--app-bg)',
                   borderColor: checked[a.checkKey]

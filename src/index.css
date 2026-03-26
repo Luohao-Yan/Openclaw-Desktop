@@ -94,10 +94,10 @@
   --app-table-cell-text: var(--app-text);
   --app-table-cell-muted-text: var(--app-text-muted);
 
-  /* GlassCard 玻璃卡片主题属性 */
-  --app-glass-bg: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+  /* GlassCard 玻璃卡片主题属性 — 使用 rgba() 纯色确保 backdrop-filter 穿透生效 */
+  --app-glass-bg: rgba(255, 255, 255, 0.04);
   --app-glass-border: var(--app-border);
-  --app-glass-elevated-bg: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%);
+  --app-glass-elevated-bg: rgba(255, 255, 255, 0.08);
   --app-glass-elevated-border: rgba(255,255,255,0.14);
 
   /* Toast 提示主题属性 */
@@ -123,6 +123,12 @@
   --radius-xl: 20px;
   --radius-2xl: 28px;
   
+  /* 阴影体系 — 深色模式使用较深阴影值 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.35);
+
   /* 过渡 */
   --transition-fast: 150ms;
   --transition-normal: 200ms;
@@ -244,10 +250,10 @@ body {
   --app-table-cell-text: var(--app-text);
   --app-table-cell-muted-text: var(--app-text-muted);
 
-  /* GlassCard 玻璃卡片浅色主题属性 */
-  --app-glass-bg: linear-gradient(135deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0.01) 100%);
+  /* GlassCard 玻璃卡片浅色主题属性 — 使用 rgba() 纯色确保 backdrop-filter 穿透生效 */
+  --app-glass-bg: rgba(255, 255, 255, 0.70);
   --app-glass-border: var(--app-border);
-  --app-glass-elevated-bg: linear-gradient(135deg, rgba(15,23,42,0.06) 0%, rgba(15,23,42,0.02) 100%);
+  --app-glass-elevated-bg: rgba(255, 255, 255, 0.80);
   --app-glass-elevated-border: rgba(15,23,42,0.10);
 
   /* Toast 提示浅色主题属性 */
@@ -257,6 +263,36 @@ body {
   --app-toast-error-bg: rgba(239, 68, 68, 0.10);
   --app-toast-error-border: rgba(239, 68, 68, 0.22);
   --app-toast-error-text: #DC2626;
+
+  /* 间距 — 与 :root 保持一致，确保主题切换完整性 */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* 圆角 — 与 :root 保持一致，确保主题切换完整性 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  /* 阴影体系 — 浅色模式使用较浅阴影值 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.16);
+
+  /* 过渡 — 与 :root 保持一致，确保主题切换完整性 */
+  --transition-fast: 150ms;
+  --transition-normal: 200ms;
+  --transition-page: 300ms;
+
+  /* 缓动 — 与 :root 保持一致，确保主题切换完整性 */
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
   background-color: var(--app-bg);
   color: var(--app-text);
@@ -340,8 +376,9 @@ button, input, select, textarea {
 }
 
 /* ==================== 玻璃拟态效果 ==================== */
+/* 深色模式背景使用与 --app-glass-bg 一致的 alpha 值，确保视觉统一 */
 .glass {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -700,7 +737,8 @@ button, input, select, textarea {
   background: linear-gradient(135deg, #00B4FF 0%, #00E08E 100%);
   border-radius: var(--radius-md);
   box-shadow: 0 2px 8px rgba(0, 180, 255, 0.3);
-  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* 分段控制器滑块过渡：使用 --transition-page (300ms) 统一过渡时长 */
+  transition: transform var(--transition-page) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .segmented-control-item {
@@ -820,23 +858,52 @@ button, input, select, textarea {
   transform: translateX(1.25rem);
 }
 
+/* ==================== 页面内容区域统一间距 ==================== */
+/* 页面内容区域：统一使用 --space-6 (1.5rem) 内边距 */
+.page-content {
+  padding: var(--space-6);
+}
+
+/* 页面标题与内容间距：统一使用 --space-4 (1rem) */
+.page-title-gap {
+  margin-bottom: var(--space-4);
+}
+
+/* 页面内容区域内的子元素间距：统一使用 --space-6 (1.5rem) */
+.page-section-gap {
+  gap: var(--space-6);
+}
+
+/* ==================== 交互元素统一过渡动画 ==================== */
+/* 快速过渡：适用于按钮、输入框等小型交互元素，使用 --transition-fast (150ms) */
+.transition-token-fast {
+  transition: all var(--transition-fast) var(--ease-smooth);
+}
+
+/* 标准过渡：适用于卡片、面板等中型交互元素，使用 --transition-normal (200ms) */
+.transition-token-normal {
+  transition: all var(--transition-normal) var(--ease-smooth);
+}
+
 /* ==================== 页面过渡 ==================== */
 .page-enter {
   opacity: 0;
   transform: translateY(10px);
 }
 
+/* 页面进入动画：使用 --transition-page (300ms) 统一过渡时长 */
 .page-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 300ms ease-out, transform 300ms ease-out;
+  transition: opacity var(--transition-page) ease-out, transform var(--transition-page) ease-out;
 }
 
 .page-exit {
   opacity: 1;
 }
 
+/* 页面退出动画：使用 --transition-normal (200ms) 统一过渡时长 */
 .page-exit-active {
   opacity: 0;
-  transition: opacity 200ms ease-in;
+  transition: opacity var(--transition-normal) ease-in;
 }

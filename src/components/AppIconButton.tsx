@@ -64,7 +64,7 @@ const AppIconButton: React.FC<AppIconButtonProps> = ({
     <button
       type={type}
       disabled={disabled}
-      className={`inline-flex items-center justify-center rounded-lg p-2 transition-all duration-200 will-change-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg p-2 transition-token-normal will-change-transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
       style={{
         ...tintStyles[tint],
         ...interactionStyle,

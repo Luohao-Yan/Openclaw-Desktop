@@ -35,7 +35,7 @@ const SegmentedTabs = <T extends string>({
             key={item.key}
             type="button"
             onClick={() => onChange(item.key)}
-            className="inline-flex items-center whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200"
+            className="inline-flex items-center whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-token-normal"
             style={active
               ? {
                   background: 'var(--app-segment-tab-active-bg)',

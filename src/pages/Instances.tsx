@@ -157,7 +157,8 @@ const Instances: React.FC = () => {
   };
 
   const InstanceCard = ({ instance }: { instance: InstanceInfo }) => (
-    <GlassCard className="p-6 hover:shadow-xl transition-all duration-300">
+    /* 实例卡片：使用 transition-token-normal 统一过渡动画 */
+    <GlassCard className="p-6 hover:shadow-xl transition-token-normal">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
@@ -329,7 +330,8 @@ const Instances: React.FC = () => {
   );
 
   return (
-    <div className="h-full overflow-y-auto p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className="h-full overflow-y-auto page-content" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
       <div className="max-w-7xl mx-auto">
         {/* 顶部渐变标题卡片 */}
         <GlassCard
@@ -390,7 +392,7 @@ const Instances: React.FC = () => {
               <button
                 onClick={loadInstances}
                 disabled={loading}
-                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-token-normal disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
                 style={{
                   backgroundColor: 'var(--app-bg-elevated)',
                   border: '1px solid var(--app-border)',
@@ -403,7 +405,7 @@ const Instances: React.FC = () => {
               </button>
               <button
                 onClick={() => alert('新建实例功能即将推出')}
-                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-token-normal hover:scale-105 active:scale-95"
                 style={{
                   background: 'linear-gradient(135deg, #00B4FF 0%, #22C55E 100%)',
                   color: 'white',

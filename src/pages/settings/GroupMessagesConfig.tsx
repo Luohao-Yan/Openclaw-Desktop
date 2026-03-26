@@ -181,7 +181,7 @@ const GroupMessagesConfig: React.FC<GroupMessagesConfigProps> = ({
           role="switch"
           aria-checked={enabled}
           onClick={handleToggleEnabled}
-          className="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: enabled
               ? 'var(--app-active-bg, rgba(59,130,246,0.5))'
@@ -190,7 +190,7 @@ const GroupMessagesConfig: React.FC<GroupMessagesConfigProps> = ({
           }}
         >
           <span
-            className="inline-block h-4 w-4 rounded-full transition-transform duration-200"
+            className="inline-block h-4 w-4 rounded-full transition-token-normal"
             style={{
               backgroundColor: enabled ? 'var(--app-active-text, #3b82f6)' : 'var(--app-text-muted)',
               transform: enabled ? 'translateX(22px)' : 'translateX(4px)',
@@ -209,7 +209,7 @@ const GroupMessagesConfig: React.FC<GroupMessagesConfigProps> = ({
           role="switch"
           aria-checked={requireMention}
           onClick={handleToggleRequireMention}
-          className="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: requireMention
               ? 'var(--app-active-bg, rgba(59,130,246,0.5))'
@@ -218,7 +218,7 @@ const GroupMessagesConfig: React.FC<GroupMessagesConfigProps> = ({
           }}
         >
           <span
-            className="inline-block h-4 w-4 rounded-full transition-transform duration-200"
+            className="inline-block h-4 w-4 rounded-full transition-token-normal"
             style={{
               backgroundColor: requireMention ? 'var(--app-active-text, #3b82f6)' : 'var(--app-text-muted)',
               transform: requireMention ? 'translateX(22px)' : 'translateX(4px)',
@@ -525,7 +525,7 @@ const OverrideCard: React.FC<OverrideCardProps> = ({
           role="switch"
           aria-checked={ovEnabled}
           onClick={onToggleEnabled}
-          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: ovEnabled
               ? 'var(--app-active-bg, rgba(59,130,246,0.5))'
@@ -534,7 +534,7 @@ const OverrideCard: React.FC<OverrideCardProps> = ({
           }}
         >
           <span
-            className="inline-block h-3 w-3 rounded-full transition-transform duration-200"
+            className="inline-block h-3 w-3 rounded-full transition-token-normal"
             style={{
               backgroundColor: ovEnabled ? 'var(--app-active-text, #3b82f6)' : 'var(--app-text-muted)',
               transform: ovEnabled ? 'translateX(18px)' : 'translateX(3px)',
@@ -553,7 +553,7 @@ const OverrideCard: React.FC<OverrideCardProps> = ({
           role="switch"
           aria-checked={ovRequireMention}
           onClick={onToggleRequireMention}
-          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: ovRequireMention
               ? 'var(--app-active-bg, rgba(59,130,246,0.5))'
@@ -562,7 +562,7 @@ const OverrideCard: React.FC<OverrideCardProps> = ({
           }}
         >
           <span
-            className="inline-block h-3 w-3 rounded-full transition-transform duration-200"
+            className="inline-block h-3 w-3 rounded-full transition-token-normal"
             style={{
               backgroundColor: ovRequireMention ? 'var(--app-active-text, #3b82f6)' : 'var(--app-text-muted)',
               transform: ovRequireMention ? 'translateX(18px)' : 'translateX(3px)',

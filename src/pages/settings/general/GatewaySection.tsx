@@ -338,7 +338,7 @@ const GatewaySection: React.FC<GatewaySectionProps> = ({
           <button
             type="button"
             onClick={() => void onOpenLogs()}
-            className="text-sm font-medium transition-opacity duration-200 hover:opacity-80"
+            className="text-sm font-medium transition-token-normal hover:opacity-80"
             style={{ color: '#60A5FA' }}
           >
             Open logs

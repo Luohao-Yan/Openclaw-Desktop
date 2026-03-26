@@ -563,7 +563,7 @@ const SettingsVoice: React.FC = () => {
                   return (
                     <div
                       key={bar}
-                      className="h-4 flex-1 rounded-md transition-all duration-300"
+                      className="h-4 flex-1 rounded-md transition-token-normal"
                       style={active
                         ? {
                             background: 'linear-gradient(180deg, #34D399, #10B981)',
@@ -630,7 +630,7 @@ const SettingsVoice: React.FC = () => {
                     }
                   }}
                   placeholder={t('settings.voiceNewWordPlaceholder')}
-                  className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all duration-200"
+                  className="w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-token-normal"
                   style={{
                     backgroundColor: 'var(--app-bg)',
                     borderColor: 'var(--app-border)',
@@ -673,7 +673,7 @@ const SettingsVoice: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-200"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-token-normal"
                     style={{ borderColor: 'var(--app-border)', color: 'var(--app-text-muted)' }}
                     onClick={() => void handleRemoveWord(word)}
                   >

@@ -9,7 +9,14 @@
   "extraResources": [
     {
       "from": "resources/node/",
-      "to": "node/"
+      "to": "node/",
+      "filter": [
+        "**/*",
+        "!**/include/**",
+        "!**/share/**",
+        "!**/CHANGELOG.md",
+        "!**/README.md"
+      ]
     },
     {
       "from": "resources/bin/",
@@ -18,9 +25,18 @@
   ],
   "files": [
     "dist/**/*",
-    "electron/**/*",
     "dist-electron/**/*",
-    "resources/**/*"
+    "!**/*.map",
+    "!**/*.ts",
+    "!**/*.tsx",
+    "!**/*.md",
+    "!**/node_modules/**/*.d.ts",
+    "!**/node_modules/**/test/**",
+    "!**/node_modules/**/tests/**",
+    "!**/node_modules/**/__tests__/**",
+    "!**/node_modules/**/docs/**",
+    "!**/node_modules/**/example/**",
+    "!**/node_modules/**/examples/**"
   ],
   "mac": null,
   "linux": null,

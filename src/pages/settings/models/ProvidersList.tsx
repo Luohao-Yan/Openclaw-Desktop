@@ -64,7 +64,7 @@ const ProvidersList: React.FC<ProvidersListProps> = ({
         key={provider.id}
         type="button"
         onClick={() => onSelectProvider(provider.id)}
-        className="w-full rounded-xl px-3 py-2.5 text-left transition-all duration-150"
+        className="w-full rounded-xl px-3 py-2.5 text-left transition-token-fast"
         style={{
           backgroundColor: isActive ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
           boxShadow: isActive ? 'inset 0 0 0 1px rgba(96, 165, 250, 0.22)' : 'none',

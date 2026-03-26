@@ -1766,14 +1766,15 @@ const AgentWorkspace: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className="min-h-screen page-content" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-3">
               <button
                 onClick={() => navigate('/agents')}
-                className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-token-normal cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                 style={{
                   backgroundColor: 'var(--app-bg-elevated)',
                   border: '1px solid var(--app-border)',
@@ -2236,7 +2237,7 @@ const AgentWorkspace: React.FC = () => {
                   </AppButton>
                   <button
                     onClick={openTrashModal}
-                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+                    className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-token-normal cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
                     style={{
                       backgroundColor: 'var(--app-bg-elevated)',
                       border: '1px solid var(--app-border)',
@@ -2258,7 +2259,7 @@ const AgentWorkspace: React.FC = () => {
                 {details?.workspaceEntries.length ? details.workspaceEntries.map((entry) => (
                   <div
                     key={entry.path}
-                    className="p-3 rounded-lg border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]"
+                    className="p-3 rounded-lg border transition-token-normal hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(0,0,0,0.08)]"
                     style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -2289,7 +2290,7 @@ const AgentWorkspace: React.FC = () => {
                         </AppButton>
                         <button
                           onClick={() => handleRenameClick(entry)}
-                          className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+                          className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-token-normal cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
                           style={{
                             backgroundColor: 'var(--app-bg-elevated)',
                             border: '1px solid var(--app-border)',
@@ -2301,7 +2302,7 @@ const AgentWorkspace: React.FC = () => {
                         </button>
                         <button
                           onClick={() => setDeletingEntry(entry)}
-                          className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+                          className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-token-normal cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
                           style={{
                             backgroundColor: 'rgba(239, 68, 68, 0.10)',
                             border: '1px solid rgba(239, 68, 68, 0.20)',
@@ -2538,8 +2539,8 @@ const AgentWorkspace: React.FC = () => {
                   )}
                 </div>
                 <ChevronDown
-                  className={`w-5 h-5 transition-transform duration-200 ${skillsPanelOpen ? 'rotate-180' : ''}`}
-                  style={{ color: 'var(--app-text-muted)' }}
+                  className={`w-5 h-5 transition-transform ${skillsPanelOpen ? 'rotate-180' : ''}`}
+                  style={{ color: 'var(--app-text-muted)', transitionDuration: 'var(--transition-normal)' }}
                 />
               </div>
               {/* 展开时渲染技能面板 */}
@@ -3240,7 +3241,7 @@ const AgentWorkspace: React.FC = () => {
                     <button
                       key={item.key}
                       onClick={() => setManagedViewMode(item.key)}
-                      className="px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200"
+                      className="px-3 py-2 rounded-lg text-xs font-medium transition-token-normal"
                       style={managedViewMode === item.key
                         ? { background: 'var(--app-selected-card-bg)', border: '1px solid var(--app-selected-card-border)', color: 'var(--app-text)', boxShadow: 'var(--app-selected-card-shadow)' }
                         : { backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
@@ -3294,7 +3295,7 @@ const AgentWorkspace: React.FC = () => {
                               {event.parentId && <span>父事件：{event.parentId}</span>}
                               <button
                                 onClick={() => setSelectedSessionEvent(event)}
-                                className="px-2.5 py-1 rounded-lg border transition-all duration-200"
+                                className="px-2.5 py-1 rounded-lg border transition-token-normal"
                                 style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                               >
                                 查看详情

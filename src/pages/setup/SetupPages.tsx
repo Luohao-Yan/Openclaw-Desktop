@@ -22,7 +22,7 @@ const SetupModeCard: React.FC<{
       type="button"
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      className="group flex min-h-[176px] flex-1 flex-col justify-between rounded-2xl border p-5 text-left transition-all duration-200 focus:outline-none focus:ring-2"
+      className="group flex min-h-[176px] flex-1 flex-col justify-between rounded-2xl border p-5 text-left transition-token-normal focus:outline-none focus:ring-2"
       style={{
         backgroundColor: 'var(--app-bg)',
         borderColor: 'var(--app-border)',
@@ -47,7 +47,7 @@ const SetupModeCard: React.FC<{
           </span>
         )}
         <div
-          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors duration-200 group-hover:border-[var(--app-active-border)]"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-token-normal group-hover:border-[var(--app-active-border)]"
           style={{ borderColor: 'var(--app-border)' }}
         >
           {icon}
@@ -125,7 +125,7 @@ const SetupRemoteForm: React.FC<{
           <input
             value={draft.host}
             onChange={(event) => updateDraft('host', event.target.value)}
-            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-200 focus:ring-2"
+            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-token-normal focus:ring-2"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: 'var(--app-border)',
@@ -140,7 +140,7 @@ const SetupRemoteForm: React.FC<{
           <input
             value={draft.port}
             onChange={(event) => updateDraft('port', event.target.value)}
-            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-200 focus:ring-2"
+            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-token-normal focus:ring-2"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: 'var(--app-border)',
@@ -159,7 +159,7 @@ const SetupRemoteForm: React.FC<{
               key={protocol}
               type="button"
               onClick={() => updateDraft('protocol', protocol)}
-              className="cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2"
+              className="cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium transition-token-normal hover:-translate-y-0.5 focus:outline-none focus:ring-2"
               style={{
                 backgroundColor: draft.protocol === protocol ? 'var(--app-active-bg)' : 'var(--app-bg)',
                 borderColor: draft.protocol === protocol ? 'var(--app-active-border)' : 'var(--app-border)',
@@ -178,7 +178,7 @@ const SetupRemoteForm: React.FC<{
         <input
           value={draft.token}
           onChange={(event) => updateDraft('token', event.target.value)}
-          className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-200 focus:ring-2"
+          className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition-token-normal focus:ring-2"
           style={{
             backgroundColor: 'var(--app-bg)',
             borderColor: 'var(--app-border)',
@@ -793,7 +793,7 @@ export const SetupLocalCheckPage: React.FC = () => {
         ].map((item) => (
           <div
             key={item.label}
-            className="rounded-2xl border p-4 transition-colors duration-200 hover:border-[var(--app-active-border)]"
+            className="rounded-2xl border p-4 transition-token-normal hover:border-[var(--app-active-border)]"
             style={{
               backgroundColor: 'var(--app-bg)',
               borderColor: 'var(--app-border)',
@@ -1236,7 +1236,7 @@ export const SetupCompletePage: React.FC = () => {
               type="button"
               disabled={isBusy}
               onClick={() => void handleGuidanceClick(card.route)}
-              className="group flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:pointer-events-none"
+              className="group flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-token-normal hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:pointer-events-none"
               style={{
                 backgroundColor: 'var(--app-bg)',
                 borderColor: 'var(--app-border)',

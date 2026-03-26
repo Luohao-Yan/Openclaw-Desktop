@@ -86,7 +86,7 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
               onMouseLeave={onSearchBlur}
             >
               <div
-                className={`absolute right-0 flex h-11 items-center overflow-hidden rounded-full transition-all duration-300 ${isSearchExpanded ? 'w-[320px] opacity-100' : 'w-11 opacity-0 pointer-events-none'}`}
+                className={`absolute right-0 flex h-11 items-center overflow-hidden rounded-full transition-token-normal ${isSearchExpanded ? 'w-[320px] opacity-100' : 'w-11 opacity-0 pointer-events-none'}`}
                 style={{
                   backgroundColor: 'var(--app-bg-elevated)',
                   border: '1px solid var(--app-border)',
@@ -192,7 +192,7 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
                   </div>
 
                   <div
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-token-normal"
                     style={{
                       backgroundColor: 'rgba(255, 255, 255, 0.06)',
                       color: accent.icon,

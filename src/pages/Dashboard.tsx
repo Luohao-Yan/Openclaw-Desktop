@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Play,
   StopCircle,
@@ -21,6 +21,7 @@ import { useI18n } from '../i18n/I18nContext';
 import { createGatewayRepairLoadingState, runGatewayRepair } from '../services/gatewayRepair';
 import AppButton from '../components/AppButton';
 import AppBadge from '../components/AppBadge';
+import { useIpcCache } from '../hooks/useIpcCache';
 // OpenClawRootDiagnostic type should be defined locally
 interface OpenClawRootDiagnostic {
   rootDir: string;
@@ -50,19 +51,62 @@ function Dashboard() {
     repairCapabilityAvailable,
     runtimeInfo,
   } = useDesktopRuntime();
-  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus>({ status: 'checking' });
-  const [systemStats, setSystemStats] = useState({
-    cpu: 0,
-    memory: 0,
-    disk: 0,
-    network: 0,
-    uptime: 0,
-  });
-  const [systemError, setSystemError] = useState('');
+  // ── 使用 useIpcCache 预加载并缓存网关状态（需求 3.6）──
+  const {
+    data: cachedGatewayStatus,
+    loading: gatewayLoading,
+    error: gatewayError,
+    refresh: refreshGatewayStatus,
+  } = useIpcCache<GatewayStatus>(
+    'dashboard:gateway-status',
+    async () => {
+      const status = await window.electronAPI.gatewayStatus();
+      return {
+        status: status.status,
+        error: status.error,
+        pid: status.pid,
+        uptime: status.uptime,
+        version: status.version,
+        host: status.host,
+        port: status.port,
+      };
+    },
+    { ttl: 15000, staleWhileRevalidate: true },
+  );
+
+  // ── 使用 useIpcCache 预加载并缓存系统信息（需求 3.6）──
+  const {
+    data: cachedSystemStats,
+    error: systemStatsError,
+    refresh: refreshSystemStats,
+  } = useIpcCache<{ cpu: number; memory: number; disk: number; network: number; uptime: number }>(
+    'dashboard:system-stats',
+    async () => {
+      const stats = await window.electronAPI.systemStats();
+      return {
+        cpu: stats.cpu,
+        memory: stats.memory,
+        disk: stats.disk,
+        network: stats.network,
+        uptime: stats.uptime,
+      };
+    },
+    { ttl: 5000, staleWhileRevalidate: true },
+  );
+
+  // 从缓存数据派生当前状态，未加载时使用默认值
+  const gatewayStatus: GatewayStatus = gatewayError
+    ? { status: 'error', error: gatewayError.message }
+    : (cachedGatewayStatus ?? { status: 'checking' });
+  const systemStats = cachedSystemStats ?? { cpu: 0, memory: 0, disk: 0, network: 0, uptime: 0 };
+  // 系统信息错误文本
+  const systemError = systemStatsError?.message ?? '';
   const [rootDiagnostic, setRootDiagnostic] = useState<OpenClawRootDiagnostic | null>(null);
   const [rootDiagnosticError, setRootDiagnosticError] = useState('');
   const [showRootDiagnosticDetails, setShowRootDiagnosticDetails] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  // 综合加载状态：操作中或缓存首次加载中
+  const loading = actionLoading || gatewayLoading;
   const [isRepairingGateway, setIsRepairingGateway] = useState(false);
   const [gatewayRepairSteps, setGatewayRepairSteps] = useState<string[]>([]);
   const [showGatewayErrorDetails, setShowGatewayErrorDetails] = useState(false);
@@ -73,7 +117,7 @@ function Dashboard() {
 
   const shouldShowRootDiagnostic = Boolean(
     rootDiagnosticError
-    || (rootDiagnostic && (!rootDiagnostic.exists || !rootDiagnostic.hasOpenClawJson || !rootDiagnostic.hasNodeJson))
+    || (rootDiagnostic && (!rootDiagnostic.exists || !rootDiagnostic.hasOpenClawJson))
   );
 
   const setActionMessage = (
@@ -93,7 +137,7 @@ function Dashboard() {
   };
 
   const handleGatewayStart = async () => {
-    setLoading(true);
+    setActionLoading(true);
     try {
       const result = await window.electronAPI.gatewayStart();
       // 无论成功失败都刷新状态
@@ -105,7 +149,7 @@ function Dashboard() {
       console.error('Error starting gateway:', error);
       setActionMessage('error', '启动服务时遇到问题，请稍后重试。');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -143,7 +187,7 @@ function Dashboard() {
   };
 
   const handleGatewayStop = async () => {
-    setLoading(true);
+    setActionLoading(true);
     try {
       const result = await window.electronAPI.gatewayStop();
       // 无论成功失败都刷新状态，让 UI 反映真实情况
@@ -155,12 +199,12 @@ function Dashboard() {
       console.error('Error stopping gateway:', error);
       setActionMessage('error', '停止服务时遇到问题，请稍后重试。');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleGatewayRestart = async (): Promise<boolean> => {
-    setLoading(true);
+    setActionLoading(true);
     try {
       const result = await window.electronAPI.gatewayRestart();
       // 无论成功失败都刷新状态
@@ -171,17 +215,17 @@ function Dashboard() {
       await fetchGatewayStatus();
       return false;
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   const handleRefreshStats = async () => {
-    setLoading(true);
+    setActionLoading(true);
     try {
       await Promise.all([fetchGatewayStatus(), fetchSystemStats(), fetchRootDiagnostic()]);
       setActionMessage('success', '首页状态已经刷新完成。');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -211,50 +255,14 @@ function Dashboard() {
     }
   };
 
-  const fetchGatewayStatus = async () => {
-    try {
-      const status = await window.electronAPI.gatewayStatus();
-      setGatewayStatus({
-        status: status.status,
-        error: status.error,
-        pid: status.pid,
-        uptime: status.uptime,
-        version: status.version,
-        host: status.host,
-        port: status.port,
-      });
-    } catch (error) {
-      console.error('Error fetching gateway status:', error);
-      setGatewayStatus({
-        status: 'error',
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
+  // ── 刷新函数：委托给 useIpcCache 的 refresh，利用缓存去重 ──
+  const fetchGatewayStatus = useCallback(async () => {
+    await refreshGatewayStatus();
+  }, [refreshGatewayStatus]);
 
-  const fetchSystemStats = async () => {
-    try {
-      const stats = await window.electronAPI.systemStats();
-      setSystemError('');
-      setSystemStats({
-        cpu: stats.cpu,
-        memory: stats.memory,
-        disk: stats.disk,
-        network: stats.network,
-        uptime: stats.uptime,
-      });
-    } catch (error) {
-      console.error('Error fetching system stats:', error);
-      setSystemError(error instanceof Error ? error.message : String(error));
-      setSystemStats({
-        cpu: 0,
-        memory: 0,
-        disk: 0,
-        network: 0,
-        uptime: 0,
-      });
-    }
-  };
+  const fetchSystemStats = useCallback(async () => {
+    await refreshSystemStats();
+  }, [refreshSystemStats]);
 
   const fetchRootDiagnostic = async () => {
     try {
@@ -273,20 +281,18 @@ function Dashboard() {
     }
   };
 
+  // 初始加载根目录诊断（网关状态和系统信息已由 useIpcCache 自动预加载）
   useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      try {
-        await Promise.all([fetchGatewayStatus(), fetchSystemStats(), fetchRootDiagnostic()]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadInitialData();
-    const interval = setInterval(fetchSystemStats, 5000);
-    return () => clearInterval(interval);
+    fetchRootDiagnostic();
   }, []);
+
+  // 系统信息定时轮询：每 5 秒通过缓存 Hook 刷新
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void refreshSystemStats();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [refreshSystemStats]);
 
   const getStatusText = (status: GatewayStatus['status']) => {
     switch (status) {
@@ -447,7 +453,8 @@ function Dashboard() {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className="page-content space-y-6">
       <GlassCard className="p-6">
         <div className="flex items-start justify-between gap-4">
           {/* 页面标签 badge */}
@@ -740,7 +747,7 @@ function Dashboard() {
                 <button
                   key={item.key}
                   onClick={item.onClick}
-                  className="relative w-full overflow-hidden rounded-xl px-4 py-3 text-left backdrop-blur-xl transition-all duration-200 cursor-pointer hover:-translate-y-0.5"
+                  className="relative w-full overflow-hidden rounded-xl px-4 py-3 text-left backdrop-blur-xl transition-token-normal cursor-pointer hover:-translate-y-0.5"
                   style={{
                     background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
                     border: '1px solid var(--app-border)',

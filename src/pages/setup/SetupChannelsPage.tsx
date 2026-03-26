@@ -78,7 +78,7 @@ const ChannelToggle: React.FC<{
     role="switch"
     aria-checked={enabled}
     onClick={() => onChange(!enabled)}
-    className="relative inline-flex h-7 w-14 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+    className="relative inline-flex h-7 w-14 shrink-0 cursor-pointer items-center rounded-full transition-token-normal focus:outline-none focus:ring-2 focus:ring-offset-2"
     style={{
       backgroundColor: enabled ? '#22c55e' : '#d1d5db',
       outlineColor: enabled ? '#16a34a' : '#9ca3af',
@@ -95,7 +95,7 @@ const ChannelToggle: React.FC<{
       {enabled ? 'ON' : 'OFF'}
     </span>
     <span
-      className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-md transition-transform duration-200"
+      className="pointer-events-none inline-block h-5 w-5 rounded-full shadow-md transition-token-normal"
       style={{
         backgroundColor: '#fff',
         marginLeft: '3px',
@@ -190,7 +190,7 @@ const AccountForm: React.FC<{
           }}
           maxLength={32}
           placeholder="例如 my-bot（仅允许字母、数字、连字符、下划线）"
-          className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+          className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-token-normal focus:ring-2"
           style={{
             backgroundColor: 'var(--app-bg)',
             borderColor: accountIdValidation.valid ? 'var(--app-border)' : '#ef4444',
@@ -222,7 +222,7 @@ const AccountForm: React.FC<{
             <select
               value={account.fieldValues[field.id] || field.defaultValue || ''}
               onChange={(e) => onFieldChange(account.accountId, field.id, e.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+              className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-token-normal focus:ring-2"
               style={{
                 backgroundColor: 'var(--app-bg)',
                 borderColor: 'var(--app-border)',
@@ -239,7 +239,7 @@ const AccountForm: React.FC<{
               value={account.fieldValues[field.id] || ''}
               onChange={(e) => onFieldChange(account.accountId, field.id, e.target.value)}
               placeholder={field.placeholder}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-colors duration-200 focus:ring-2"
+              className="w-full rounded-xl border px-3 py-2 text-sm outline-none transition-token-normal focus:ring-2"
               style={{
                 backgroundColor: 'var(--app-bg)',
                 borderColor: 'var(--app-border)',
@@ -296,7 +296,7 @@ const ProviderCard: React.FC<{
 
   return (
     <div
-      className={`rounded-2xl border transition-all duration-200`}
+      className={`rounded-2xl border transition-token-normal`}
       style={{
         backgroundColor: 'var(--app-bg)',
         borderColor: config.enabled ? accentColor : 'var(--app-border)',

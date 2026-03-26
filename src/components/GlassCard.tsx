@@ -18,7 +18,7 @@ const GlassCard: React.FC<GlassCardProps> = ({
   style,
   ...props
 }) => {
-  const baseClasses = 'relative overflow-hidden transition-all duration-300';
+  const baseClasses = 'relative overflow-hidden transition-token-normal';
 
   /* 各 variant 的基础 Tailwind 类 */
   const variantClasses = {

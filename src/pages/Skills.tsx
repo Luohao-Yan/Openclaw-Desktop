@@ -663,8 +663,8 @@ const Skills: React.FC = () => {
         </div>
       )}
 
-      {/* ── 顶部渐变标题卡片（仿 Settings 风格，紫色调） ──────────────── */}
-      <div className="px-4 pt-4 pb-0 shrink-0">
+      {/* ── 顶部渐变标题卡片（仿 Settings 风格，紫色调）：使用 --space-6 统一水平内边距 ──────────────── */}
+      <div style={{ padding: 'var(--space-6) var(--space-6) 0' }} className="shrink-0">
         <div
           className="relative rounded-[24px] px-6 py-5 overflow-hidden"
           style={{
@@ -783,8 +783,8 @@ const Skills: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 标签页导航（SegmentedTabs 胶囊风格，与智能体页面保持一致） ── */}
-      <div className="px-6 pt-4 pb-2 shrink-0">
+      {/* ── 标签页导航（SegmentedTabs 胶囊风格，与智能体页面保持一致）：使用 --space-6 统一水平内边距 ── */}
+      <div style={{ padding: 'var(--space-4) var(--space-6) var(--space-2)' }} className="shrink-0">
         <SegmentedTabs
           items={TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
           value={activeTab}
@@ -799,8 +799,8 @@ const Skills: React.FC = () => {
           <div className="flex-1 flex overflow-hidden">
             {/* 左侧技能列表 */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* 搜索框 */}
-              <div className="px-6 py-3 shrink-0">
+              {/* 搜索框：使用 --space-6 统一水平内边距 */}
+              <div style={{ padding: 'var(--space-3) var(--space-6)' }} className="shrink-0">
                 <div className="relative">
                   <Search
                     className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
@@ -821,8 +821,8 @@ const Skills: React.FC = () => {
                 </div>
               </div>
 
-              {/* 技能卡片列表 */}
-              <div className="flex-1 overflow-y-auto px-6 pb-6">
+              {/* 技能卡片列表：使用 --space-6 统一内边距 */}
+              <div className="flex-1 overflow-y-auto" style={{ padding: '0 var(--space-6) var(--space-6)' }}>
                 {loading ? (
                   /* 使用全局 GlobalLoading 组件（overlay=false 内联模式） */
                   <GlobalLoading visible text="加载技能列表" overlay={false} size="md" />
@@ -878,8 +878,8 @@ const Skills: React.FC = () => {
         {/* ── 市场搜索标签页 ─────────────────────────────────────────── */}
         {activeTab === 'market' && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* 搜索框 */}
-            <div className="px-6 py-4 shrink-0">
+            {/* 搜索框：使用 --space-6 统一水平内边距 */}
+            <div style={{ padding: 'var(--space-4) var(--space-6)' }} className="shrink-0">
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search
@@ -914,8 +914,8 @@ const Skills: React.FC = () => {
               </div>
             </div>
 
-            {/* 搜索结果 */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
+            {/* 搜索结果：使用 --space-6 统一内边距 */}
+            <div className="flex-1 overflow-y-auto" style={{ padding: '0 var(--space-6) var(--space-6)' }}>
               {marketLoading ? (
                 /* 使用全局 GlobalLoading 组件（overlay=false 内联模式） */
                 <GlobalLoading visible text="搜索中" overlay={false} size="md" />

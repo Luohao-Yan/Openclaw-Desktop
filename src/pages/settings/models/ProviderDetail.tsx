@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Bot, Server, CheckCircle, XCircle, HelpCircle, Star, Trash2, Edit2, Eye, EyeOff, Copy } from 'lucide-react';
+import { Bot, Server, CheckCircle, XCircle, HelpCircle, Star, Trash2, Edit2, Eye, EyeOff, Copy, Zap, Loader2 } from 'lucide-react';
 import GlassCard from '../../../components/GlassCard';
 import AppButton from '../../../components/AppButton';
 import AppIconButton from '../../../components/AppIconButton';
@@ -109,6 +109,10 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
   const [showAddCustomApiKey, setShowAddCustomApiKey] = useState(false);
   const [isAddingCustom, setIsAddingCustom] = useState(false);
 
+  // 模型连通性测试状态：key 为 model.id，value 为测试结果
+  const [testingModels, setTestingModels] = useState<Record<string, 'testing' | 'success' | 'fail'>>({});
+  const [testResults, setTestResults] = useState<Record<string, { latencyMs?: number; error?: string }>>({});
+
   // 当选中未配置的提供商时，自动展开配置表单
   useEffect(() => {
     if (provider && !provider.isConfigured) {
@@ -120,6 +124,9 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
     } else {
       setEditingConfig(false);
     }
+    // 切换提供商时清除测试状态
+    setTestingModels({});
+    setTestResults({});
   }, [provider?.id, provider?.isConfigured]);
 
   /** 渲染认证状态徽章 */
@@ -304,6 +311,46 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
     }
   };
 
+  /** 测试单个模型的连通性 */
+  const handleTestModel = async (model: ModelItem) => {
+    if (!provider) return;
+    setTestingModels((prev) => ({ ...prev, [model.id]: 'testing' }));
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[model.id];
+      return next;
+    });
+
+    try {
+      // 调用已有的 testModelConnection IPC 接口
+      const result = await window.electronAPI?.testModelConnection?.({
+        provider: provider.id,
+        model: model.fullId,
+        apiKey: provider.apiKey,
+        baseUrl: provider.baseUrl,
+      });
+
+      if (result?.success) {
+        setTestingModels((prev) => ({ ...prev, [model.id]: 'success' }));
+        setTestResults((prev) => ({ ...prev, [model.id]: { latencyMs: result.latencyMs } }));
+      } else {
+        setTestingModels((prev) => ({ ...prev, [model.id]: 'fail' }));
+        setTestResults((prev) => ({ ...prev, [model.id]: { error: result?.error || '未知错误', latencyMs: result?.latencyMs } }));
+      }
+    } catch (err: any) {
+      setTestingModels((prev) => ({ ...prev, [model.id]: 'fail' }));
+      setTestResults((prev) => ({ ...prev, [model.id]: { error: err?.message || '测试失败' } }));
+    }
+  };
+
+  /** 批量测试所有模型 */
+  const handleTestAllModels = async () => {
+    if (!provider || models.length === 0) return;
+    for (const model of models) {
+      await handleTestModel(model);
+    }
+  };
+
   /** 处理添加自定义提供商 */
   const handleAddCustomProvider = async () => {
     // 验证必填字段
@@ -413,7 +460,7 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
             <select
               value={addCustomForm.api}
               onChange={(e) => setAddCustomForm({ ...addCustomForm, api: e.target.value as 'openai-completions' | 'anthropic-messages' })}
-              className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-all duration-200"
+              className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-token-normal"
               style={{
                 backgroundColor: 'var(--app-bg)',
                 borderColor: 'var(--app-border)',
@@ -802,13 +849,25 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                 该提供商配置的所有模型
               </div>
             </div>
-            <AppButton
-              variant="primary"
-              size="xs"
-              onClick={() => setShowAddModelForm(!showAddModelForm)}
-            >
-              {showAddModelForm ? '取消' : '添加模型'}
-            </AppButton>
+            <div className="flex items-center gap-2">
+              {/* 全部测试按钮 */}
+              <AppButton
+                variant="secondary"
+                size="xs"
+                onClick={handleTestAllModels}
+                disabled={Object.values(testingModels).some((s) => s === 'testing')}
+              >
+                <Zap size={13} className="mr-1" />
+                全部测试
+              </AppButton>
+              <AppButton
+                variant="primary"
+                size="xs"
+                onClick={() => setShowAddModelForm(!showAddModelForm)}
+              >
+                {showAddModelForm ? '取消' : '添加模型'}
+              </AppButton>
+            </div>
           </div>
 
           {/* 添加模型表单 */}
@@ -1117,6 +1176,7 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                   </div>
                 ) : (
                   /* 显示模式 */
+                  <div>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -1150,6 +1210,27 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
 
                     {/* 操作按钮 */}
                     <div className="flex items-center gap-2 shrink-0">
+                      {/* 测试连通性按钮 */}
+                      <AppButton
+                        onClick={() => handleTestModel(model)}
+                        disabled={testingModels[model.id] === 'testing'}
+                        variant="secondary"
+                        size="xs"
+                        title="测试模型连通性"
+                      >
+                        {testingModels[model.id] === 'testing' ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : testingModels[model.id] === 'success' ? (
+                          <CheckCircle size={14} style={{ color: '#4ADE80' }} />
+                        ) : testingModels[model.id] === 'fail' ? (
+                          <XCircle size={14} style={{ color: '#FB7185' }} />
+                        ) : (
+                          <Zap size={14} />
+                        )}
+                        <span className="ml-1">
+                          {testingModels[model.id] === 'testing' ? '测试中' : '测试'}
+                        </span>
+                      </AppButton>
                       {!model.isDefault && (
                         <AppButton
                           onClick={() => onSetDefaultModel(model.fullId)}
@@ -1172,6 +1253,45 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                         <Trash2 size={14} />
                       </AppButton>
                     </div>
+                  </div>
+
+                  {/* 测试结果显示 */}
+                  {testingModels[model.id] && testingModels[model.id] !== 'testing' && testResults[model.id] && (
+                    <div
+                      className="mt-2 rounded-lg px-3 py-2 text-xs flex items-center gap-2"
+                      style={{
+                        backgroundColor: testingModels[model.id] === 'success'
+                          ? 'rgba(74, 222, 128, 0.10)'
+                          : 'rgba(251, 113, 133, 0.10)',
+                        border: `1px solid ${testingModels[model.id] === 'success'
+                          ? 'rgba(74, 222, 128, 0.25)'
+                          : 'rgba(251, 113, 133, 0.25)'}`,
+                        color: testingModels[model.id] === 'success' ? '#4ADE80' : '#FB7185',
+                      }}
+                    >
+                      {testingModels[model.id] === 'success' ? (
+                        <>
+                          <CheckCircle size={13} />
+                          <span>连通成功</span>
+                          {testResults[model.id]?.latencyMs != null && (
+                            <span style={{ color: 'var(--app-text-muted)' }}>
+                              · 延迟 {testResults[model.id].latencyMs}ms
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <XCircle size={13} />
+                          <span>连通失败</span>
+                          {testResults[model.id]?.error && (
+                            <span style={{ color: 'var(--app-text-muted)' }}>
+                              · {testResults[model.id].error}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                   </div>
                 )}
               </div>

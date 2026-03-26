@@ -27,6 +27,12 @@ import CreateAgentWizard from './settings/CreateAgentWizard';
 import ExportAgentDialog from './settings/ExportAgentDialog';
 import ImportAgentDialog from './settings/ImportAgentDialog';
 import ExportHistoryPanel from './settings/ExportHistoryPanel';
+// 分组管理组件
+import type { AgentGroup } from '../../types/electron';
+import GroupFilterBar from '../components/agents/GroupFilterBar';
+import GroupDialog from '../components/agents/GroupDialog';
+import GroupExportDialog from '../components/agents/GroupExportDialog';
+import GroupImportDialog from '../components/agents/GroupImportDialog';
 
 
 const Agents: React.FC = () => {
@@ -64,6 +70,15 @@ const Agents: React.FC = () => {
   }>>({});
   // 每个 Agent 的专属技能绑定数量
   const [agentBindingCounts, setAgentBindingCounts] = useState<Record<string, number>>({});
+  // 分组管理状态
+  const [groups, setGroups] = useState<AgentGroup[]>([]);
+  const [groupMappings, setGroupMappings] = useState<Record<string, string>>({});
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<AgentGroup | undefined>(undefined);
+  const [exportGroup, setExportGroup] = useState<AgentGroup | null>(null);
+  const [groupImportOpen, setGroupImportOpen] = useState(false);
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<AgentGroup | null>(null);
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -107,6 +122,18 @@ const Agents: React.FC = () => {
         }
       } catch {
         setAgentBindingCounts({});
+      }
+      // 加载分组列表和映射关系
+      try {
+        const [groupsResult, mappingsResult] = await Promise.all([
+          window.electronAPI.agentGroupsList(),
+          window.electronAPI.agentGroupsGetMappings(),
+        ]);
+        if (groupsResult.success && groupsResult.groups) setGroups(groupsResult.groups);
+        if (mappingsResult.success && mappingsResult.mappings) setGroupMappings(mappingsResult.mappings);
+      } catch {
+        setGroups([]);
+        setGroupMappings({});
       }
     } catch (error) {
       console.error('Failed to load agents:', error);
@@ -182,6 +209,75 @@ const Agents: React.FC = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  /** 处理分组右键菜单操作 */
+  const handleGroupAction = async (groupId: string, action: 'edit' | 'export' | 'delete') => {
+    const group = groups.find((g) => g.id === groupId);
+    if (!group) return;
+    if (action === 'edit') {
+      setEditingGroup(group);
+      setGroupDialogOpen(true);
+    } else if (action === 'export') {
+      setExportGroup(group);
+    } else if (action === 'delete') {
+      setDeleteGroupTarget(group);
+    }
+  };
+
+  /** 创建或编辑分组确认 */
+  const handleGroupDialogConfirm = async (data: { name: string; description?: string; color?: string; emoji?: string }) => {
+    try {
+      if (editingGroup) {
+        await window.electronAPI.agentGroupsUpdate({ id: editingGroup.id, ...data });
+      } else {
+        await window.electronAPI.agentGroupsCreate(data);
+      }
+      // 刷新分组列表
+      const result = await window.electronAPI.agentGroupsList();
+      if (result.success && result.groups) setGroups(result.groups);
+    } catch { /* 忽略 */ }
+    setGroupDialogOpen(false);
+    setEditingGroup(undefined);
+  };
+
+  /** 删除分组确认 */
+  const handleDeleteGroup = async () => {
+    if (!deleteGroupTarget) return;
+    try {
+      const result = await window.electronAPI.agentGroupsDelete(deleteGroupTarget.id);
+      if (result.success) {
+        showToast('success', `分组「${deleteGroupTarget.name}」已删除`);
+        // 如果当前筛选的是被删除的分组，重置筛选
+        if (groupFilter === deleteGroupTarget.id) setGroupFilter(null);
+        // 刷新分组和映射
+        const [gr, mr] = await Promise.all([
+          window.electronAPI.agentGroupsList(),
+          window.electronAPI.agentGroupsGetMappings(),
+        ]);
+        if (gr.success && gr.groups) setGroups(gr.groups);
+        if (mr.success && mr.mappings) setGroupMappings(mr.mappings);
+      } else {
+        showToast('error', result.error || '删除失败');
+      }
+    } catch (err: any) {
+      showToast('error', err?.message || '删除失败');
+    }
+    setDeleteGroupTarget(null);
+  };
+
+  /** 根据分组筛选过滤 Agent 列表 */
+  const filteredAgents = (() => {
+    if (groupFilter === null) return agents;
+    if (groupFilter === 'ungrouped') return agents.filter((a) => !(a.id in groupMappings));
+    return agents.filter((a) => groupMappings[a.id] === groupFilter);
+  })();
+
+  /** 获取导出分组中的 Agent 名称列表 */
+  const exportGroupAgentNames = exportGroup
+    ? agents
+        .filter((a) => groupMappings[a.id] === exportGroup.id)
+        .map((a) => a.name)
+    : [];
+
   /** 执行删除智能体（通过 openclaw agents delete CLI） */
   const handleDeleteAgent = async () => {
     if (!deleteTarget) return;
@@ -235,71 +331,47 @@ const Agents: React.FC = () => {
     });
 
     return (
-    <GlassCard className="p-6 hover:shadow-xl transition-all duration-300">
-      {/* 卡片头部：左侧信息 + 右侧操作按钮 */}
-      <div className="flex items-start justify-between mb-4 gap-2">
-        {/* 左侧：头像 + 名称 + ID 徽章，允许收缩以避免挤压 */}
-        <div className="flex items-center space-x-3 min-w-0 flex-1">
-          <div className="p-2 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-            <User className="w-6 h-6 text-blue-400" />
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-lg font-semibold truncate" style={{ color: 'var(--app-text)' }}>{agent.name}</h3>
-            <div className="flex items-center space-x-2 mt-1 min-w-0">
-              {/* Agent ID 标签：保留 mono 字体风格，用 neutral badge */}
-              <AppBadge
-                variant="neutral"
-                size="sm"
-                icon={<Hash className="w-3 h-3" />}
-                className="font-mono truncate max-w-[160px]"
-              >
-                {agent.id}
-              </AppBadge>
-              {agent.agentDir && (
-                /* 已配置状态 badge */
-                <AppBadge variant="success" size="sm">已配置</AppBadge>
-              )}
+    /* Agent 卡片：使用 transition-token-normal 统一过渡动画 */
+    <GlassCard className="p-5 hover:shadow-xl transition-token-normal">
+      {/* 卡片头部：上方名称行 + 下方 badge 行 */}
+      <div className="mb-4">
+        {/* 第一行：名称 + 操作按钮 */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="p-1.5 rounded-lg flex-shrink-0" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
+              <User className="w-5 h-5 text-blue-400" />
             </div>
+            <h3 className="text-base font-semibold truncate" style={{ color: 'var(--app-text)' }}>{agent.name}</h3>
+          </div>
+          {/* 操作按钮 */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <AppIconButton onClick={() => setExportTarget(agent)} tint="default" title="导出 Agent 配置">
+              <Download className="w-4 h-4" />
+            </AppIconButton>
+            <AppIconButton onClick={() => { setSelectedAgent(agent); setActiveTab('enhance'); }} tint="blue" title="增强智能体">
+              <Zap className="w-4 h-4" />
+            </AppIconButton>
+            <AppIconButton onClick={() => openAgentWorkspace(agent.id)} tint="purple" title="打开智能体工作区">
+              <Settings className="w-4 h-4" />
+            </AppIconButton>
+            <AppIconButton onClick={() => { setDeleteError(''); setDeleteTarget(agent); }} tint="default" title="删除智能体" style={{ color: '#ef4444' }}>
+              <Trash2 className="w-4 h-4" />
+            </AppIconButton>
           </div>
         </div>
-        {/* 右侧操作按钮：固定不收缩 */}
-        <div className="flex items-center space-x-2 flex-shrink-0">
-          {/* 导出 Agent 配置按钮 */}
-          <AppIconButton
-            onClick={() => setExportTarget(agent)}
-            tint="default"
-            title="导出 Agent 配置"
+        {/* 第二行：ID badge + 已配置 badge */}
+        <div className="flex items-center gap-2 mt-2 ml-9">
+          <AppBadge
+            variant="neutral"
+            size="sm"
+            icon={<Hash className="w-3 h-3" />}
+            className="font-mono truncate max-w-[180px]"
           >
-            <Download className="w-5 h-5" />
-          </AppIconButton>
-          <AppIconButton
-            onClick={() => {
-              setSelectedAgent(agent);
-              setActiveTab('enhance');
-            }}
-            tint="blue"
-            title="增强智能体"
-          >
-            <Zap className="w-5 h-5" />
-          </AppIconButton>
-          <AppIconButton
-            onClick={() => openAgentWorkspace(agent.id)}
-            tint="purple"
-            title="打开智能体工作区"
-          >
-            <Settings className="w-5 h-5" />
-          </AppIconButton>
-          <AppIconButton
-            onClick={() => {
-              setDeleteError('');
-              setDeleteTarget(agent);
-            }}
-            tint="default"
-            title="删除智能体"
-            style={{ color: '#ef4444' }}
-          >
-            <Trash2 className="w-5 h-5" />
-          </AppIconButton>
+            {agent.id}
+          </AppBadge>
+          {agent.agentDir && (
+            <AppBadge variant="success" size="sm">已配置</AppBadge>
+          )}
         </div>
       </div>
 
@@ -417,10 +489,11 @@ const Agents: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
+    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
+    <div className="min-h-screen flex flex-col page-content" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
       {/* Toast 提示 */}
       {toast && (
-        <div className="fixed top-5 right-5 z-[60] animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="fixed top-5 right-5 z-[60] animate-in fade-in slide-in-from-top-2" style={{ animationDuration: 'var(--transition-page)' }}>
           <div
             className="flex items-center gap-2.5 rounded-2xl border px-5 py-3 text-sm font-medium shadow-lg"
             style={{
@@ -439,7 +512,7 @@ const Agents: React.FC = () => {
           </div>
         </div>
       )}
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col">
         {/* 标签页切换 */}
         <div className="mb-8">
           {/* 顶部渐变标题卡片 */}
@@ -556,6 +629,16 @@ const Agents: React.FC = () => {
                               <History className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
                               导出历史
                             </button>
+                            <button
+                              onClick={() => { setGroupImportOpen(true); setMoreMenuOpen(false); }}
+                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                              style={{ color: 'var(--app-text)', borderTop: '1px solid var(--app-border)' }}
+                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)')}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                            >
+                              <Upload className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
+                              导入分组
+                            </button>
                           </div>
                         </>
                       )}
@@ -626,6 +709,17 @@ const Agents: React.FC = () => {
 
         {activeTab === 'list' ? (
           <>
+            {/* 分组筛选栏 */}
+            <div className="mb-4">
+              <GroupFilterBar
+                groups={groups}
+                mappings={groupMappings}
+                activeFilter={groupFilter}
+                onFilterChange={setGroupFilter}
+                onCreateGroup={() => { setEditingGroup(undefined); setGroupDialogOpen(true); }}
+                onGroupAction={handleGroupAction}
+              />
+            </div>
 
             {/* Error Message */}
             {error && (
@@ -644,7 +738,7 @@ const Agents: React.FC = () => {
               </div>
             ) : agents.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {agents.map((agent) => (
+                {filteredAgents.map((agent) => (
                   <AgentCard key={agent.id} agent={agent} />
                 ))}
               </div>
@@ -665,8 +759,8 @@ const Agents: React.FC = () => {
               </GlassCard>
             )}
 
-            {/* Info Footer */}
-            <div className="mt-8 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+            {/* Info Footer - mt-auto 确保在内容不足时推到页面底部 */}
+            <div className="mt-auto pt-8 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
               <p>
                 Agent data is loaded from <code className="font-mono px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}>~/.openclaw/openclaw.json</code>
                 . Configuration files are located at <code className="font-mono px-2 py-1 rounded" style={{ backgroundColor: 'var(--app-bg-subtle)', color: 'var(--app-text)' }}>~/.openclaw/agents/{"{agent-id}"}/agent/</code>.
@@ -839,6 +933,62 @@ const Agents: React.FC = () => {
               open={historyOpen}
               onClose={() => setHistoryOpen(false)}
             />
+
+            {/* 分组新建/编辑对话框 */}
+            <GroupDialog
+              open={groupDialogOpen}
+              group={editingGroup}
+              existingNames={groups.map((g) => g.name)}
+              onConfirm={handleGroupDialogConfirm}
+              onCancel={() => { setGroupDialogOpen(false); setEditingGroup(undefined); }}
+            />
+
+            {/* 分组批量导出对话框 */}
+            {exportGroup && (
+              <GroupExportDialog
+                open={!!exportGroup}
+                onClose={() => setExportGroup(null)}
+                group={exportGroup}
+                agentNames={exportGroupAgentNames}
+              />
+            )}
+
+            {/* 分组批量导入对话框 */}
+            <GroupImportDialog
+              open={groupImportOpen}
+              onClose={() => setGroupImportOpen(false)}
+              onImported={() => loadAgents()}
+            />
+
+            {/* 删除分组确认对话框 */}
+            <AppModal
+              open={!!deleteGroupTarget}
+              onClose={() => setDeleteGroupTarget(null)}
+              title={t('agentGroups.delete' as any)}
+              variant="danger"
+              icon={<Trash2 size={20} />}
+              footer={
+                <>
+                  <AppButton variant="secondary" onClick={() => setDeleteGroupTarget(null)}>
+                    {t('agentGroups.cancel' as any)}
+                  </AppButton>
+                  <AppButton variant="danger" onClick={() => void handleDeleteGroup()}>
+                    {t('agentGroups.confirm' as any)}
+                  </AppButton>
+                </>
+              }
+            >
+              {deleteGroupTarget && (
+                <div className="space-y-3">
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    {t('agentGroups.deleteConfirm' as any)}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                    {t('agentGroups.deleteWarning' as any)}
+                  </p>
+                </div>
+              )}
+            </AppModal>
           </>
         ) : (
           <>

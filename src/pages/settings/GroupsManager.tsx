@@ -432,7 +432,7 @@ const GroupEditArea: React.FC<GroupEditAreaProps> = ({ group, onUpdateField }) =
           role="switch"
           aria-checked={enabled}
           onClick={() => onUpdateField('enabled', !enabled)}
-          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: enabled
               ? 'var(--app-active-bg, rgba(59,130,246,0.5))'
@@ -441,7 +441,7 @@ const GroupEditArea: React.FC<GroupEditAreaProps> = ({ group, onUpdateField }) =
           }}
         >
           <span
-            className="inline-block h-3 w-3 rounded-full transition-transform duration-200"
+            className="inline-block h-3 w-3 rounded-full transition-token-normal"
             style={{
               backgroundColor: enabled
                 ? 'var(--app-active-text, #3b82f6)'
@@ -470,7 +470,7 @@ const GroupEditArea: React.FC<GroupEditAreaProps> = ({ group, onUpdateField }) =
               requireMention: !policyRequireMention,
             })
           }
-          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors duration-200"
+          className="relative inline-flex h-5 w-9 cursor-pointer items-center rounded-full transition-token-normal"
           style={{
             backgroundColor: policyRequireMention
               ? 'var(--app-active-bg, rgba(59,130,246,0.5))'
@@ -479,7 +479,7 @@ const GroupEditArea: React.FC<GroupEditAreaProps> = ({ group, onUpdateField }) =
           }}
         >
           <span
-            className="inline-block h-3 w-3 rounded-full transition-transform duration-200"
+            className="inline-block h-3 w-3 rounded-full transition-token-normal"
             style={{
               backgroundColor: policyRequireMention
                 ? 'var(--app-active-text, #3b82f6)'

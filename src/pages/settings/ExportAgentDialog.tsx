@@ -177,7 +177,7 @@ const ExportAgentDialog: React.FC<ExportAgentDialogProps> = ({
           result.type === 'success' ? (
             <div
               className="rounded-xl border px-4 py-3 text-xs flex items-start gap-2"
-              style={{ backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.22)', color: '#6EE7B7' }}
+              style={{ backgroundColor: 'var(--app-toast-success-bg)', borderColor: 'var(--app-toast-success-border)', color: 'var(--app-toast-success-text)' }}
             >
               <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="space-y-1">
@@ -188,7 +188,7 @@ const ExportAgentDialog: React.FC<ExportAgentDialogProps> = ({
           ) : (
             <div
               className="rounded-xl border px-4 py-3 text-xs flex items-start gap-2"
-              style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)', color: '#FCA5A5' }}
+              style={{ backgroundColor: 'var(--app-toast-error-bg)', borderColor: 'var(--app-toast-error-border)', color: 'var(--app-toast-error-text)' }}
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="space-y-1">
