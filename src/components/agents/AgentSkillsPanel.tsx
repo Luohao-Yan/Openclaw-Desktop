@@ -96,9 +96,9 @@ const AgentSkillsPanel: React.FC<AgentSkillsPanelProps> = ({
     const exclusiveIds = new Set(agentSkills.exclusiveSkills.map((s) => s.id));
     const globalIds = new Set(agentSkills.globalSkills.map((s) => s.id));
 
-    // 当前仅支持从已安装技能中选择添加
+    // 支持从已安装或满足依赖条件(eligible)的技能中选择添加
     return allSkills
-      .filter((s) => s.status === 'installed')
+      .filter((s) => s.status === 'installed' || s.eligible)
       .filter((s) => !exclusiveIds.has(s.id) && !globalIds.has(s.id));
   }, [agentSkills, allSkills]);
 

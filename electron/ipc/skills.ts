@@ -874,14 +874,22 @@ export function setupSkillsIPC() {
     try {
       // 获取所有技能列表
       const allSkills = await fetchSkillsFromCLI();
-      // 获取所有Agent列表 - 需要从agents模块导入
-      // 暂时返回空结果，需要后续集成agents模块
+      // 读取该 Agent 的绑定关系，区分全局技能和专属技能
+      const bindings = getAllBindings();
+      const agentBindings = bindings.filter((b) => b.agentId === agentId);
+      const boundSkillIds = new Set(agentBindings.map((b) => b.skillId));
+
+      // 专属技能：已绑定到该 Agent 的技能
+      const exclusiveSkills = allSkills.filter((s) => boundSkillIds.has(s.id));
+      // 全局技能：未绑定到该 Agent 的技能
+      const globalSkills = allSkills.filter((s) => !boundSkillIds.has(s.id));
+
       return {
         success: true,
         agentSkills: {
           agentId,
-          globalSkills: allSkills,
-          exclusiveSkills: [],
+          globalSkills,
+          exclusiveSkills,
         },
       };
     } catch (err: any) {
