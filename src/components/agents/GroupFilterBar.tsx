@@ -88,7 +88,46 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     return () => window.removeEventListener('mousedown', handleClick);
   }, [contextMenu]);
 
-  /** 通用标签样式 */
+  /**
+   * 根据分组颜色生成带透明度的背景色
+   * 激活态使用较高透明度，非激活态使用低透明度
+   */
+  const colorWithAlpha = (hex: string | undefined, alpha: number): string => {
+    if (!hex) return 'transparent';
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  /** 默认分组颜色（无自定义颜色时使用） */
+  const DEFAULT_TAG_COLOR = '#6366F1';
+
+  /** 构建分组标签的动态样式 */
+  const getGroupTagStyle = (group: AgentGroup, isActive: boolean): React.CSSProperties => {
+    const tagColor = group.color || DEFAULT_TAG_COLOR;
+    if (isActive) {
+      return {
+        backgroundColor: colorWithAlpha(tagColor, 0.15),
+        border: `1px solid ${colorWithAlpha(tagColor, 0.4)}`,
+        color: tagColor,
+        cursor: 'pointer',
+        transition: 'all 200ms',
+        whiteSpace: 'nowrap',
+        boxShadow: `0 0 0 1px ${colorWithAlpha(tagColor, 0.08)}`,
+      };
+    }
+    return {
+      backgroundColor: colorWithAlpha(tagColor, 0.06),
+      border: `1px solid ${colorWithAlpha(tagColor, 0.18)}`,
+      color: 'var(--app-text-muted)',
+      cursor: 'pointer',
+      transition: 'all 200ms',
+      whiteSpace: 'nowrap',
+    };
+  };
+
+  /** 通用标签样式（全部 / 未分组） */
   const tabBaseStyle: React.CSSProperties = {
     border: '1px solid var(--app-border)',
     color: 'var(--app-text-muted)',
@@ -98,11 +137,12 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     whiteSpace: 'nowrap',
   };
 
-  /** 激活标签样式 */
+  /** 激活标签样式（全部 / 未分组） */
   const tabActiveStyle: React.CSSProperties = {
     border: '1px solid var(--app-active-border, var(--app-border))',
     color: 'var(--app-text)',
     backgroundColor: 'var(--app-bg-subtle)',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
   };
 
   return (
@@ -110,7 +150,7 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
       {/* 「全部」标签 */}
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
+        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
         style={activeFilter === null ? { ...tabBaseStyle, ...tabActiveStyle } : tabBaseStyle}
         onClick={() => onFilterChange(null)}
       >
@@ -120,43 +160,52 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
       {/* 「未分组」标签 */}
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
+        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
         style={activeFilter === 'ungrouped' ? { ...tabBaseStyle, ...tabActiveStyle } : tabBaseStyle}
         onClick={() => onFilterChange('ungrouped')}
       >
         {t('agentGroups.ungrouped' as any)}
       </button>
 
-      {/* 分组标签 */}
+      {/* 分组标签：带颜色标识的 tag 风格 */}
       {groups.map((group) => {
         const count = countAgentsInGroup(mappings, group.id);
         const isActive = activeFilter === group.id;
+        const tagColor = group.color || DEFAULT_TAG_COLOR;
 
         return (
           <button
             key={group.id}
             type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
-            style={isActive ? { ...tabBaseStyle, ...tabActiveStyle } : tabBaseStyle}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0 hover:opacity-85"
+            style={getGroupTagStyle(group, isActive)}
             onClick={() => onFilterChange(group.id)}
             onContextMenu={(e) => handleContextMenu(e, group.id)}
           >
-            {/* Emoji 或颜色指示器 */}
+            {/* Emoji 或颜色圆点指示器 */}
             {group.emoji ? (
               <span className="text-sm leading-none">{group.emoji}</span>
-            ) : group.color ? (
+            ) : (
               <span
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: group.color }}
+                style={{
+                  backgroundColor: tagColor,
+                  boxShadow: isActive ? `0 0 4px ${colorWithAlpha(tagColor, 0.5)}` : 'none',
+                }}
               />
-            ) : null}
-            <span>{group.name}</span>
-            {/* Agent 计数 */}
+            )}
+            {/* 分组名称：激活时使用分组颜色 */}
+            <span style={{ color: isActive ? tagColor : undefined }}>
+              {group.name}
+            </span>
+            {/* Agent 计数 badge：带分组颜色调 */}
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
               style={{
-                backgroundColor: 'var(--app-bg-subtle)',
-                color: 'var(--app-text-muted)',
+                backgroundColor: isActive
+                  ? colorWithAlpha(tagColor, 0.18)
+                  : 'var(--app-bg-subtle)',
+                color: isActive ? tagColor : 'var(--app-text-muted)',
               }}
             >
               {count}
@@ -168,7 +217,7 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
       {/* 新建分组按钮 */}
       <button
         type="button"
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0"
+        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 hover:opacity-80"
         style={{
           border: '1px dashed var(--app-border)',
           color: 'var(--app-text-muted)',
