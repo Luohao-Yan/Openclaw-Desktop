@@ -923,33 +923,33 @@ const Tasks: React.FC = () => {
               </div>
 
               {/* 操作按钮行 */}
-              <div className="relative mt-3 flex items-center gap-2">
+              <div className="relative mt-4 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void handleRunNow(selectedJob)}
                   disabled={runningJobId === selectedJob.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  style={{ backgroundColor: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.25)' }}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100 shadow-sm"
+                  style={{ backgroundColor: 'rgb(99,102,241)', color: '#fff' }}
                 >
-                  {runningJobId === selectedJob.id ? <LoaderCircle size={13} className="animate-spin" /> : <PlayCircle size={13} />}
+                  {runningJobId === selectedJob.id ? <LoaderCircle size={14} className="animate-spin" /> : <PlayCircle size={14} />}
                   {runningJobId === selectedJob.id ? '执行中…' : '立即执行'}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleToggleEnabled(selectedJob)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text-muted)', border: '1px solid var(--app-border)' }}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer hover:brightness-110 active:scale-95 shadow-sm"
+                  style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
                 >
-                  {selectedJob.enabled === false ? <PlayCircle size={13} /> : <X size={13} />}
+                  {selectedJob.enabled === false ? <PlayCircle size={14} /> : <X size={14} />}
                   {selectedJob.enabled === false ? '启用' : '停用'}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleRemove(selectedJob)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95"
-                  style={{ backgroundColor: 'rgba(239,68,68,0.10)', color: '#f87171', border: '1px solid rgba(239,68,68,0.20)' }}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer hover:brightness-110 active:scale-95 shadow-sm"
+                  style={{ backgroundColor: 'rgb(239,68,68)', color: '#fff' }}
                 >
-                  <X size={13} />
+                  <X size={14} />
                   删除
                 </button>
               </div>

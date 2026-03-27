@@ -337,18 +337,56 @@ function normalizeCronJob(raw: Record<string, unknown>, index: number): CronJobR
   };
 }
 
-function normalizeCronRun(raw: Record<string, unknown>): CronRunRecord {
-  return {
-    id: typeof raw.id === 'string' ? raw.id : undefined,
-    runId: typeof raw.runId === 'string' ? raw.runId : undefined,
-    status: typeof raw.status === 'string' ? raw.status : undefined,
-    startedAt: typeof raw.startedAt === 'string' ? raw.startedAt : undefined,
-    finishedAt: typeof raw.finishedAt === 'string' ? raw.finishedAt : undefined,
-    summary: typeof raw.summary === 'string'
+export function normalizeCronRun(raw: Record<string, unknown>): CronRunRecord {
+  // --- id 字段：优先使用 raw.id，备选 JSONL 的 sessionId ---
+  const id: string | undefined =
+    typeof raw.id === 'string'
+      ? raw.id
+      : typeof raw.sessionId === 'string'
+        ? raw.sessionId
+        : undefined;
+
+  // --- runId 字段：优先使用 raw.runId，备选 JSONL 的 sessionId ---
+  const runId: string | undefined =
+    typeof raw.runId === 'string'
+      ? raw.runId
+      : typeof raw.sessionId === 'string'
+        ? raw.sessionId
+        : undefined;
+
+  // --- startedAt 字段：优先使用 raw.startedAt，备选 JSONL 的 runAtMs（毫秒时间戳转 ISO 字符串） ---
+  const startedAt: string | undefined =
+    typeof raw.startedAt === 'string'
+      ? raw.startedAt
+      : typeof raw.runAtMs === 'number'
+        ? new Date(raw.runAtMs).toISOString()
+        : undefined;
+
+  // --- finishedAt 字段：优先使用 raw.finishedAt，备选 JSONL 的 ts（毫秒时间戳转 ISO 字符串） ---
+  const finishedAt: string | undefined =
+    typeof raw.finishedAt === 'string'
+      ? raw.finishedAt
+      : typeof raw.ts === 'number'
+        ? new Date(raw.ts).toISOString()
+        : undefined;
+
+  // --- summary 字段：优先级 raw.summary > raw.message > raw.error ---
+  const summary: string | undefined =
+    typeof raw.summary === 'string'
       ? raw.summary
       : typeof raw.message === 'string'
         ? raw.message
-        : undefined,
+        : typeof raw.error === 'string'
+          ? raw.error
+          : undefined;
+
+  return {
+    id,
+    runId,
+    status: typeof raw.status === 'string' ? raw.status : undefined,
+    startedAt,
+    finishedAt,
+    summary,
     raw,
   };
 }
@@ -502,31 +540,50 @@ export async function cronRun(jobId: string, _force = false) {
 }
 
 export async function cronRuns(jobId: string, limit = 10) {
-  const result = await runCommand(resolveOpenClawCommand(), ['cron', 'runs', '--id', jobId, '--limit', String(limit)]);
-  const parsed = tryParseJson<unknown>(result.output);
+  // 直接读取 JSONL 文件，绕过 CLI 命令（与 cronList() 策略一致）
+  try {
+    const os = await import('os');
+    const fs = await import('fs/promises');
+    const path = await import('path');
 
-  if (!result.success && !parsed) {
+    const runsPath = path.join(os.homedir(), '.openclaw', 'cron', 'runs', `${jobId}.jsonl`);
+    const raw = await fs.readFile(runsPath, 'utf-8');
+
+    // 逐行解析 JSONL，跳过空行和损坏行
+    const entries = raw
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>;
+        } catch {
+          // 跳过解析失败的损坏行
+          return null;
+        }
+      })
+      .filter((item): item is Record<string, unknown> => item !== null);
+
+    // 按 ts 字段降序排序（最新记录在前），取前 limit 条
+    const sorted = entries
+      .sort((a, b) => {
+        const tsA = typeof a.ts === 'number' ? a.ts : 0;
+        const tsB = typeof b.ts === 'number' ? b.ts : 0;
+        return tsB - tsA;
+      })
+      .slice(0, limit);
+
     return {
-      success: false,
-      runs: [] as CronRunRecord[],
-      error: toResultMessage(result, '读取 cron 运行记录失败'),
+      success: true,
+      runs: sorted.map(normalizeCronRun),
     };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // 文件不存在时返回空列表（任务从未执行过是正常情况）
+    if (msg.includes('ENOENT')) {
+      return { success: true, runs: [] as CronRunRecord[] };
+    }
+    return { success: false, runs: [] as CronRunRecord[], error: `读取 cron 运行记录失败：${msg}` };
   }
-
-  const list = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray((parsed as any)?.runs)
-      ? (parsed as any).runs
-      : Array.isArray((parsed as any)?.items)
-        ? (parsed as any).items
-        : [];
-
-  return {
-    success: true,
-    runs: list
-      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
-      .map(normalizeCronRun),
-  };
 }
 
 export function setupCronIPC() {
