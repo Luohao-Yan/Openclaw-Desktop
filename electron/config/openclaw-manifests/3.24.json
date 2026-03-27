@@ -73,6 +73,12 @@
           "label": "Config Validate",
           "command": "openclaw",
           "subcommands": ["config", "validate"]
+        },
+        {
+          "id": "configSchema",
+          "label": "Config Schema",
+          "command": "openclaw",
+          "subcommands": ["config", "schema"]
         }
       ]
     },
@@ -446,6 +452,12 @@
           "subcommands": ["gateway", "run"]
         },
         {
+          "id": "gatewayCall",
+          "label": "Gateway Call RPC",
+          "command": "openclaw",
+          "subcommands": ["gateway", "call", "<method>", "--params", "<json>"]
+        },
+        {
           "id": "gatewayStart",
           "label": "Gateway Service Start",
           "command": "openclaw",
@@ -553,8 +565,23 @@
           "options": [
             { "label": "Anthropic API Key", "value": "anthropic-api-key" },
             { "label": "Anthropic OAuth", "value": "anthropic-oauth" },
+            { "label": "Setup Token", "value": "setup-token" },
+            { "label": "Token", "value": "token" },
             { "label": "OpenAI API Key", "value": "openai-api-key" },
-            { "label": "Custom API Key", "value": "custom-api-key" }
+            { "label": "OpenAI Codex", "value": "openai-codex" },
+            { "label": "OpenRouter API Key", "value": "openrouter-api-key" },
+            { "label": "Ollama", "value": "ollama" },
+            { "label": "AI Gateway API Key", "value": "ai-gateway-api-key" },
+            { "label": "Moonshot API Key", "value": "moonshot-api-key" },
+            { "label": "Kimi Code API Key", "value": "kimi-code-api-key" },
+            { "label": "Gemini API Key", "value": "gemini-api-key" },
+            { "label": "Zai API Key", "value": "zai-api-key" },
+            { "label": "Mistral API Key", "value": "mistral-api-key" },
+            { "label": "MiniMax API", "value": "minimax-api" },
+            { "label": "OpenCode Zen", "value": "opencode-zen" },
+            { "label": "OpenCode Go", "value": "opencode-go" },
+            { "label": "Custom API Key", "value": "custom-api-key" },
+            { "label": "Skip", "value": "skip" }
           ]
         },
         {
@@ -670,6 +697,30 @@
           "subcommands": ["models", "fallbacks", "clear"]
         },
         {
+          "id": "modelsImageFallbacksList",
+          "label": "Model Image Fallbacks List",
+          "command": "openclaw",
+          "subcommands": ["models", "image-fallbacks", "list"]
+        },
+        {
+          "id": "modelsImageFallbacksAdd",
+          "label": "Model Image Fallbacks Add",
+          "command": "openclaw",
+          "subcommands": ["models", "image-fallbacks", "add", "<model>"]
+        },
+        {
+          "id": "modelsImageFallbacksRemove",
+          "label": "Model Image Fallbacks Remove",
+          "command": "openclaw",
+          "subcommands": ["models", "image-fallbacks", "remove", "<model>"]
+        },
+        {
+          "id": "modelsImageFallbacksClear",
+          "label": "Model Image Fallbacks Clear",
+          "command": "openclaw",
+          "subcommands": ["models", "image-fallbacks", "clear"]
+        },
+        {
           "id": "modelsAuthAdd",
           "label": "Model Auth Add",
           "command": "openclaw",
@@ -682,10 +733,34 @@
           "subcommands": ["models", "auth", "setup-token", "--provider", "anthropic"]
         },
         {
+          "id": "modelsAuthPasteToken",
+          "label": "Model Auth Paste Token",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "paste-token", "--provider", "<name>"]
+        },
+        {
+          "id": "modelsAuthLogin",
+          "label": "Model Auth Login",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "login", "--provider", "<name>", "--method", "cli", "--set-default"]
+        },
+        {
           "id": "modelsAuthOrderGet",
           "label": "Model Auth Order Get",
           "command": "openclaw",
           "subcommands": ["models", "auth", "order", "get"]
+        },
+        {
+          "id": "modelsAuthOrderSet",
+          "label": "Model Auth Order Set",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "order", "set", "--provider", "<name>", "<profileIds>"]
+        },
+        {
+          "id": "modelsAuthOrderClear",
+          "label": "Model Auth Order Clear",
+          "command": "openclaw",
+          "subcommands": ["models", "auth", "order", "clear", "--provider", "<name>"]
         },
         {
           "id": "authCustomApiKey",
@@ -836,6 +911,24 @@
           "subcommands": ["skills", "list", "--eligible"]
         },
         {
+          "id": "skillsSearch",
+          "label": "Skills Search",
+          "command": "openclaw",
+          "subcommands": ["skills", "search", "<query>"]
+        },
+        {
+          "id": "skillsInstall",
+          "label": "Skills Install",
+          "command": "openclaw",
+          "subcommands": ["skills", "install", "<slug>"]
+        },
+        {
+          "id": "skillsUpdate",
+          "label": "Skills Update",
+          "command": "openclaw",
+          "subcommands": ["skills", "update", "--all"]
+        },
+        {
           "id": "skillsInfo",
           "label": "Skill Info",
           "command": "openclaw",
@@ -862,6 +955,12 @@
           "subcommands": ["message", "send", "--target", "<target>", "--message", "<text>"]
         },
         {
+          "id": "messageBroadcast",
+          "label": "Broadcast Message",
+          "command": "openclaw",
+          "subcommands": ["message", "broadcast"]
+        },
+        {
           "id": "messagePoll",
           "label": "Send Poll",
           "command": "openclaw",
@@ -872,6 +971,18 @@
           "label": "React to Message",
           "command": "openclaw",
           "subcommands": ["message", "react"]
+        },
+        {
+          "id": "messageReactions",
+          "label": "Message Reactions",
+          "command": "openclaw",
+          "subcommands": ["message", "reactions"]
+        },
+        {
+          "id": "messageRead",
+          "label": "Read Message",
+          "command": "openclaw",
+          "subcommands": ["message", "read"]
         },
         {
           "id": "messageEdit",
@@ -892,10 +1003,46 @@
           "subcommands": ["message", "pin"]
         },
         {
+          "id": "messageUnpin",
+          "label": "Unpin Message",
+          "command": "openclaw",
+          "subcommands": ["message", "unpin"]
+        },
+        {
+          "id": "messagePins",
+          "label": "List Pinned Messages",
+          "command": "openclaw",
+          "subcommands": ["message", "pins"]
+        },
+        {
+          "id": "messagePermissions",
+          "label": "Message Permissions",
+          "command": "openclaw",
+          "subcommands": ["message", "permissions"]
+        },
+        {
           "id": "messageSearch",
           "label": "Search Messages",
           "command": "openclaw",
           "subcommands": ["message", "search"]
+        },
+        {
+          "id": "messageTimeout",
+          "label": "Timeout User",
+          "command": "openclaw",
+          "subcommands": ["message", "timeout"]
+        },
+        {
+          "id": "messageKick",
+          "label": "Kick User",
+          "command": "openclaw",
+          "subcommands": ["message", "kick"]
+        },
+        {
+          "id": "messageBan",
+          "label": "Ban User",
+          "command": "openclaw",
+          "subcommands": ["message", "ban"]
         },
         {
           "id": "messageThreadCreate",
@@ -914,6 +1061,84 @@
           "label": "Reply to Thread",
           "command": "openclaw",
           "subcommands": ["message", "thread", "reply"]
+        },
+        {
+          "id": "messageEmojiList",
+          "label": "Emoji List",
+          "command": "openclaw",
+          "subcommands": ["message", "emoji", "list"]
+        },
+        {
+          "id": "messageEmojiUpload",
+          "label": "Emoji Upload",
+          "command": "openclaw",
+          "subcommands": ["message", "emoji", "upload"]
+        },
+        {
+          "id": "messageStickerSend",
+          "label": "Sticker Send",
+          "command": "openclaw",
+          "subcommands": ["message", "sticker", "send"]
+        },
+        {
+          "id": "messageStickerUpload",
+          "label": "Sticker Upload",
+          "command": "openclaw",
+          "subcommands": ["message", "sticker", "upload"]
+        },
+        {
+          "id": "messageRoleInfo",
+          "label": "Role Info",
+          "command": "openclaw",
+          "subcommands": ["message", "role", "info"]
+        },
+        {
+          "id": "messageRoleAdd",
+          "label": "Role Add",
+          "command": "openclaw",
+          "subcommands": ["message", "role", "add"]
+        },
+        {
+          "id": "messageRoleRemove",
+          "label": "Role Remove",
+          "command": "openclaw",
+          "subcommands": ["message", "role", "remove"]
+        },
+        {
+          "id": "messageChannelInfo",
+          "label": "Channel Info",
+          "command": "openclaw",
+          "subcommands": ["message", "channel", "info"]
+        },
+        {
+          "id": "messageChannelList",
+          "label": "Channel List",
+          "command": "openclaw",
+          "subcommands": ["message", "channel", "list"]
+        },
+        {
+          "id": "messageMemberInfo",
+          "label": "Member Info",
+          "command": "openclaw",
+          "subcommands": ["message", "member", "info"]
+        },
+        {
+          "id": "messageVoiceStatus",
+          "label": "Voice Status",
+          "command": "openclaw",
+          "subcommands": ["message", "voice", "status"]
+        },
+        {
+          "id": "messageEventList",
+          "label": "Event List",
+          "command": "openclaw",
+          "subcommands": ["message", "event", "list"]
+        },
+        {
+          "id": "messageEventCreate",
+          "label": "Event Create",
+          "command": "openclaw",
+          "subcommands": ["message", "event", "create"]
         }
       ]
     },
@@ -1259,10 +1484,58 @@
           "subcommands": ["nodes", "camera", "snap", "--node", "<id|name|ip>"]
         },
         {
+          "id": "nodesCameraList",
+          "label": "Nodes Camera List",
+          "command": "openclaw",
+          "subcommands": ["nodes", "camera", "list", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesCameraClip",
+          "label": "Nodes Camera Clip",
+          "command": "openclaw",
+          "subcommands": ["nodes", "camera", "clip", "--node", "<id|name|ip>"]
+        },
+        {
           "id": "nodesCanvasSnapshot",
           "label": "Nodes Canvas Snapshot",
           "command": "openclaw",
           "subcommands": ["nodes", "canvas", "snapshot", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesCanvasPresent",
+          "label": "Nodes Canvas Present",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "present", "--node", "<id|name|ip>", "--target", "<urlOrPath>"]
+        },
+        {
+          "id": "nodesCanvasHide",
+          "label": "Nodes Canvas Hide",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "hide", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesCanvasNavigate",
+          "label": "Nodes Canvas Navigate",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "navigate", "<url>", "--node", "<id|name|ip>"]
+        },
+        {
+          "id": "nodesCanvasEval",
+          "label": "Nodes Canvas Eval",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "eval", "--node", "<id|name|ip>", "--js", "<code>"]
+        },
+        {
+          "id": "nodesCanvasA2uiPush",
+          "label": "Nodes Canvas A2UI Push",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "a2ui", "push", "--node", "<id|name|ip>", "--text", "<text>"]
+        },
+        {
+          "id": "nodesCanvasA2uiReset",
+          "label": "Nodes Canvas A2UI Reset",
+          "command": "openclaw",
+          "subcommands": ["nodes", "canvas", "a2ui", "reset", "--node", "<id|name|ip>"]
         },
         {
           "id": "nodesScreenRecord",
@@ -1365,6 +1638,18 @@
           "subcommands": ["browser", "open", "<url>"]
         },
         {
+          "id": "browserFocus",
+          "label": "Browser Focus",
+          "command": "openclaw",
+          "subcommands": ["browser", "focus", "<targetId>"]
+        },
+        {
+          "id": "browserClose",
+          "label": "Browser Close",
+          "command": "openclaw",
+          "subcommands": ["browser", "close"]
+        },
+        {
           "id": "browserScreenshot",
           "label": "Browser Screenshot",
           "command": "openclaw",
@@ -1383,6 +1668,12 @@
           "subcommands": ["browser", "navigate", "<url>"]
         },
         {
+          "id": "browserResize",
+          "label": "Browser Resize",
+          "command": "openclaw",
+          "subcommands": ["browser", "resize", "<width>", "<height>"]
+        },
+        {
           "id": "browserClick",
           "label": "Browser Click",
           "command": "openclaw",
@@ -1395,10 +1686,70 @@
           "subcommands": ["browser", "type", "<ref>", "<text>"]
         },
         {
+          "id": "browserPress",
+          "label": "Browser Press",
+          "command": "openclaw",
+          "subcommands": ["browser", "press", "<key>"]
+        },
+        {
+          "id": "browserHover",
+          "label": "Browser Hover",
+          "command": "openclaw",
+          "subcommands": ["browser", "hover", "<ref>"]
+        },
+        {
+          "id": "browserDrag",
+          "label": "Browser Drag",
+          "command": "openclaw",
+          "subcommands": ["browser", "drag", "<startRef>", "<endRef>"]
+        },
+        {
+          "id": "browserSelect",
+          "label": "Browser Select",
+          "command": "openclaw",
+          "subcommands": ["browser", "select", "<ref>", "<values>"]
+        },
+        {
+          "id": "browserUpload",
+          "label": "Browser Upload",
+          "command": "openclaw",
+          "subcommands": ["browser", "upload", "<paths>"]
+        },
+        {
+          "id": "browserFill",
+          "label": "Browser Fill",
+          "command": "openclaw",
+          "subcommands": ["browser", "fill", "--fields", "<json>"]
+        },
+        {
+          "id": "browserDialog",
+          "label": "Browser Dialog",
+          "command": "openclaw",
+          "subcommands": ["browser", "dialog", "--accept"]
+        },
+        {
+          "id": "browserWait",
+          "label": "Browser Wait",
+          "command": "openclaw",
+          "subcommands": ["browser", "wait", "--text", "<value>"]
+        },
+        {
           "id": "browserEvaluate",
           "label": "Browser Evaluate JS",
           "command": "openclaw",
           "subcommands": ["browser", "evaluate", "--fn", "<code>"]
+        },
+        {
+          "id": "browserConsole",
+          "label": "Browser Console",
+          "command": "openclaw",
+          "subcommands": ["browser", "console"]
+        },
+        {
+          "id": "browserPdf",
+          "label": "Browser PDF",
+          "command": "openclaw",
+          "subcommands": ["browser", "pdf"]
         },
         {
           "id": "browserProfiles",
@@ -1411,6 +1762,12 @@
           "label": "Browser Create Profile",
           "command": "openclaw",
           "subcommands": ["browser", "create-profile", "--name", "<name>"]
+        },
+        {
+          "id": "browserDeleteProfile",
+          "label": "Browser Delete Profile",
+          "command": "openclaw",
+          "subcommands": ["browser", "delete-profile", "--name", "<name>"]
         },
         {
           "id": "browserResetProfile",
@@ -1632,6 +1989,12 @@
           "subcommands": ["plugins", "list"]
         },
         {
+          "id": "pluginsInspect",
+          "label": "Plugins Inspect",
+          "command": "openclaw",
+          "subcommands": ["plugins", "inspect", "<id>"]
+        },
+        {
           "id": "pluginsInfo",
           "label": "Plugins Info",
           "command": "openclaw",
@@ -1642,6 +2005,18 @@
           "label": "Plugins Install",
           "command": "openclaw",
           "subcommands": ["plugins", "install", "<path|.tgz|npm-spec>"]
+        },
+        {
+          "id": "pluginsUninstall",
+          "label": "Plugins Uninstall",
+          "command": "openclaw",
+          "subcommands": ["plugins", "uninstall", "<id>"]
+        },
+        {
+          "id": "pluginsUpdate",
+          "label": "Plugins Update",
+          "command": "openclaw",
+          "subcommands": ["plugins", "update", "<id>"]
         },
         {
           "id": "pluginsEnable",
@@ -1660,6 +2035,12 @@
           "label": "Plugins Doctor",
           "command": "openclaw",
           "subcommands": ["plugins", "doctor"]
+        },
+        {
+          "id": "pluginsMarketplaceList",
+          "label": "Plugins Marketplace List",
+          "command": "openclaw",
+          "subcommands": ["plugins", "marketplace", "list", "<marketplace>"]
         }
       ]
     },
@@ -1951,7 +2332,7 @@
           "id": "cronRun",
           "label": "Run Job Now",
           "command": "openclaw",
-          "subcommands": ["cron", "run", "<jobId>", "--due"]
+          "subcommands": ["cron", "run", "<jobId>", "--force"]
         },
         {
           "id": "cronRuns",
@@ -1964,6 +2345,56 @@
           "label": "Remove Job",
           "command": "openclaw",
           "subcommands": ["cron", "rm", "<jobId>"]
+        }
+      ]
+    },
+    {
+      "id": "hooks",
+      "title": "Hooks",
+      "description": "管理 Hook 自动化规则（列出、检查、启用/禁用、安装与更新）。",
+      "fields": [],
+      "commands": [
+        {
+          "id": "hooksList",
+          "label": "Hooks List",
+          "command": "openclaw",
+          "subcommands": ["hooks", "list"]
+        },
+        {
+          "id": "hooksInfo",
+          "label": "Hooks Info",
+          "command": "openclaw",
+          "subcommands": ["hooks", "info", "<id>"]
+        },
+        {
+          "id": "hooksCheck",
+          "label": "Hooks Check",
+          "command": "openclaw",
+          "subcommands": ["hooks", "check"]
+        },
+        {
+          "id": "hooksEnable",
+          "label": "Hooks Enable",
+          "command": "openclaw",
+          "subcommands": ["hooks", "enable", "<id>"]
+        },
+        {
+          "id": "hooksDisable",
+          "label": "Hooks Disable",
+          "command": "openclaw",
+          "subcommands": ["hooks", "disable", "<id>"]
+        },
+        {
+          "id": "hooksInstall",
+          "label": "Hooks Install",
+          "command": "openclaw",
+          "subcommands": ["hooks", "install", "<id>"]
+        },
+        {
+          "id": "hooksUpdate",
+          "label": "Hooks Update",
+          "command": "openclaw",
+          "subcommands": ["hooks", "update", "<id>"]
         }
       ]
     },
