@@ -188,7 +188,7 @@ const AppModal: React.FC<AppModalProps> = ({
           color: 'var(--app-text)',
           boxShadow: '0 32px 64px rgba(0,0,0,0.40), 0 8px 24px rgba(0,0,0,0.20)',
           animation: 'modal-panel-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-          maxHeight: 'calc(100vh - 2rem)',
+          maxHeight: 'min(calc(100vh - 4rem), 720px)',
         }}
         onClick={(e) => e.stopPropagation()}
       >

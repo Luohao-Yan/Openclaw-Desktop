@@ -212,6 +212,7 @@ const GroupDialog: React.FC<GroupDialogProps> = ({
       title={dialogTitle}
       icon={<Palette size={20} />}
       variant="default"
+      size="lg"
       footer={
         <>
           <AppButton variant="secondary" onClick={onCancel}>
