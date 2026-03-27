@@ -200,6 +200,7 @@ resources/                 # 应用图标（png, svg, ico, icns）
 
 ## 版本说明
 
+- `0.3.24.x` 系列对应 OpenClaw 3.24 运行时
 - `0.3.13.x` 系列对应 OpenClaw 3.13 运行时
 - `0.3.8.x` 系列对应 OpenClaw 3.8 运行时
 - `preview` 标识表示预览版本

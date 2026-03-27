@@ -2507,7 +2507,7 @@ export function setupAgentsIPC() {
         },
         workspaceFiles: {} as Record<string, string>,
         metadata: {
-          desktopVersion: '0.3.13', // TODO: 从 package.json 读取
+          desktopVersion: '0.3.24', // TODO: 从 package.json 读取
           openclawVersion: 'unknown', // TODO: 从 CLI 获取版本
         },
       };

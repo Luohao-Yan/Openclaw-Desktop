@@ -36,7 +36,7 @@ export function setupConfigIPC() {
         copyFileSync(configPath, backupPath);
       }
 
-      // 移除 OpenClaw v0.3.13+ schema 不支持的根级别字段，避免校验失败
+      // 移除 OpenClaw v0.3.24+ schema 不支持的根级别字段，避免校验失败
       const sanitized = { ...config };
       delete sanitized.pairing;
 

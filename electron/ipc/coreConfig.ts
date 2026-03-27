@@ -58,6 +58,7 @@ interface OpenClawManifest {
 const manifestFileUrls: Record<string, URL> = {
   '3.8': new URL('../config/openclaw-manifests/3.8.json', import.meta.url),
   '3.13': new URL('../config/openclaw-manifests/3.13.json', import.meta.url),
+  '3.24': new URL('../config/openclaw-manifests/3.24.json', import.meta.url),
 };
 
 const OPENCLAW_VERSION_TIMEOUT_MS = 5000;

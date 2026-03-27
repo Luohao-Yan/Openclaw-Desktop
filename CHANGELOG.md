@@ -6,6 +6,15 @@
 
 ---
 
+## [0.3.24-preview-1] - 2026-03-27
+
+### 🔧 技术改进 (Technical)
+
+- **升级至 OpenClaw 3.24**：新增 `openclaw-manifests/3.24.json` 配置清单，版本号跟随 3.24
+- **分组对话框 Agent 批量选择**：GroupDialog 新增 Batch_Selector 区域，支持创建/编辑分组时直接勾选 Agent 成员
+
+---
+
 ## [0.3.13-preview-11] - 2026-03-26
 
 ### ✨ 新增 (Features)

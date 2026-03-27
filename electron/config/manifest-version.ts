@@ -6,7 +6,7 @@
  */
 
 /** 当前使用的 manifest 版本号 */
-export const CURRENT_MANIFEST_VERSION = '3.13';
+export const CURRENT_MANIFEST_VERSION = '3.24';
 
 /** 所有已支持的 manifest 版本列表（用于向后兼容） */
-export const SUPPORTED_MANIFEST_VERSIONS = ['3.8', '3.13'] as const;
+export const SUPPORTED_MANIFEST_VERSIONS = ['3.8', '3.13', '3.24'] as const;

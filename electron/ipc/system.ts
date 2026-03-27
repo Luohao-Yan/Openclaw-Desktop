@@ -90,7 +90,7 @@ async function installOpenClawForSetup(sender: Electron.WebContents, version?: s
   const platform = process.platform;
   const INSTALL_TIMEOUT = 5 * 60 * 1000;
   // 使用指定版本或从 CURRENT_MANIFEST_VERSION 派生默认版本
-  // CURRENT_MANIFEST_VERSION 格式为 "3.13"，对应 OpenClaw 版本 "2026.3.13"
+  // CURRENT_MANIFEST_VERSION 格式为 "3.24"，对应 OpenClaw 版本 "2026.3.24"
   const targetVersion = version || `2026.${CURRENT_MANIFEST_VERSION}`;
 
   // 实时输出回调
@@ -438,7 +438,7 @@ interface SetupInstallResult {
   error?: string;
 }
 
-const DESKTOP_APP_VERSION = '0.3.13-preview-6';
+const DESKTOP_APP_VERSION = '0.3.24-preview-1';
 const OPENCLAW_COMPAT_TAIL = 8;
 const DESKTOP_RUNTIME_VERSION = 'desktop-runtime-0.5.8';
 const DESKTOP_PRELOAD_VERSION = 'desktop-preload-0.5.8';

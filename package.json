@@ -1,6 +1,6 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.3.13-preview-11",
+  "version": "0.3.24-preview-1",
   "description": "OpenClaw Desktop - 基于 Electron 的多智能体 AI 系统桌面管理客户端 | Desktop management client for OpenClaw multi-agent AI system",
   "main": "dist-electron/electron/main.js",
   "scripts": {
