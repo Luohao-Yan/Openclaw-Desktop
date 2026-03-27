@@ -167,50 +167,94 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
         {t('agentGroups.ungrouped' as any)}
       </button>
 
-      {/* 分组标签：带颜色标识的 tag 风格 */}
+      {/* 分组标签：带颜色标识的 tag 风格，hover 显示操作按钮 */}
       {groups.map((group) => {
         const count = countAgentsInGroup(mappings, group.id);
         const isActive = activeFilter === group.id;
         const tagColor = group.color || DEFAULT_TAG_COLOR;
 
         return (
-          <button
+          <div
             key={group.id}
-            type="button"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0 hover:opacity-85"
-            style={getGroupTagStyle(group, isActive)}
-            onClick={() => onFilterChange(group.id)}
-            onContextMenu={(e) => handleContextMenu(e, group.id)}
+            className="relative flex-shrink-0 group"
           >
-            {/* Emoji 或颜色圆点指示器 */}
-            {group.emoji ? (
-              <span className="text-sm leading-none">{group.emoji}</span>
-            ) : (
+            {/* 分组标签按钮 */}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium hover:opacity-85"
+              style={getGroupTagStyle(group, isActive)}
+              onClick={() => onFilterChange(group.id)}
+              onContextMenu={(e) => handleContextMenu(e, group.id)}
+            >
+              {/* Emoji 或颜色圆点指示器 */}
+              {group.emoji ? (
+                <span className="text-sm leading-none">{group.emoji}</span>
+              ) : (
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{
+                    backgroundColor: tagColor,
+                    boxShadow: isActive ? `0 0 4px ${colorWithAlpha(tagColor, 0.5)}` : 'none',
+                  }}
+                />
+              )}
+              {/* 分组名称 */}
+              <span style={{ color: isActive ? tagColor : undefined }}>
+                {group.name}
+              </span>
+              {/* Agent 计数 badge */}
               <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                 style={{
-                  backgroundColor: tagColor,
-                  boxShadow: isActive ? `0 0 4px ${colorWithAlpha(tagColor, 0.5)}` : 'none',
+                  backgroundColor: isActive
+                    ? colorWithAlpha(tagColor, 0.18)
+                    : 'var(--app-bg-subtle)',
+                  color: isActive ? tagColor : 'var(--app-text-muted)',
                 }}
-              />
-            )}
-            {/* 分组名称：激活时使用分组颜色 */}
-            <span style={{ color: isActive ? tagColor : undefined }}>
-              {group.name}
-            </span>
-            {/* Agent 计数 badge：带分组颜色调 */}
-            <span
-              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+              >
+                {count}
+              </span>
+            </button>
+            {/* hover 时显示的操作按钮组 */}
+            <div
+              className="absolute -top-1 -right-1 hidden group-hover:flex items-center gap-0.5 rounded-full px-1 py-0.5 shadow-sm z-10"
               style={{
-                backgroundColor: isActive
-                  ? colorWithAlpha(tagColor, 0.18)
-                  : 'var(--app-bg-subtle)',
-                color: isActive ? tagColor : 'var(--app-text-muted)',
+                backgroundColor: 'var(--app-bg-elevated)',
+                border: '1px solid var(--app-border)',
               }}
             >
-              {count}
-            </span>
-          </button>
+              {/* 编辑 */}
+              <button
+                type="button"
+                className="p-0.5 rounded-full transition-colors hover:opacity-70"
+                style={{ color: 'var(--app-text-muted)', cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); onGroupAction(group.id, 'edit'); }}
+                title={t('agentGroups.edit' as any)}
+              >
+                <Pencil size={11} />
+              </button>
+              {/* 导出 */}
+              <button
+                type="button"
+                className="p-0.5 rounded-full transition-colors hover:opacity-70"
+                style={{ color: 'var(--app-text-muted)', cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); onGroupAction(group.id, 'export'); }}
+                title={t('agentGroups.exportTitle' as any)}
+              >
+                <Download size={11} />
+              </button>
+              {/* 删除 */}
+              <button
+                type="button"
+                className="p-0.5 rounded-full transition-colors hover:opacity-70"
+                style={{ color: '#F87171', cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); onGroupAction(group.id, 'delete'); }}
+                title={t('agentGroups.delete' as any)}
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          </div>
         );
       })}
 
