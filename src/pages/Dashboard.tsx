@@ -115,6 +115,11 @@ function Dashboard() {
   const [dashboardMessage, setDashboardMessage] = useState('');
   const [dashboardMessageTone, setDashboardMessageTone] = useState<'idle' | 'success' | 'error' | 'info'>('idle');
 
+  // 仅在确认存在问题时才显示诊断卡片：
+  // 1. 诊断调用本身失败（rootDiagnosticError 有值）
+  // 2. 根目录不存在或缺少 openclaw.json
+  // 注意：node.json 缺失不视为问题（homebrew 安装不生成此文件）
+  // 注意：rootDiagnostic 为 null 时（加载中）不显示，避免闪烁
   const shouldShowRootDiagnostic = Boolean(
     rootDiagnosticError
     || (rootDiagnostic && (!rootDiagnostic.exists || !rootDiagnostic.hasOpenClawJson))
@@ -272,8 +277,14 @@ function Dashboard() {
         setRootDiagnosticError('');
         return;
       }
-      setRootDiagnostic(null);
-      setRootDiagnosticError(result.error || 'Failed to diagnose OpenClaw root');
+      // 即使 success 为 false，如果 diagnostic 数据表明目录正常，也不显示错误
+      if (result.diagnostic && result.diagnostic.exists && result.diagnostic.hasOpenClawJson) {
+        setRootDiagnostic(result.diagnostic);
+        setRootDiagnosticError('');
+        return;
+      }
+      setRootDiagnostic(result.diagnostic || null);
+      setRootDiagnosticError(result.error || '');
     } catch (error) {
       console.error('Error diagnosing OpenClaw root:', error);
       setRootDiagnostic(null);
