@@ -222,6 +222,15 @@ const Tasks: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [error, setError] = useState('');
+  // 立即执行的 loading 状态和 toast 提示
+  const [runningJobId, setRunningJobId] = useState('');
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // toast 3 秒后自动消失
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CronFilter>('all');
   const [draft, setDraft] = useState<CronJobDraft>(buildInitialDraft());
@@ -492,12 +501,26 @@ const Tasks: React.FC = () => {
   };
 
   const handleRunNow = async (job: CronJobRecord) => {
-    const result = await electronAPI.cronRun(job.id, true);
-    if (!result.success) {
-      setError(result.error || '执行 cron 任务失败');
-      return;
+    setRunningJobId(job.id);
+    setToast(null);
+    setError('');
+    try {
+      const result = await electronAPI.cronRun(job.id, true);
+      if (!result.success) {
+        setError(result.error || '执行 cron 任务失败');
+        setToast({ type: 'error', message: result.error || '执行失败' });
+        return;
+      }
+      setToast({ type: 'success', message: `「${job.name}」已触发执行` });
+      // 刷新运行历史和任务列表
+      await Promise.all([loadRuns(job.id), loadJobs()]);
+    } catch (err: any) {
+      const msg = err?.message || '执行异常';
+      setError(msg);
+      setToast({ type: 'error', message: msg });
+    } finally {
+      setRunningJobId('');
     }
-    await loadRuns(job.id);
   };
 
   const handleRemove = async (job: CronJobRecord) => {
@@ -517,6 +540,24 @@ const Tasks: React.FC = () => {
   return (
     /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
     <div className="space-y-6 page-content">
+      {/* Toast 提示 */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[60]">
+          <div
+            className="flex items-center gap-2.5 rounded-2xl border px-5 py-3 text-sm font-medium shadow-lg"
+            style={{
+              backgroundColor: toast.type === 'success' ? 'var(--app-toast-success-bg)' : 'var(--app-toast-error-bg)',
+              borderColor: toast.type === 'success' ? 'var(--app-toast-success-border)' : 'var(--app-toast-error-border)',
+              color: toast.type === 'success' ? 'var(--app-toast-success-text)' : 'var(--app-toast-error-text)',
+            }}
+          >
+            {toast.message}
+            <button onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100 cursor-pointer">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
       {/* 顶部渐变标题卡片 */}
       <GlassCard
         variant="gradient"
@@ -886,11 +927,12 @@ const Tasks: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => void handleRunNow(selectedJob)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95"
+                  disabled={runningJobId === selectedJob.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   style={{ backgroundColor: 'rgba(99,102,241,0.15)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.25)' }}
                 >
-                  <PlayCircle size={13} />
-                  立即执行
+                  {runningJobId === selectedJob.id ? <LoaderCircle size={13} className="animate-spin" /> : <PlayCircle size={13} />}
+                  {runningJobId === selectedJob.id ? '执行中…' : '立即执行'}
                 </button>
                 <button
                   type="button"
