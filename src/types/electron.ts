@@ -20,6 +20,10 @@ export interface SetupEnvironmentCheckResult {
   clawhubInstalled: boolean;
   /** ClawHub CLI 版本号 */
   clawhubVersion?: string;
+  /** 可安装的 OpenClaw 版本列表 */
+  availableVersions: string[];
+  /** 推荐安装的版本（与 Desktop 版本匹配） */
+  recommendedVersion: string;
 }
 
 export interface SetupInstallResult {
@@ -909,7 +913,7 @@ export interface ElectronAPI {
   windowClose: () => Promise<void>;
   systemStats: () => Promise<{ cpu: number; memory: number; disk: number; network: number; uptime: number }>;
   setupEnvironmentCheck: () => Promise<SetupEnvironmentCheckResult>;
-  setupInstallOpenClaw: () => Promise<SetupInstallResult>;
+  setupInstallOpenClaw: (version?: string) => Promise<SetupInstallResult>;
   onInstallProgress: (callback: (event: InstallProgressEvent) => void) => () => void;
   onInstallOutput: (callback: (event: InstallOutputEvent) => void) => () => void;
   testModelConnection: (params: { provider: string; model: string; apiKey?: string; baseUrl?: string }) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;

@@ -148,7 +148,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // System stats
   systemStats: () => ipcRenderer.invoke('system:stats'),
   setupEnvironmentCheck: () => ipcRenderer.invoke('system:setupEnvironmentCheck'),
-  setupInstallOpenClaw: () => ipcRenderer.invoke('system:setupInstallOpenClaw'),
+  setupInstallOpenClaw: (version) => ipcRenderer.invoke('system:setupInstallOpenClaw', version),
   onInstallProgress: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('install:progress', handler);

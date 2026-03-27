@@ -154,7 +154,7 @@ export interface RuntimeActions {
   runtimeInfo(): Promise<DesktopRuntimeInfo | null>;
   getCapabilities(): Promise<DesktopRuntimeCapabilities | null>;
   setupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult>;
-  setupInstallOpenClaw(): Promise<SetupInstallResult>;
+  setupInstallOpenClaw(version?: string): Promise<SetupInstallResult>;
   onInstallProgress?(callback: (event: InstallProgressEvent) => void): () => void;
   onInstallOutput?(callback: (event: InstallOutputEvent) => void): () => void;
   testModelConnection?(params: { provider: string; model: string; apiKey?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string; latencyMs?: number }>;

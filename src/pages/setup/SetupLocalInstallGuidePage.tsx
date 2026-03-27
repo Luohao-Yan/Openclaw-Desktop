@@ -21,6 +21,7 @@ import {
   Wrench,
   XCircle,
   Zap,
+  Package,
 } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import SetupLayout from '../../components/setup/SetupLayout';
@@ -195,6 +196,10 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
   // 已完成绑定的渠道数量（用于 done 子步骤配置摘要展示）
   const [completedBindings, setCompletedBindings] = React.useState(0);
   const [modelProvider, setModelProvider] = React.useState('');
+  // 版本选择状态：默认使用推荐版本
+  const [selectedVersion, setSelectedVersion] = React.useState(
+    environmentCheck.recommendedVersion || ''
+  );
   const [modelName, setModelName] = React.useState('');
   const [apiKey, setApiKey] = React.useState('');
   const [baseUrl, setBaseUrl] = React.useState('');
@@ -475,7 +480,7 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
     setInstallLogs([]);
     setHasStartedInstall(true);
     setHasAutoJumpedToModel(false);
-    await installOpenClawForSetup();
+    await installOpenClawForSetup(selectedVersion || undefined);
   };
 
   // ── Channels 子步骤：渠道颜色映射 ──────────────────────────────────────
@@ -1270,6 +1275,35 @@ export const SetupLocalInstallGuidePage: React.FC = () => {
           {/* 安装进度 - 水平排列，仅在无已安装或用户选择重装时显示 */}
           {(!existingInstall || hasStartedInstall) && (
           <div className="space-y-4">
+          {/* 版本选择器 — 仅在未开始安装时显示 */}
+          {!hasStartedInstall && (
+            <div className="rounded-2xl border p-5" style={cardStyle}>
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Package size={14} /> 选择安装版本
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  className="text-sm rounded-lg px-3 py-2 border-0 outline-none cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--app-bg-elevated)',
+                    color: 'var(--app-text)',
+                    border: '1px solid var(--app-border)',
+                  }}
+                  value={selectedVersion}
+                  onChange={(e) => setSelectedVersion(e.target.value)}
+                >
+                  {(environmentCheck.availableVersions || []).map((v: string) => (
+                    <option key={v} value={v}>
+                      {v}{v === environmentCheck.recommendedVersion ? ' (推荐)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs" style={mutedText}>
+                  推荐版本与 Desktop {environmentCheck.recommendedVersion ? `v${environmentCheck.recommendedVersion}` : ''} 匹配
+                </span>
+              </div>
+            </div>
+          )}
           <div className="rounded-2xl border p-5" style={cardStyle}>
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <Download size={14} /> 安装进度

@@ -87,7 +87,7 @@ interface SetupFlowContextValue {
   localCheckResult: SetupLocalCheckResult | null;
   mode: SetupMode | null;
   persistPartialState: (updates: Partial<SetupSettings>) => Promise<void>;
-  installOpenClawForSetup: () => Promise<SetupInstallFlowResult>;
+  installOpenClawForSetup: (version?: string) => Promise<SetupInstallFlowResult>;
   refreshEnvironmentCheck: () => Promise<SetupEnvironmentCheck>;
   refreshLocalCheck: () => Promise<SetupLocalCheckResult>;
   remoteDraft: SetupRemoteDraft;
@@ -523,13 +523,13 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // ========================================================================
   // OpenClaw 自动安装
   // ========================================================================
-  const installOpenClawForSetup = React.useCallback(async () => {
+  const installOpenClawForSetup = React.useCallback(async (version?: string) => {
     dispatch({ type: 'SET_BUSY', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
 
     const runningState: SetupInstallFlowResult = {
       success: false,
-      message: '正在自动安装 OpenClaw，请稍候…',
+      message: `正在自动安装 OpenClaw${version ? ` (${version})` : ''}，请稍候…`,
       command: environmentCheck.recommendedInstallCommand,
     };
 
@@ -542,7 +542,7 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     try {
       const result: SetupInstallResult = typeof window.electronAPI?.setupInstallOpenClaw === 'function'
-        ? await window.electronAPI.setupInstallOpenClaw()
+        ? await window.electronAPI.setupInstallOpenClaw(version)
         : {
             success: false,
             message: '当前桌面端未提供一键安装能力。',

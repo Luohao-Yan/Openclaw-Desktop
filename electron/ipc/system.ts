@@ -16,6 +16,7 @@ import { resolveRuntime, getBundledNodePath, getBundledOpenClawCLIPath } from '.
 import type { RuntimeTier } from './runtimeLogic.js';
 import { buildModelTestUrl } from './modelTestLogic.js';
 import { resolveClawHubStatus, buildClawHubFixableIssue } from './clawhubInstallLogic.js';
+import { CURRENT_MANIFEST_VERSION, SUPPORTED_MANIFEST_VERSIONS } from '../config/manifest-version.js';
 // 统一命令执行入口（供后续迁移使用）
 import { spawnWithShellPath } from './spawnHelper.js';
 
@@ -85,9 +86,12 @@ function sendInstallProgress(
   }
 }
 
-async function installOpenClawForSetup(sender: Electron.WebContents): Promise<SetupInstallResult> {
+async function installOpenClawForSetup(sender: Electron.WebContents, version?: string): Promise<SetupInstallResult> {
   const platform = process.platform;
   const INSTALL_TIMEOUT = 5 * 60 * 1000;
+  // 使用指定版本或从 CURRENT_MANIFEST_VERSION 派生默认版本
+  // CURRENT_MANIFEST_VERSION 格式为 "3.13"，对应 OpenClaw 版本 "2026.3.13"
+  const targetVersion = version || `2026.${CURRENT_MANIFEST_VERSION}`;
 
   // 实时输出回调
   const sendOutput = (data: string, isError: boolean) => {
@@ -99,15 +103,16 @@ async function installOpenClawForSetup(sender: Electron.WebContents): Promise<Se
   };
 
   // ── 阶段 1: 下载安装包 ──
-  sendInstallProgress(sender, 'download', 'running', '正在下载安装脚本…');
+  sendInstallProgress(sender, 'download', 'running', `正在下载安装脚本（目标版本: ${targetVersion}）…`);
 
   const isWindows = platform === 'win32';
   const shellBin = isWindows
     ? 'powershell'
     : (process.env.SHELL && process.env.SHELL.startsWith('/') ? process.env.SHELL : '/bin/bash');
+  // 通过 OPENCLAW_VERSION 环境变量指定安装版本
   const installCmd = isWindows
-    ? 'powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://openclaw.ai/install.ps1 | iex"'
-    : 'curl -fsSL https://openclaw.ai/install.sh | bash';
+    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:OPENCLAW_VERSION='${targetVersion}'; iwr -useb https://openclaw.ai/install.ps1 | iex"`
+    : `OPENCLAW_VERSION=${targetVersion} curl -fsSL https://openclaw.ai/install.sh | bash`;
 
   const installResult = isWindows
     ? await runShellCommand(installCmd, INSTALL_TIMEOUT, shellBin, sendOutput)
@@ -419,6 +424,10 @@ interface SetupEnvironmentCheckResult {
   clawhubInstalled: boolean;
   /** ClawHub CLI 版本号 */
   clawhubVersion?: string;
+  /** 可安装的 OpenClaw 版本列表（从 SUPPORTED_MANIFEST_VERSIONS 派生） */
+  availableVersions: string[];
+  /** 推荐安装的版本（与 Desktop 版本匹配） */
+  recommendedVersion: string;
 }
 
 interface SetupInstallResult {
@@ -663,8 +672,8 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
   const bundledOpenClawPath = getBundledOpenClawCLIPath();
 
   const recommendedInstallCommand = platform === 'win32'
-    ? 'iwr -useb https://openclaw.ai/install.ps1 | iex'
-    : 'curl -fsSL https://openclaw.ai/install.sh | bash';
+    ? `$env:OPENCLAW_VERSION='2026.${CURRENT_MANIFEST_VERSION}'; iwr -useb https://openclaw.ai/install.ps1 | iex`
+    : `OPENCLAW_VERSION=2026.${CURRENT_MANIFEST_VERSION} curl -fsSL https://openclaw.ai/install.sh | bash`;
   const recommendedInstallLabel = runtime.tier === 'bundled'
     ? '应用内置运行时（推荐）'
     : platform === 'win32'
@@ -722,6 +731,8 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
       // bundled 模式下视为 clawhub 已可用
       clawhubInstalled: true,
       clawhubVersion: undefined,
+      availableVersions: [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v}`),
+      recommendedVersion: `2026.${CURRENT_MANIFEST_VERSION}`,
     };
   }
 
@@ -857,6 +868,9 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     fixableIssues,
     clawhubInstalled,
     clawhubVersion,
+    // 从 SUPPORTED_MANIFEST_VERSIONS 派生可安装版本列表
+    availableVersions: [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v}`),
+    recommendedVersion: `2026.${CURRENT_MANIFEST_VERSION}`,
   };
 }
 
@@ -1184,7 +1198,7 @@ async function testModelConnection(params: {
 export function setupSystemIPC() {
   ipcMain.handle('system:stats', getSystemStats);
   ipcMain.handle('system:setupEnvironmentCheck', getSetupEnvironmentCheck);
-  ipcMain.handle('system:setupInstallOpenClaw', (event) => installOpenClawForSetup(event.sender));
+  ipcMain.handle('system:setupInstallOpenClaw', (event, version?: string) => installOpenClawForSetup(event.sender, version));
   ipcMain.handle('system:testModelConnection', (_event, params) => testModelConnection(params));
   ipcMain.handle('runtime:info', getRuntimeInfo);
   ipcMain.handle('runtime:capabilities', getRuntimeCapabilities);
