@@ -291,14 +291,8 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           {/* 编辑分组 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors cursor-pointer rounded-lg"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
             style={{ color: 'var(--app-text)' }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-bg-subtle)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-            }}
             onClick={() => handleMenuAction('edit')}
           >
             <Pencil size={14} style={{ color: 'var(--app-text-muted)' }} />
@@ -307,14 +301,8 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           {/* 批量导出 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors cursor-pointer rounded-lg"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
             style={{ color: 'var(--app-text)' }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-bg-subtle)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-            }}
             onClick={() => handleMenuAction('export')}
           >
             <Download size={14} style={{ color: 'var(--app-text-muted)' }} />
@@ -325,14 +313,8 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           {/* 删除分组 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors cursor-pointer rounded-lg"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer rounded-lg hover:bg-red-500/8"
             style={{ color: '#F87171' }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-            }}
             onClick={() => handleMenuAction('delete')}
           >
             <Trash2 size={14} />
