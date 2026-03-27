@@ -469,36 +469,60 @@ const Agents: React.FC = () => {
         )}
       </div>
 
-      {/* 分组选择行 */}
+      {/* 分组选择行：tag 风格下拉选择器 */}
       <div className="flex items-center gap-2 mb-3 min-w-0">
         <FolderOpen className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--app-text-muted)' }} />
         <span className="text-xs flex-shrink-0" style={{ color: 'var(--app-text-muted)' }}>分组</span>
-        <select
-          className="text-xs rounded px-2 py-1 border-0 outline-none cursor-pointer truncate max-w-[160px]"
-          style={{
-            backgroundColor: 'var(--app-bg-subtle)',
-            color: 'var(--app-text)',
-          }}
-          value={groupMappings[agent.id] || ''}
-          onChange={async (e) => {
-            const groupId = e.target.value;
-            try {
-              if (groupId) {
-                await window.electronAPI.agentGroupsAssignAgent({ agentId: agent.id, groupId });
-              } else {
-                await window.electronAPI.agentGroupsRemoveAgent(agent.id);
-              }
-              /* 刷新映射关系 */
-              const mr = await window.electronAPI.agentGroupsGetMappings();
-              if (mr.success && mr.mappings) setGroupMappings(mr.mappings);
-            } catch { /* 忽略 */ }
-          }}
-        >
-          <option value="">未分组</option>
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>{g.emoji ? `${g.emoji} ` : ''}{g.name}</option>
-          ))}
-        </select>
+        {(() => {
+          const mappedGroupId = groupMappings[agent.id];
+          const mappedGroup = mappedGroupId ? groups.find((g) => g.id === mappedGroupId) : null;
+          /* 根据分组颜色生成 tag 背景色 */
+          const tagColor = mappedGroup?.color || '#6366F1';
+          const hexToRgba = (hex: string, a: number) => {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${a})`;
+          };
+          return (
+            <div className="relative inline-flex">
+              <select
+                className="text-xs font-medium rounded-full pl-3 pr-6 py-1 border outline-none cursor-pointer truncate max-w-[180px] appearance-none"
+                style={{
+                  backgroundColor: mappedGroup ? hexToRgba(tagColor, 0.12) : 'var(--app-bg-subtle)',
+                  borderColor: mappedGroup ? hexToRgba(tagColor, 0.3) : 'var(--app-border)',
+                  color: mappedGroup ? tagColor : 'var(--app-text-muted)',
+                }}
+                value={mappedGroupId || ''}
+                onChange={async (e) => {
+                  const groupId = e.target.value;
+                  try {
+                    if (groupId) {
+                      await window.electronAPI.agentGroupsAssignAgent({ agentId: agent.id, groupId });
+                    } else {
+                      await window.electronAPI.agentGroupsRemoveAgent(agent.id);
+                    }
+                    /* 刷新映射关系 */
+                    const mr = await window.electronAPI.agentGroupsGetMappings();
+                    if (mr.success && mr.mappings) setGroupMappings(mr.mappings);
+                  } catch { /* 忽略 */ }
+                }}
+              >
+                <option value="">未分组</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.emoji ? `${g.emoji} ` : ''}{g.name}</option>
+                ))}
+              </select>
+              {/* 自定义下拉箭头，覆盖原生样式 */}
+              <span
+                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
+                style={{ color: mappedGroup ? tagColor : 'var(--app-text-muted)' }}
+              >
+                ▾
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 统计数据网格：会话数、消息数、Token 用量、平均响应时间 */}
