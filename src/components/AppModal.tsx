@@ -179,7 +179,7 @@ const AppModal: React.FC<AppModalProps> = ({
         tabIndex={-1}
         className={`
           relative w-full ${SIZE_CLASS[size]} rounded-3xl border overflow-hidden
-          outline-none focus:outline-none
+          outline-none focus:outline-none flex flex-col
           ${className}
         `}
         style={{
@@ -188,6 +188,7 @@ const AppModal: React.FC<AppModalProps> = ({
           color: 'var(--app-text)',
           boxShadow: '0 32px 64px rgba(0,0,0,0.40), 0 8px 24px rgba(0,0,0,0.20)',
           animation: 'modal-panel-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+          maxHeight: 'calc(100vh - 2rem)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -238,9 +239,9 @@ const AppModal: React.FC<AppModalProps> = ({
           </div>
         )}
 
-        {/* ── 内容区 ────────────────────────────────────────────────────── */}
+        {/* ── 内容区（可滚动，限制最大高度） ──────────────────────────── */}
         {children && (
-          <div className={noPadding ? '' : 'px-6 py-5'}>
+          <div className={`${noPadding ? '' : 'px-6 py-5'} overflow-y-auto flex-1 min-h-0`}>
             {children}
           </div>
         )}
