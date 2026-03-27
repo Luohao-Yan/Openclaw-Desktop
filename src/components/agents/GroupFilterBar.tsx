@@ -279,7 +279,7 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
       {contextMenu && (
         <div
           ref={menuRef}
-          className="fixed z-[100] rounded-xl border py-1 shadow-lg"
+          className="fixed z-[100] rounded-xl border py-1.5 px-1 shadow-lg"
           style={{
             left: contextMenu.x,
             top: contextMenu.y,
@@ -291,7 +291,7 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           {/* 编辑分组 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors cursor-pointer rounded-lg"
             style={{ color: 'var(--app-text)' }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-bg-subtle)';
@@ -307,7 +307,7 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           {/* 批量导出 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors cursor-pointer rounded-lg"
             style={{ color: 'var(--app-text)' }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-bg-subtle)';
@@ -325,7 +325,7 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           {/* 删除分组 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-colors cursor-pointer rounded-lg"
             style={{ color: '#F87171' }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
