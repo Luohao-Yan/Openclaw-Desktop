@@ -98,6 +98,14 @@
   --app-glass-bg: rgba(255, 255, 255, 0.04);
   --app-glass-border: var(--app-border);
   --app-glass-elevated-bg: rgba(255, 255, 255, 0.08);
+
+  /* Badge 主色 RGB 值 — 深色模式使用亮色调 */
+  --badge-rgb-default: 129,140,248;
+  --badge-rgb-success: 52,211,153;
+  --badge-rgb-danger: 248,113,113;
+  --badge-rgb-warning: 252,211,77;
+  --badge-rgb-info: 56,189,248;
+  --badge-rgb-neutral: 148,163,184;
   --app-glass-elevated-border: rgba(255,255,255,0.14);
 
   /* Toast 提示主题属性 */
@@ -254,6 +262,14 @@ body {
   --app-glass-bg: rgba(255, 255, 255, 0.70);
   --app-glass-border: var(--app-border);
   --app-glass-elevated-bg: rgba(255, 255, 255, 0.80);
+
+  /* Badge 主色 RGB 值 — 浅色模式使用深色调，确保对比度 */
+  --badge-rgb-default: 79,70,229;
+  --badge-rgb-success: 5,150,105;
+  --badge-rgb-danger: 220,38,38;
+  --badge-rgb-warning: 180,83,9;
+  --badge-rgb-info: 2,132,199;
+  --badge-rgb-neutral: 100,116,139;
   --app-glass-elevated-border: rgba(15,23,42,0.10);
 
   /* Toast 提示浅色主题属性 */

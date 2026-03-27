@@ -44,44 +44,14 @@ export interface AppBadgeProps {
 
 // ── 颜色配置 ──────────────────────────────────────────────────────────────────
 
-/** 各变体的背景色（rgba，适配深色/浅色主题） */
-const VARIANT_BG: Record<AppBadgeVariant, string> = {
-  default: 'rgba(99, 102, 241, 0.12)',   // 紫
-  success: 'rgba(16, 185, 129, 0.12)',   // 绿
-  danger:  'rgba(239, 68, 68, 0.12)',    // 红
-  warning: 'rgba(245, 158, 11, 0.12)',   // 黄
-  info:    'rgba(14, 165, 233, 0.12)',   // 蓝
-  neutral: 'rgba(148, 163, 184, 0.10)',  // 灰
-};
-
-/** 各变体的边框色 */
-const VARIANT_BORDER: Record<AppBadgeVariant, string> = {
-  default: 'rgba(99, 102, 241, 0.22)',
-  success: 'rgba(16, 185, 129, 0.22)',
-  danger:  'rgba(239, 68, 68, 0.22)',
-  warning: 'rgba(245, 158, 11, 0.22)',
-  info:    'rgba(14, 165, 233, 0.22)',
-  neutral: 'rgba(148, 163, 184, 0.18)',
-};
-
-/** 各变体的文字色 */
-const VARIANT_TEXT: Record<AppBadgeVariant, string> = {
-  default: '#818CF8',  // 紫
-  success: '#34D399',  // 绿
-  danger:  '#F87171',  // 红
-  warning: '#FCD34D',  // 黄
-  info:    '#38BDF8',  // 蓝
-  neutral: 'var(--app-text-muted)',
-};
-
-/** 各变体的圆点色 */
-const VARIANT_DOT: Record<AppBadgeVariant, string> = {
-  default: '#818CF8',
-  success: '#34D399',
-  danger:  '#F87171',
-  warning: '#FCD34D',
-  info:    '#38BDF8',
-  neutral: 'var(--app-text-muted)',
+/** 各变体的 RGB 主色值（不含 alpha），通过不同透明度生成背景/边框/文字 */
+const VARIANT_RGB: Record<AppBadgeVariant, string> = {
+  default: 'var(--badge-rgb-default, 99,102,241)',   // 紫
+  success: 'var(--badge-rgb-success, 34,197,94)',    // 绿
+  danger:  'var(--badge-rgb-danger, 239,68,68)',     // 红
+  warning: 'var(--badge-rgb-warning, 245,158,11)',   // 黄
+  info:    'var(--badge-rgb-info, 14,165,233)',      // 蓝
+  neutral: 'var(--badge-rgb-neutral, 148,163,184)',  // 灰
 };
 
 // ── 尺寸配置 ──────────────────────────────────────────────────────────────────
@@ -109,6 +79,7 @@ const AppBadge: React.FC<AppBadgeProps> = ({
   style,
   children,
 }) => {
+  const rgb = VARIANT_RGB[variant];
   return (
     <span
       className={`
@@ -117,9 +88,10 @@ const AppBadge: React.FC<AppBadgeProps> = ({
         ${className}
       `}
       style={{
-        backgroundColor: VARIANT_BG[variant],
-        border: `1px solid ${VARIANT_BORDER[variant]}`,
-        color: VARIANT_TEXT[variant],
+        /* 同一主色，不同透明度：背景 0.10、边框 0.22、文字 0.85 */
+        backgroundColor: `rgba(${rgb}, 0.10)`,
+        border: `1px solid rgba(${rgb}, 0.22)`,
+        color: `rgba(${rgb}, 0.85)`,
         ...style,
       }}
     >
@@ -127,7 +99,7 @@ const AppBadge: React.FC<AppBadgeProps> = ({
       {dot && (
         <span
           className={`rounded-full flex-shrink-0 ${DOT_SIZE[size]}`}
-          style={{ backgroundColor: VARIANT_DOT[variant] }}
+          style={{ backgroundColor: `rgba(${rgb}, 0.85)` }}
         />
       )}
       {/* 左侧图标 */}

@@ -158,19 +158,19 @@ const getPayloadKind = (job: CronJobRecord) => {
 const getJobTone = (job: CronJobRecord) => {
   if (job.enabled === false) {
     return {
-      bg: 'rgba(148, 163, 184, 0.12)',
-      border: 'rgba(148, 163, 184, 0.20)',
-      text: '#94a3b8',
-      dot: '#64748b',
+      bg: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.10)',
+      border: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.22)',
+      text: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.85)',
+      dot: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.85)',
       label: '已停用',
     };
   }
 
   return {
-    bg: 'rgba(34, 197, 94, 0.12)',
-    border: 'rgba(34, 197, 94, 0.22)',
-    text: '#86EFAC',
-    dot: '#22c55e',
+    bg: 'rgba(var(--badge-rgb-success, 52,211,153), 0.10)',
+    border: 'rgba(var(--badge-rgb-success, 52,211,153), 0.22)',
+    text: 'rgba(var(--badge-rgb-success, 52,211,153), 0.85)',
+    dot: 'rgba(var(--badge-rgb-success, 52,211,153), 0.85)',
     label: '运行中',
   };
 };
