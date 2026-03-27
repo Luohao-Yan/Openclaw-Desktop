@@ -1,5 +1,5 @@
-import React, { Suspense } from 'react';
-import { HashRouter, Route, Routes } from 'react-router-dom';
+import React, { Suspense, useRef, useEffect } from 'react';
+import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import DesktopRuntimeProvider from './contexts/DesktopRuntimeContext';
 import { SetupFlowProvider, useSetupFlow } from './contexts/SetupFlowContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -46,7 +46,28 @@ const AppLoadingScreen: React.FC = () => (
   </div>
 );
 
+/**
+ * ScrollToTop 组件：监听路由 pathname 变化，自动将 <main> 滚动容器重置到顶部
+ * 解决 HashRouter 下路由切换时页面保留前一页面滚动位置的问题
+ */
+const ScrollToTop: React.FC<{ mainRef: React.RefObject<HTMLElement | null> }> = ({ mainRef }) => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    // 当路由 pathname 变化时，将滚动容器的 scrollTop 重置为 0
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [pathname, mainRef]);
+
+  // 该组件不渲染任何 UI 元素
+  return null;
+};
+
 const MainAppLayout: React.FC = () => {
+  // 创建 ref 引用 <main> 滚动容器，供 ScrollToTop 组件使用
+  const mainRef = useRef<HTMLElement>(null);
+
   return (
     <div
       className="flex flex-col h-screen"
@@ -60,9 +81,12 @@ const MainAppLayout: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main
+          ref={mainRef}
           className="flex-1 overflow-auto min-h-full relative"
           style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}
         >
+          {/* 路由切换时自动重置滚动位置到顶部 */}
+          <ScrollToTop mainRef={mainRef} />
           {/* 懒加载页面使用 Suspense 包裹，加载期间显示骨架屏占位 */}
           <Suspense fallback={<PageSkeleton />}>
             <Routes>
