@@ -223,18 +223,63 @@ const Agents: React.FC = () => {
     }
   };
 
-  /** 创建或编辑分组确认 */
-  const handleGroupDialogConfirm = async (data: { name: string; description?: string; color?: string; emoji?: string }) => {
+  /** 创建或编辑分组确认（含批量 Agent 映射更新） */
+  const handleGroupDialogConfirm = async (data: { name: string; description?: string; color?: string; emoji?: string; selectedAgentIds: string[] }) => {
+    const { selectedAgentIds, ...groupData } = data;
+    let groupId: string | undefined;
+
     try {
       if (editingGroup) {
-        await window.electronAPI.agentGroupsUpdate({ id: editingGroup.id, ...data });
+        // 编辑模式：更新分组属性，groupId 已知
+        await window.electronAPI.agentGroupsUpdate({ id: editingGroup.id, ...groupData });
+        groupId = editingGroup.id;
       } else {
-        await window.electronAPI.agentGroupsCreate(data);
+        // 创建模式：创建分组并获取新 groupId
+        const createResult = await window.electronAPI.agentGroupsCreate(groupData);
+        if (createResult.success && createResult.group) {
+          groupId = createResult.group.id;
+        }
       }
+
       // 刷新分组列表
-      const result = await window.electronAPI.agentGroupsList();
-      if (result.success && result.groups) setGroups(result.groups);
-    } catch { /* 忽略 */ }
+      const grResult = await window.electronAPI.agentGroupsList();
+      if (grResult.success && grResult.groups) setGroups(grResult.groups);
+
+      // 如果获取到 groupId，计算映射差异并批量更新
+      if (groupId) {
+        // 内联 computeMappingDiff 逻辑（避免引入 node:crypto 依赖）
+        const selectedSet = new Set(selectedAgentIds);
+        const toAssign = selectedAgentIds.filter(
+          (id) => groupMappings[id] !== groupId,
+        );
+        const toRemove = Object.entries(groupMappings)
+          .filter(([agentId, gId]) => gId === groupId && !selectedSet.has(agentId))
+          .map(([agentId]) => agentId);
+
+        // 逐个调用 IPC 分配 Agent（单个失败不中断整体流程）
+        for (const agentId of toAssign) {
+          try {
+            await window.electronAPI.agentGroupsAssignAgent({ agentId, groupId });
+          } catch {
+            // 单个分配失败，继续处理剩余
+          }
+        }
+
+        // 逐个调用 IPC 移除 Agent（单个失败不中断整体流程）
+        for (const agentId of toRemove) {
+          try {
+            await window.electronAPI.agentGroupsRemoveAgent(agentId);
+          } catch {
+            // 单个移除失败，继续处理剩余
+          }
+        }
+
+        // 刷新映射数据
+        const mrResult = await window.electronAPI.agentGroupsGetMappings();
+        if (mrResult.success && mrResult.mappings) setGroupMappings(mrResult.mappings);
+      }
+    } catch { /* 分组创建/更新失败，中止后续映射操作 */ }
+
     setGroupDialogOpen(false);
     setEditingGroup(undefined);
   };
@@ -971,6 +1016,9 @@ const Agents: React.FC = () => {
               open={groupDialogOpen}
               group={editingGroup}
               existingNames={groups.map((g) => g.name)}
+              agents={agents}
+              groupMappings={groupMappings}
+              groups={groups}
               onConfirm={handleGroupDialogConfirm}
               onCancel={() => { setGroupDialogOpen(false); setEditingGroup(undefined); }}
             />

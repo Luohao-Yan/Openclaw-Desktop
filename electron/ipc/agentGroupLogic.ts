@@ -7,6 +7,7 @@
  */
 
 import crypto from 'node:crypto';
+import type { AgentInfo } from './agents';
 
 // ============================================================================
 // 常量定义
@@ -533,4 +534,81 @@ export function parseOcgroupHeader(
   };
 
   return { groupMeta, agentCount, header };
+}
+
+// ============================================================================
+// 批量选择相关纯函数
+// ============================================================================
+
+/**
+ * 计算批量保存时需要执行的映射变更
+ *
+ * 对比用户勾选的 Agent 列表与当前映射，计算出需要新增分配和需要移除的 Agent。
+ *
+ * @param selectedAgentIds - 用户勾选的 Agent ID 集合
+ * @param currentMappings - 当前 Agent-分组映射（agentId → groupId）
+ * @param groupId - 目标分组 ID
+ * @returns toAssign（需要分配的 agentId 列表）和 toRemove（需要移除的 agentId 列表）
+ */
+export function computeMappingDiff(
+  selectedAgentIds: string[],
+  currentMappings: Record<string, string>,
+  groupId: string,
+): { toAssign: string[]; toRemove: string[] } {
+  const selectedSet = new Set(selectedAgentIds);
+
+  // 需要分配：在选中列表中，但当前映射不指向该分组
+  const toAssign = selectedAgentIds.filter(
+    (id) => currentMappings[id] !== groupId,
+  );
+
+  // 需要移除：当前映射指向该分组，但不在选中列表中
+  const toRemove = Object.entries(currentMappings)
+    .filter(([agentId, gId]) => gId === groupId && !selectedSet.has(agentId))
+    .map(([agentId]) => agentId);
+
+  return { toAssign, toRemove };
+}
+
+/**
+ * 按名称模糊匹配过滤 Agent 列表
+ *
+ * 不区分大小写地检查 Agent 名称是否包含搜索关键词。
+ * 空查询返回完整列表。
+ *
+ * @param agents - 完整 Agent 列表
+ * @param query - 搜索关键词
+ * @returns 过滤后的 Agent 列表
+ */
+export function filterAgentsByName(
+  agents: AgentInfo[],
+  query: string,
+): AgentInfo[] {
+  const trimmed = query.trim().toLowerCase();
+  if (trimmed.length === 0) return agents;
+  return agents.filter((a) =>
+    a.name.toLowerCase().includes(trimmed),
+  );
+}
+
+/**
+ * 根据映射和分组 ID 初始化编辑模式下的预选 Agent ID 集合
+ *
+ * 遍历所有映射，找出值等于目标 groupId 的 Agent ID，返回其集合。
+ *
+ * @param mappings - 当前 Agent-分组映射（agentId → groupId）
+ * @param groupId - 目标分组 ID
+ * @returns 属于该分组的 Agent ID 集合
+ */
+export function initSelectedAgents(
+  mappings: Record<string, string>,
+  groupId: string,
+): Set<string> {
+  const result = new Set<string>();
+  for (const [agentId, gId] of Object.entries(mappings)) {
+    if (gId === groupId) {
+      result.add(agentId);
+    }
+  }
+  return result;
 }
