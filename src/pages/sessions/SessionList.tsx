@@ -51,10 +51,20 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, on
             const isPending = pendingSessions?.has(s.id) ?? false;
             return (
               <button key={s.id} onClick={() => onSelect(s)}
-                className="w-full text-left px-3 py-2.5 rounded-xl transition-token-fast cursor-pointer group hover:bg-black/[0.03] dark:hover:bg-white/[0.04]"
+                className="w-full text-left px-3 py-2.5 rounded-xl transition-token-fast cursor-pointer group"
                 style={{
-                  backgroundColor: isSelected ? 'rgba(96,165,250,0.12)' : undefined,
+                  backgroundColor: isSelected ? 'rgba(96,165,250,0.12)' : 'transparent',
                   border: isSelected ? '1px solid rgba(96,165,250,0.2)' : '1px solid transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-bg-subtle)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                  }
                 }}>
                 <div className="flex items-center gap-2.5">
                   {/* 智能体头像 */}
