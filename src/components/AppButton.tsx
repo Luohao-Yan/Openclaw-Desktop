@@ -296,7 +296,7 @@ const AppButton: React.FC<AppButtonProps> = ({
     >
       {/* 左侧图标 / loading spinner */}
       {leftContent && (
-        <span className={iconOnly ? '' : 'mr-1.5 inline-flex items-center'}>
+        <span className={iconOnly ? 'inline-flex items-center' : 'mr-1.5 inline-flex items-center'}>
           {leftContent}
         </span>
       )}
