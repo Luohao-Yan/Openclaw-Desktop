@@ -1,6 +1,6 @@
 import pkg from 'electron';
 import fs from 'fs/promises';
-const { ipcMain } = pkg;
+const { ipcMain, dialog } = pkg;
 import { spawn } from 'child_process';
 import {
   existsSync,
@@ -17,6 +17,7 @@ import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand } from './sett
 import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError, needsAgentDirRepair, planAgentDirRepair } from './agentCreateLogic.js';
 import { checkAgentCompleteness, planAgentCompletenessRepair, validateAgentRename } from './agentCompletenessLogic.js';
 import { buildDeleteCleanupPlan } from './agentDeleteCleanupLogic.js';
+import { aggregateSessionStats } from './statsAggregator.js';
 
 /**
  * 构建 doctor --fix 命令的环境变量（纯函数）
@@ -968,1010 +969,6 @@ function buildWorkspaceDetails(info: AgentInfo): AgentWorkspaceDetails {
   };
 }
 
-export interface AgentPerformanceMetrics {
-  cpuUsage: number;
-  memoryUsage: number;
-  tokensPerSecond: number;
-  responseTime: number;
-  errorRate: number;
-  uptime: number;
-  sessionCount: number;
-  totalMessages: number;
-  lastUpdated: string;
-}
-
-export interface AgentEnhancementFeature {
-  id: string;
-  name: string;
-  type: 'performance' | 'security' | 'monitoring' | 'integration' | 'automation' | 'utility';
-  description: string;
-  enabled: boolean;
-  settings: Record<string, any>;
-  lastApplied?: string;
-  status: 'active' | 'inactive' | 'error';
-  version?: string;
-  dependencies?: string[];
-}
-
-// ── 增强功能配置管理 ──────────────────────────────────────────────────────────
-
-/** 增强功能配置文件结构 */
-interface EnhancementConfig {
-  version: string;
-  agentId: string;
-  lastModified: string;
-  enhancements: {
-    [enhancementId: string]: {
-      enabled: boolean;
-      settings: Record<string, any>;
-      lastApplied?: string;
-    };
-  };
-}
-
-/**
- * 获取增强功能配置文件路径
- * @param info 智能体信息
- * @returns 配置文件完整路径
- */
-function getEnhancementConfigPath(info: AgentInfo): string {
-  const agentDir = info.agentConfigRoot || info.workspaceRoot;
-  if (!agentDir) {
-    throw new Error('无法确定智能体配置目录');
-  }
-  return join(agentDir, 'enhancements.json');
-}
-
-/**
- * 读取增强功能配置文件
- * @param info 智能体信息
- * @returns 配置对象
- */
-function readEnhancementConfig(info: AgentInfo): EnhancementConfig {
-  const configPath = getEnhancementConfigPath(info);
-  
-  try {
-    // 尝试读取配置文件
-    const content = readFileSync(configPath, 'utf8');
-    const config = JSON.parse(content);
-    
-    // 验证配置格式
-    if (!validateEnhancementConfig(config)) {
-      console.warn(`[agents] 增强功能配置格式无效，使用默认配置: ${configPath}`);
-      return createDefaultEnhancementConfig(info.id);
-    }
-    
-    return config;
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      // 文件不存在，创建默认配置
-      console.log(`[agents] 增强功能配置文件不存在，创建默认配置: ${configPath}`);
-      const defaultConfig = createDefaultEnhancementConfig(info.id);
-      writeEnhancementConfig(info, defaultConfig);
-      return defaultConfig;
-    }
-    
-    if (error instanceof SyntaxError) {
-      // JSON 格式错误，备份并创建新配置
-      const backupPath = `${configPath}.backup.${Date.now()}`;
-      try {
-        renameSync(configPath, backupPath);
-        console.warn(`[agents] 损坏的配置文件已备份到: ${backupPath}`);
-      } catch (backupError) {
-        console.error(`[agents] 无法备份损坏的配置文件:`, backupError);
-      }
-      
-      const defaultConfig = createDefaultEnhancementConfig(info.id);
-      writeEnhancementConfig(info, defaultConfig);
-      return defaultConfig;
-    }
-    
-    // 其他错误，抛出
-    throw error;
-  }
-}
-
-/**
- * 写入增强功能配置文件
- * @param info 智能体信息
- * @param config 配置对象
- */
-function writeEnhancementConfig(info: AgentInfo, config: EnhancementConfig): void {
-  const configPath = getEnhancementConfigPath(info);
-  
-  try {
-    // 确保目录存在
-    const configDir = dirname(configPath);
-    mkdirSync(configDir, { recursive: true });
-    
-    // 更新最后修改时间
-    config.lastModified = new Date().toISOString();
-    
-    // 原子性写入：先写临时文件，再重命名
-    const tempPath = `${configPath}.tmp`;
-    writeFileSync(tempPath, JSON.stringify(config, null, 2), 'utf8');
-    renameSync(tempPath, configPath);
-    
-    console.log(`[agents] 增强功能配置已保存: ${configPath}`);
-  } catch (error) {
-    console.error(`[agents] 保存增强功能配置失败:`, error);
-    throw error;
-  }
-}
-
-/**
- * 创建默认增强功能配置
- * @param agentId 智能体 ID
- * @returns 默认配置对象
- */
-function createDefaultEnhancementConfig(agentId: string): EnhancementConfig {
-  return {
-    version: '1.0.0',
-    agentId,
-    lastModified: new Date().toISOString(),
-    enhancements: {
-      'performance-boost': {
-        enabled: true,
-        settings: { compression: 'high', cacheSize: 1000 },
-        lastApplied: new Date().toISOString(),
-      },
-      'security-audit': {
-        enabled: true,
-        settings: { auditLevel: 'high', logSensitive: true },
-        lastApplied: new Date().toISOString(),
-      },
-      'real-time-monitoring': {
-        enabled: true,
-        settings: { updateInterval: 5000, alertThreshold: 80 },
-        lastApplied: new Date().toISOString(),
-      },
-      'api-integration': {
-        enabled: false,
-        settings: { webhookUrl: '', maxRetries: 3 },
-      },
-      'auto-scaling': {
-        enabled: false,
-        settings: { minInstances: 1, maxInstances: 5, scaleThreshold: 70 },
-      },
-      'session-management': {
-        enabled: true,
-        settings: { maxSessions: 20, retentionDays: 30 },
-        lastApplied: new Date().toISOString(),
-      },
-      'tool-integration': {
-        enabled: false,
-        settings: { tools: [], maxConcurrent: 5 },
-      },
-      'analytics-dashboard': {
-        enabled: true,
-        settings: { metricsEnabled: true, reportFrequency: 'daily' },
-        lastApplied: new Date().toISOString(),
-      },
-    },
-  };
-}
-
-/**
- * 验证增强功能配置格式
- * @param config 配置对象
- * @returns 是否有效
- */
-function validateEnhancementConfig(config: any): config is EnhancementConfig {
-  if (!config || typeof config !== 'object') {
-    return false;
-  }
-  
-  // 检查必需字段
-  if (!config.version || !config.agentId || !config.enhancements) {
-    return false;
-  }
-  
-  // 检查 enhancements 是否为对象
-  if (typeof config.enhancements !== 'object') {
-    return false;
-  }
-  
-  // 检查每个增强功能配置
-  for (const [id, enhancement] of Object.entries(config.enhancements)) {
-    if (typeof enhancement !== 'object' || enhancement === null) {
-      return false;
-    }
-    
-    const enh = enhancement as any;
-    if (typeof enh.enabled !== 'boolean' || typeof enh.settings !== 'object') {
-      return false;
-    }
-  }
-  
-  return true;
-}
-
-// ── 性能数据采集器 ──────────────────────────────────────────────────────────
-
-/**
- * 性能数据采集器类
- * 负责收集智能体的各项性能指标
- */
-class PerformanceCollector {
-  private startTime: number = Date.now();
-  
-  /**
-   * 收集 CPU 使用率
-   * @returns CPU 使用率百分比 (0-100)
-   */
-  collectCpuUsage(): number {
-    try {
-      const usage = process.cpuUsage();
-      // 计算 CPU 使用率百分比
-      // cpuUsage 返回的是微秒，需要转换为百分比
-      const totalUsage = (usage.user + usage.system) / 1000000; // 转换为秒
-      const uptime = (Date.now() - this.startTime) / 1000; // 转换为秒
-      const cpuPercent = (totalUsage / uptime) * 100;
-      
-      // 限制在 0-100 范围内
-      return Math.min(Math.max(cpuPercent, 0), 100);
-    } catch (error) {
-      console.warn('[PerformanceCollector] 获取 CPU 使用率失败:', error);
-      return 0;
-    }
-  }
-  
-  /**
-   * 收集内存使用量
-   * @returns 内存使用量 (MB)
-   */
-  collectMemoryUsage(): number {
-    try {
-      const usage = process.memoryUsage();
-      // 将字节转换为 MB
-      return usage.heapUsed / (1024 * 1024);
-    } catch (error) {
-      console.warn('[PerformanceCollector] 获取内存使用量失败:', error);
-      return 0;
-    }
-  }
-  
-  /**
-   * 收集会话统计信息
-   * @param info 智能体信息
-   * @returns { sessionCount, totalMessages }
-   */
-  collectSessionStats(info: AgentInfo): { sessionCount: number; totalMessages: number } {
-    try {
-      const sessionsRoot = resolveSessionsRoot(info);
-      if (!existsSync(sessionsRoot)) {
-        return { sessionCount: 0, totalMessages: 0 };
-      }
-      
-      // 统计会话目录数量
-      const sessions = readdirSync(sessionsRoot, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory());
-      
-      let totalMessages = 0;
-      
-      // 统计每个会话的消息数
-      for (const session of sessions) {
-        const sessionPath = join(sessionsRoot, session.name);
-        const messagesPath = join(sessionPath, 'messages');
-        
-        if (existsSync(messagesPath)) {
-          try {
-            const messages = readdirSync(messagesPath, { withFileTypes: true })
-              .filter(dirent => dirent.isFile());
-            totalMessages += messages.length;
-          } catch (error) {
-            // 忽略单个会话的错误
-            console.warn(`[PerformanceCollector] 读取会话消息失败: ${session.name}`, error);
-          }
-        }
-      }
-      
-      return {
-        sessionCount: sessions.length,
-        totalMessages,
-      };
-    } catch (error) {
-      console.warn('[PerformanceCollector] 收集会话统计失败:', error);
-      return { sessionCount: 0, totalMessages: 0 };
-    }
-  }
-  
-  /**
-   * 计算运行时间
-   * @returns 运行时间（秒）
-   */
-  calculateUptime(): number {
-    return Math.floor((Date.now() - this.startTime) / 1000);
-  }
-  
-  /**
-   * 从会话日志中解析响应时间
-   * @param info 智能体信息
-   * @returns 平均响应时间（秒）
-   */
-  parseResponseTime(info: AgentInfo): number {
-    try {
-      // TODO: 实际实现需要解析会话日志文件
-      // 这里返回模拟数据
-      return Math.random() * 2 + 0.5; // 0.5-2.5 秒
-    } catch (error) {
-      console.warn('[PerformanceCollector] 解析响应时间失败:', error);
-      return 0;
-    }
-  }
-  
-  /**
-   * 从会话日志中解析 Tokens/秒
-   * @param info 智能体信息
-   * @returns Tokens 处理速度
-   */
-  parseTokensPerSecond(info: AgentInfo): number {
-    try {
-      // TODO: 实际实现需要解析会话日志文件
-      // 这里返回模拟数据
-      return Math.random() * 50 + 10; // 10-60 tokens/s
-    } catch (error) {
-      console.warn('[PerformanceCollector] 解析 Tokens/秒失败:', error);
-      return 0;
-    }
-  }
-  
-  /**
-   * 从错误日志中计算错误率
-   * @param info 智能体信息
-   * @returns 错误率百分比 (0-100)
-   */
-  calculateErrorRate(info: AgentInfo): number {
-    try {
-      // TODO: 实际实现需要解析错误日志
-      // 这里返回模拟数据
-      return Math.random() * 5; // 0-5% 错误率
-    } catch (error) {
-      console.warn('[PerformanceCollector] 计算错误率失败:', error);
-      return 0;
-    }
-  }
-  
-  /**
-   * 收集所有性能指标
-   * @param info 智能体信息
-   * @returns 完整的性能指标对象
-   */
-  collectAll(info: AgentInfo): AgentPerformanceMetrics {
-    const sessionStats = this.collectSessionStats(info);
-    
-    return {
-      cpuUsage: this.collectCpuUsage(),
-      memoryUsage: this.collectMemoryUsage(),
-      tokensPerSecond: this.parseTokensPerSecond(info),
-      responseTime: this.parseResponseTime(info),
-      errorRate: this.calculateErrorRate(info),
-      uptime: this.calculateUptime(),
-      sessionCount: sessionStats.sessionCount,
-      totalMessages: sessionStats.totalMessages,
-      lastUpdated: new Date().toISOString(),
-    };
-  }
-}
-
-// ── 性能数据缓存 ──────────────────────────────────────────────────────────
-
-/**
- * 性能数据缓存类
- * 使用 Map 存储缓存数据，支持 TTL 过期检查
- */
-class PerformanceCache {
-  private cache = new Map<string, {
-    data: AgentPerformanceMetrics;
-    timestamp: number;
-  }>();
-  
-  private readonly TTL = 5000; // 5 秒过期时间
-  
-  /**
-   * 获取缓存的性能数据
-   * @param agentId 智能体 ID
-   * @returns 性能数据或 null（如果不存在或已过期）
-   */
-  get(agentId: string): AgentPerformanceMetrics | null {
-    const entry = this.cache.get(agentId);
-    
-    if (!entry) {
-      return null;
-    }
-    
-    // 检查是否过期
-    if (Date.now() - entry.timestamp > this.TTL) {
-      this.cache.delete(agentId);
-      return null;
-    }
-    
-    return entry.data;
-  }
-  
-  /**
-   * 设置缓存数据
-   * @param agentId 智能体 ID
-   * @param data 性能数据
-   */
-  set(agentId: string, data: AgentPerformanceMetrics): void {
-    this.cache.set(agentId, {
-      data,
-      timestamp: Date.now(),
-    });
-  }
-  
-  /**
-   * 清理缓存
-   * @param agentId 可选的智能体 ID，如果提供则只清理该智能体的缓存
-   */
-  clear(agentId?: string): void {
-    if (agentId) {
-      this.cache.delete(agentId);
-    } else {
-      this.cache.clear();
-    }
-  }
-}
-
-// 创建全局性能采集器和缓存实例
-const performanceCollector = new PerformanceCollector();
-const performanceCache = new PerformanceCache();
-
-// ── 性能测试执行器 ──────────────────────────────────────────────────────────
-
-/**
- * 性能测试结果接口
- */
-interface PerformanceTestResult {
-  testId: string;
-  agentId: string;
-  timestamp: string;
-  duration: number;
-  status: 'completed' | 'failed' | 'timeout';
-  metrics: {
-    cpuUsage: number;
-    memoryUsage: number;
-    tokensPerSecond: number;
-    responseTime: number;
-    errorRate: number;
-    throughput: number;
-    success: boolean;
-  };
-  errors?: string[];
-}
-
-/**
- * 性能测试执行器类
- * 负责执行性能测试并收集测试指标
- */
-class PerformanceTester {
-  private readonly TIMEOUT = 30000; // 30 秒超时
-  private readonly CONCURRENT_REQUESTS = 10; // 并发请求数
-  
-  /**
-   * 执行性能测试
-   * @param info 智能体信息
-   * @returns 测试结果
-   */
-  async runTest(info: AgentInfo): Promise<PerformanceTestResult> {
-    const testId = `perf-test-${Date.now()}`;
-    const startTime = Date.now();
-    const errors: string[] = [];
-    
-    console.log(`[PerformanceTester] 开始性能测试: ${info.id}`);
-    
-    try {
-      // 创建超时 Promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('测试超时')), this.TIMEOUT);
-      });
-      
-      // 执行测试任务
-      const testPromise = this.executeTestTasks(info, errors);
-      
-      // 等待测试完成或超时
-      await Promise.race([testPromise, timeoutPromise]);
-      
-      const duration = Date.now() - startTime;
-      
-      // 收集测试期间的性能指标
-      const metrics = performanceCollector.collectAll(info);
-      
-      // 计算吞吐量（请求/秒）
-      const throughput = (this.CONCURRENT_REQUESTS / duration) * 1000;
-      
-      const result: PerformanceTestResult = {
-        testId,
-        agentId: info.id,
-        timestamp: new Date().toISOString(),
-        duration,
-        status: errors.length > 0 ? 'failed' : 'completed',
-        metrics: {
-          cpuUsage: metrics.cpuUsage,
-          memoryUsage: metrics.memoryUsage,
-          tokensPerSecond: metrics.tokensPerSecond,
-          responseTime: metrics.responseTime,
-          errorRate: metrics.errorRate,
-          throughput,
-          success: errors.length === 0,
-        },
-        errors: errors.length > 0 ? errors : undefined,
-      };
-      
-      console.log(`[PerformanceTester] 测试完成: ${info.id}, 状态: ${result.status}`);
-      
-      return result;
-    } catch (error: any) {
-      const duration = Date.now() - startTime;
-      
-      console.error(`[PerformanceTester] 测试失败: ${info.id}`, error);
-      
-      return {
-        testId,
-        agentId: info.id,
-        timestamp: new Date().toISOString(),
-        duration,
-        status: error.message === '测试超时' ? 'timeout' : 'failed',
-        metrics: {
-          cpuUsage: 0,
-          memoryUsage: 0,
-          tokensPerSecond: 0,
-          responseTime: 0,
-          errorRate: 100,
-          throughput: 0,
-          success: false,
-        },
-        errors: [error.message],
-      };
-    }
-  }
-  
-  /**
-   * 执行测试任务
-   * @param info 智能体信息
-   * @param errors 错误列表
-   */
-  private async executeTestTasks(info: AgentInfo, errors: string[]): Promise<void> {
-    const tasks: Promise<void>[] = [];
-    
-    // 创建并发测试任务
-    for (let i = 0; i < this.CONCURRENT_REQUESTS; i++) {
-      tasks.push(this.executeTestTask(info, i, errors));
-    }
-    
-    // 等待所有任务完成
-    await Promise.all(tasks);
-  }
-  
-  /**
-   * 执行单个测试任务
-   * @param info 智能体信息
-   * @param taskIndex 任务索引
-   * @param errors 错误列表
-   */
-  private async executeTestTask(info: AgentInfo, taskIndex: number, errors: string[]): Promise<void> {
-    try {
-      // 模拟测试任务执行
-      // TODO: 实际实现应该调用智能体的 API 或执行真实的测试请求
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
-      
-      // 随机模拟一些失败情况
-      if (Math.random() < 0.05) { // 5% 失败率
-        throw new Error(`测试任务 ${taskIndex} 失败`);
-      }
-    } catch (error: any) {
-      errors.push(error.message);
-      console.warn(`[PerformanceTester] 任务 ${taskIndex} 失败:`, error.message);
-    }
-  }
-}
-
-// 创建全局性能测试器实例
-const performanceTester = new PerformanceTester();
-
-// ── 性能测试结果持久化 ──────────────────────────────────────────────────────────
-
-/**
- * 获取性能测试结果文件路径
- * @param info 智能体信息
- * @returns 测试结果文件路径
- */
-function getPerformanceTestResultsPath(info: AgentInfo): string {
-  const agentDir = info.agentConfigRoot || info.workspaceRoot;
-  if (!agentDir) {
-    throw new Error('无法确定智能体配置目录');
-  }
-  return join(agentDir, 'performance-tests.json');
-}
-
-/**
- * 读取性能测试历史记录
- * @param info 智能体信息
- * @returns 测试结果数组
- */
-function readPerformanceTestResults(info: AgentInfo): PerformanceTestResult[] {
-  const resultsPath = getPerformanceTestResultsPath(info);
-  
-  try {
-    if (!existsSync(resultsPath)) {
-      return [];
-    }
-    
-    const content = readFileSync(resultsPath, 'utf8');
-    const results = JSON.parse(content);
-    
-    if (!Array.isArray(results)) {
-      console.warn('[PerformanceTest] 测试结果文件格式无效');
-      return [];
-    }
-    
-    return results;
-  } catch (error) {
-    console.error('[PerformanceTest] 读取测试结果失败:', error);
-    return [];
-  }
-}
-
-/**
- * 保存性能测试结果
- * @param info 智能体信息
- * @param result 测试结果
- */
-function savePerformanceTestResult(info: AgentInfo, result: PerformanceTestResult): void {
-  const resultsPath = getPerformanceTestResultsPath(info);
-  
-  try {
-    // 读取现有结果
-    const results = readPerformanceTestResults(info);
-    
-    // 添加新结果
-    results.push(result);
-    
-    // 保留最近 50 次测试
-    const MAX_RESULTS = 50;
-    if (results.length > MAX_RESULTS) {
-      results.splice(0, results.length - MAX_RESULTS);
-    }
-    
-    // 确保目录存在
-    const resultsDir = dirname(resultsPath);
-    mkdirSync(resultsDir, { recursive: true });
-    
-    // 原子性写入
-    const tempPath = `${resultsPath}.tmp`;
-    writeFileSync(tempPath, JSON.stringify(results, null, 2), 'utf8');
-    renameSync(tempPath, resultsPath);
-    
-    console.log(`[PerformanceTest] 测试结果已保存: ${resultsPath}`);
-  } catch (error) {
-    console.error('[PerformanceTest] 保存测试结果失败:', error);
-    throw error;
-  }
-}
-
-/**
- * 生成性能测试报告
- * @param result 测试结果
- * @returns 报告内容
- */
-function generatePerformanceTestReport(result: PerformanceTestResult): string {
-  const lines: string[] = [];
-  
-  lines.push('# 性能测试报告');
-  lines.push('');
-  lines.push(`**测试 ID**: ${result.testId}`);
-  lines.push(`**智能体 ID**: ${result.agentId}`);
-  lines.push(`**测试时间**: ${result.timestamp}`);
-  lines.push(`**测试时长**: ${result.duration}ms`);
-  lines.push(`**测试状态**: ${result.status}`);
-  lines.push('');
-  lines.push('## 性能指标');
-  lines.push('');
-  lines.push(`- **CPU 使用率**: ${result.metrics.cpuUsage.toFixed(2)}%`);
-  lines.push(`- **内存使用量**: ${result.metrics.memoryUsage.toFixed(2)} MB`);
-  lines.push(`- **Tokens/秒**: ${result.metrics.tokensPerSecond.toFixed(2)}`);
-  lines.push(`- **响应时间**: ${result.metrics.responseTime.toFixed(2)}s`);
-  lines.push(`- **错误率**: ${result.metrics.errorRate.toFixed(2)}%`);
-  lines.push(`- **吞吐量**: ${result.metrics.throughput.toFixed(2)} 请求/秒`);
-  lines.push(`- **测试成功**: ${result.metrics.success ? '是' : '否'}`);
-  
-  if (result.errors && result.errors.length > 0) {
-    lines.push('');
-    lines.push('## 错误信息');
-    lines.push('');
-    result.errors.forEach((error, index) => {
-      lines.push(`${index + 1}. ${error}`);
-    });
-  }
-  
-  return lines.join('\n');
-}
-
-// ── 增强功能管理系统 ──────────────────────────────────────────────────────────
-
-/**
- * 内置增强功能列表
- * 定义所有可用的增强功能及其默认配置
- */
-const BUILTIN_ENHANCEMENTS: AgentEnhancementFeature[] = [
-  {
-    id: 'performance-boost',
-    name: '性能加速',
-    type: 'performance',
-    description: '优化模型推理性能，提高响应速度',
-    enabled: true,
-    settings: {
-      compression: 'high',
-      cacheSize: 1000,
-    },
-    status: 'active',
-    version: '1.0.0',
-  },
-  {
-    id: 'security-audit',
-    name: '安全审计',
-    type: 'security',
-    description: '实时监控安全风险，防止恶意请求',
-    enabled: true,
-    settings: {
-      auditLevel: 'high',
-      logSensitive: true,
-    },
-    status: 'active',
-    version: '1.0.0',
-  },
-  {
-    id: 'real-time-monitoring',
-    name: '实时监控',
-    type: 'monitoring',
-    description: '实时显示 Agent 性能指标和状态',
-    enabled: true,
-    settings: {
-      updateInterval: 5000,
-      alertThreshold: 80,
-    },
-    status: 'active',
-    version: '1.0.0',
-  },
-  {
-    id: 'api-integration',
-    name: 'API 集成',
-    type: 'integration',
-    description: '集成外部 API 服务以扩展功能',
-    enabled: false,
-    settings: {
-      webhookUrl: '',
-      maxRetries: 3,
-    },
-    status: 'inactive',
-    version: '1.0.0',
-  },
-  {
-    id: 'auto-scaling',
-    name: '自动扩缩容',
-    type: 'automation',
-    description: '根据负载自动调整资源分配',
-    enabled: false,
-    settings: {
-      minInstances: 1,
-      maxInstances: 5,
-      scaleThreshold: 70,
-    },
-    status: 'inactive',
-    version: '1.0.0',
-  },
-  {
-    id: 'session-management',
-    name: '会话管理',
-    type: 'utility',
-    description: '增强会话管理和历史记录功能',
-    enabled: true,
-    settings: {
-      maxSessions: 20,
-      retentionDays: 30,
-    },
-    status: 'active',
-    version: '1.0.0',
-  },
-  {
-    id: 'tool-integration',
-    name: '工具集成',
-    type: 'integration',
-    description: '集成更多外部工具和服务',
-    enabled: false,
-    settings: {
-      tools: [],
-      maxConcurrent: 5,
-    },
-    status: 'inactive',
-    version: '1.0.0',
-  },
-  {
-    id: 'analytics-dashboard',
-    name: '分析仪表板',
-    type: 'monitoring',
-    description: '提供详细的性能分析和报告',
-    enabled: true,
-    settings: {
-      metricsEnabled: true,
-      reportFrequency: 'daily',
-    },
-    status: 'active',
-    version: '1.0.0',
-  },
-];
-
-// ── 增强功能管理器 ──────────────────────────────────────────────────────────
-
-/**
- * 增强功能管理器类
- * 负责管理增强功能的启用/禁用、设置更新和依赖检查
- */
-class EnhancementManager {
-  /**
-   * 获取增强功能列表
-   * @param info 智能体信息
-   * @returns 增强功能数组
-   */
-  getEnhancements(info: AgentInfo): AgentEnhancementFeature[] {
-    try {
-      // 读取配置文件
-      const config = readEnhancementConfig(info);
-      
-      // 合并内置功能和配置
-      const enhancements = BUILTIN_ENHANCEMENTS.map(builtin => {
-        const configEntry = config.enhancements[builtin.id];
-        
-        if (configEntry) {
-          return {
-            ...builtin,
-            enabled: configEntry.enabled,
-            settings: { ...builtin.settings, ...configEntry.settings },
-            lastApplied: configEntry.lastApplied,
-            status: (configEntry.enabled ? 'active' : 'inactive') as AgentEnhancementFeature['status'],
-          };
-        }
-        
-        return builtin;
-      });
-      
-      return enhancements;
-    } catch (error) {
-      console.error('[EnhancementManager] 获取增强功能列表失败:', error);
-      // 返回默认的内置功能列表
-      return BUILTIN_ENHANCEMENTS;
-    }
-  }
-  
-  /**
-   * 切换增强功能启用状态
-   * @param info 智能体信息
-   * @param enhancementId 增强功能 ID
-   * @param enabled 是否启用
-   * @returns 更新后的增强功能
-   */
-  toggleEnhancement(info: AgentInfo, enhancementId: string, enabled: boolean): AgentEnhancementFeature {
-    try {
-      // 读取配置
-      const config = readEnhancementConfig(info);
-      
-      // 检查增强功能是否存在
-      const builtin = BUILTIN_ENHANCEMENTS.find(e => e.id === enhancementId);
-      if (!builtin) {
-        throw new Error(`增强功能不存在: ${enhancementId}`);
-      }
-      
-      // 检查依赖关系
-      if (enabled && builtin.dependencies) {
-        this.checkDependencies(config, builtin.dependencies);
-      }
-      
-      // 更新配置
-      if (!config.enhancements[enhancementId]) {
-        config.enhancements[enhancementId] = {
-          enabled,
-          settings: builtin.settings,
-        };
-      } else {
-        config.enhancements[enhancementId].enabled = enabled;
-      }
-      
-      // 设置最后应用时间
-      if (enabled) {
-        config.enhancements[enhancementId].lastApplied = new Date().toISOString();
-      }
-      
-      // 保存配置
-      writeEnhancementConfig(info, config);
-      
-      // 返回更新后的增强功能
-      return {
-        ...builtin,
-        enabled,
-        settings: config.enhancements[enhancementId].settings,
-        lastApplied: config.enhancements[enhancementId].lastApplied,
-        status: enabled ? 'active' : 'inactive',
-      };
-    } catch (error) {
-      console.error('[EnhancementManager] 切换增强功能失败:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * 更新增强功能设置
-   * @param info 智能体信息
-   * @param enhancementId 增强功能 ID
-   * @param settings 新的设置
-   * @returns 更新后的增强功能
-   */
-  updateSettings(info: AgentInfo, enhancementId: string, settings: Record<string, any>): AgentEnhancementFeature {
-    try {
-      // 读取配置
-      const config = readEnhancementConfig(info);
-      
-      // 检查增强功能是否存在
-      const builtin = BUILTIN_ENHANCEMENTS.find(e => e.id === enhancementId);
-      if (!builtin) {
-        throw new Error(`增强功能不存在: ${enhancementId}`);
-      }
-      
-      // 更新设置
-      if (!config.enhancements[enhancementId]) {
-        config.enhancements[enhancementId] = {
-          enabled: builtin.enabled,
-          settings,
-        };
-      } else {
-        config.enhancements[enhancementId].settings = {
-          ...config.enhancements[enhancementId].settings,
-          ...settings,
-        };
-      }
-      
-      // 如果功能已启用，更新最后应用时间
-      if (config.enhancements[enhancementId].enabled) {
-        config.enhancements[enhancementId].lastApplied = new Date().toISOString();
-      }
-      
-      // 保存配置
-      writeEnhancementConfig(info, config);
-      
-      // 返回更新后的增强功能
-      return {
-        ...builtin,
-        enabled: config.enhancements[enhancementId].enabled,
-        settings: config.enhancements[enhancementId].settings,
-        lastApplied: config.enhancements[enhancementId].lastApplied,
-        status: config.enhancements[enhancementId].enabled ? 'active' : 'inactive',
-      };
-    } catch (error) {
-      console.error('[EnhancementManager] 更新增强功能设置失败:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * 检查依赖关系
-   * @param config 配置对象
-   * @param dependencies 依赖的增强功能 ID 列表
-   * @throws 如果依赖未满足则抛出错误
-   */
-  checkDependencies(config: EnhancementConfig, dependencies: string[]): void {
-    for (const depId of dependencies) {
-      const depConfig = config.enhancements[depId];
-      
-      if (!depConfig || !depConfig.enabled) {
-        const depName = BUILTIN_ENHANCEMENTS.find(e => e.id === depId)?.name || depId;
-        throw new Error(`依赖的增强功能未启用: ${depName}`);
-      }
-    }
-  }
-}
-
-// 创建全局增强功能管理器实例
-const enhancementManager = new EnhancementManager();
 
 export function setupAgentsIPC() {
   ipcMain.handle('agents:getAll', async (): Promise<{ success: boolean; agents?: AgentInfo[]; error?: string }> => {
@@ -2340,123 +1337,6 @@ export function setupAgentsIPC() {
     }
   });
 
-  // ── 性能监控 IPC Handlers ──────────────────────────────────────────────────────────
-  
-  /**
-   * 获取智能体性能指标
-   * 使用缓存机制，5秒内返回缓存数据
-   */
-  ipcMain.handle('agents:getPerformance', async (_, agentId: string): Promise<{ success: boolean; metrics?: AgentPerformanceMetrics; error?: string }> => {
-    try {
-      const { info } = getAgentRecord(agentId);
-      
-      // 尝试从缓存获取（缓存命中时不打日志，避免控制台刷屏）
-      const cached = performanceCache.get(agentId);
-      if (cached) {
-        return { success: true, metrics: cached };
-      }
-      
-      // 缓存未命中，收集性能数据
-      console.log(`[agents:getPerformance] 收集性能数据: ${agentId}`);
-      const metrics = performanceCollector.collectAll(info);
-      
-      // 更新缓存
-      performanceCache.set(agentId, metrics);
-      
-      return { success: true, metrics };
-    } catch (error) {
-      console.error('[agents:getPerformance] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  /**
-   * 执行性能测试
-   * 运行测试并保存结果到文件
-   */
-  ipcMain.handle('agents:runPerformanceTest', async (_, agentId: string): Promise<{ success: boolean; result?: PerformanceTestResult; error?: string }> => {
-    try {
-      const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:runPerformanceTest] 开始执行性能测试: ${agentId}`);
-      
-      // 执行性能测试
-      const result = await performanceTester.runTest(info);
-      
-      // 保存测试结果
-      savePerformanceTestResult(info, result);
-      
-      // 清理性能缓存，强制下次获取最新数据
-      performanceCache.clear(agentId);
-      
-      console.log(`[agents:runPerformanceTest] 测试完成: ${agentId}, 状态: ${result.status}`);
-      
-      return { success: true, result };
-    } catch (error) {
-      console.error('[agents:runPerformanceTest] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  // ── 增强功能管理 IPC Handlers ──────────────────────────────────────────────────────────
-  
-  /**
-   * 获取智能体增强功能列表
-   */
-  ipcMain.handle('agents:getEnhancements', async (_, agentId: string): Promise<{ success: boolean; enhancements?: AgentEnhancementFeature[]; error?: string }> => {
-    try {
-      const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:getEnhancements] 获取增强功能列表: ${agentId}`);
-      
-      // 使用增强功能管理器获取列表
-      const enhancements = enhancementManager.getEnhancements(info);
-      
-      return { success: true, enhancements };
-    } catch (error) {
-      console.error('[agents:getEnhancements] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  /**
-   * 启用/禁用增强功能
-   */
-  ipcMain.handle('agents:toggleEnhancement', async (_, agentId: string, enhancementId: string, enabled: boolean): Promise<{ success: boolean; enhancement?: AgentEnhancementFeature; error?: string }> => {
-    try {
-      const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:toggleEnhancement] 切换增强功能: ${agentId}, ${enhancementId}, ${enabled}`);
-      
-      // 使用增强功能管理器切换状态
-      const enhancement = enhancementManager.toggleEnhancement(info, enhancementId, enabled);
-      
-      return { success: true, enhancement };
-    } catch (error) {
-      console.error('[agents:toggleEnhancement] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  /**
-   * 更新增强功能设置
-   */
-  ipcMain.handle('agents:updateEnhancementSettings', async (_, agentId: string, enhancementId: string, settings: Record<string, any>): Promise<{ success: boolean; enhancement?: AgentEnhancementFeature; error?: string }> => {
-    try {
-      const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:updateEnhancementSettings] 更新增强功能设置: ${agentId}, ${enhancementId}`);
-      
-      // 使用增强功能管理器更新设置
-      const enhancement = enhancementManager.updateSettings(info, enhancementId, settings);
-      
-      return { success: true, enhancement };
-    } catch (error) {
-      console.error('[agents:updateEnhancementSettings] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
   // ── 快速操作 IPC Handlers ──────────────────────────────────────────────────────────
   
   /**
@@ -2466,13 +1346,33 @@ export function setupAgentsIPC() {
   ipcMain.handle('agents:openDebugTerminal', async (_, agentId: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:openDebugTerminal] 打开调试终端: ${agentId}`);
-      
-      // TODO: 实现调试终端窗口创建
-      // 这需要在 main.ts 中创建新的 BrowserWindow
-      // 暂时返回成功，实际功能需要在后续实现
-      
+      const workspaceRoot = info.workspaceRoot;
+
+      // 检查工作区目录是否存在
+      if (!workspaceRoot || !existsSync(workspaceRoot)) {
+        return { success: false, error: '工作区目录不存在' };
+      }
+
+      console.log(`[agents:openDebugTerminal] 打开调试终端: ${agentId}, 工作区: ${workspaceRoot}`);
+
+      // 根据操作系统平台选择终端命令
+      let child;
+      const platform = process.platform;
+
+      if (platform === 'darwin') {
+        // macOS: 使用 Terminal.app 打开
+        child = spawn('open', ['-a', 'Terminal', workspaceRoot], { detached: true, stdio: 'ignore' });
+      } else if (platform === 'win32') {
+        // Windows: 使用 cmd 打开并切换到工作区目录
+        child = spawn('cmd', ['/c', 'start', 'cmd', '/K', `cd /d "${workspaceRoot}"`], { detached: true, stdio: 'ignore' });
+      } else {
+        // Linux: 使用默认终端模拟器打开
+        child = spawn('x-terminal-emulator', ['--working-directory', workspaceRoot], { detached: true, stdio: 'ignore' });
+      }
+
+      // 分离子进程，避免阻塞主进程
+      child.unref();
+
       return { success: true };
     } catch (error) {
       console.error('[agents:openDebugTerminal] 错误:', error);
@@ -2487,53 +1387,42 @@ export function setupAgentsIPC() {
   ipcMain.handle('agents:exportConfig', async (_, agentId: string): Promise<{ success: boolean; filePath?: string; error?: string }> => {
     try {
       const { info, config, agent } = getAgentRecord(agentId);
-      
-      console.log(`[agents:exportConfig] 导出配置: ${agentId}`);
-      
-      // 收集配置数据
+
+      // 生成默认文件名：{agentName}-config-{YYYY-MM-DD}.json
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const defaultFileName = `${info.name}-config-${dateStr}.json`;
+
+      // 弹出系统保存对话框，让用户选择导出路径
+      const { canceled, filePath: savePath } = await dialog.showSaveDialog({
+        title: '导出 Agent 配置',
+        defaultPath: defaultFileName,
+        filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+      });
+
+      // 用户取消了对话框
+      if (canceled || !savePath) {
+        return { success: false, error: '用户取消了导出' };
+      }
+
+      // 组装简化的导出数据结构
       const exportData = {
-        exportVersion: '1.0.0',
+        exportVersion: '1.0',
         exportDate: new Date().toISOString(),
         agentInfo: {
           id: info.id,
           name: info.name,
-          model: agent.model,
+          model: typeof agent.model === 'string' ? agent.model : agent.model?.primary || '',
           workspace: info.workspace,
         },
-        config: {
-          openclaw: agent,
-          enhancements: readEnhancementConfig(info),
-        },
-        workspaceFiles: {} as Record<string, string>,
-        metadata: {
-          desktopVersion: '0.3.24', // TODO: 从 package.json 读取
-          openclawVersion: 'unknown', // TODO: 从 CLI 获取版本
-        },
+        config,
       };
-      
-      // 读取工作区文件
-      for (const fileName of AGENT_WORKSPACE_FILES) {
-        try {
-          const filePath = resolveWorkspaceFilePath(info, fileName);
-          if (existsSync(filePath)) {
-            exportData.workspaceFiles[fileName] = readFileSync(filePath, 'utf8');
-          }
-        } catch (error) {
-          console.warn(`[agents:exportConfig] 读取文件失败: ${fileName}`, error);
-        }
-      }
-      
-      // 生成导出文件路径
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const exportFileName = `agent-${info.name}-${timestamp}.json`;
-      const exportPath = join(info.workspaceRoot || info.agentConfigRoot || getOpenClawRoot(), exportFileName);
-      
-      // 保存导出文件
-      writeFileSync(exportPath, JSON.stringify(exportData, null, 2), 'utf8');
-      
-      console.log(`[agents:exportConfig] 配置已导出: ${exportPath}`);
-      
-      return { success: true, filePath: exportPath };
+
+      // 写入用户选择的路径
+      writeFileSync(savePath, JSON.stringify(exportData, null, 2), 'utf8');
+
+      console.log(`[agents:exportConfig] 配置已导出: ${savePath}`);
+
+      return { success: true, filePath: savePath };
     } catch (error) {
       console.error('[agents:exportConfig] 错误:', error);
       return { success: false, error: String(error) };
@@ -2542,48 +1431,40 @@ export function setupAgentsIPC() {
 
   /**
    * 导入智能体配置
-   * 从 JSON 文件导入配置并应用到智能体
+   * 弹出文件选择对话框，从 JSON 文件导入配置并写入 openclaw.json
    */
-  ipcMain.handle('agents:importConfig', async (_, agentId: string, filePath: string): Promise<{ success: boolean; error?: string }> => {
+  ipcMain.handle('agents:importConfig', async (_, agentId: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:importConfig] 导入配置: ${agentId}, 文件: ${filePath}`);
-      
-      // 验证文件存在
-      if (!existsSync(filePath)) {
-        throw new Error('导入文件不存在');
+      getAgentRecord(agentId);
+
+      // 弹出系统文件选择对话框，过滤 .json 文件
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: '导入 Agent 配置',
+        filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+        properties: ['openFile'],
+      });
+
+      // 用户取消了对话框
+      if (canceled || !filePaths.length) {
+        return { success: false, error: '用户取消了导入' };
       }
-      
+
+      const selectedPath = filePaths[0];
+
       // 读取并解析导入文件
-      const content = readFileSync(filePath, 'utf8');
+      const content = readFileSync(selectedPath, 'utf8');
       const importData = JSON.parse(content);
-      
-      // 验证导入数据格式
-      if (!importData.exportVersion || !importData.config) {
-        throw new Error('导入文件格式无效');
+
+      // 验证导入数据必须包含 agentInfo 和 config 字段
+      if (!importData.agentInfo || !importData.config) {
+        return { success: false, error: '导入文件格式无效：缺少 agentInfo 或 config 字段' };
       }
-      
-      // 导入增强功能配置
-      if (importData.config.enhancements) {
-        writeEnhancementConfig(info, importData.config.enhancements);
-      }
-      
-      // 导入工作区文件
-      if (importData.workspaceFiles && info.workspaceRoot) {
-        for (const [fileName, content] of Object.entries(importData.workspaceFiles)) {
-          try {
-            const filePath = join(info.workspaceRoot, fileName);
-            mkdirSync(dirname(filePath), { recursive: true });
-            writeFileSync(filePath, content as string, 'utf8');
-          } catch (error) {
-            console.warn(`[agents:importConfig] 写入文件失败: ${fileName}`, error);
-          }
-        }
-      }
-      
+
+      // 将导入的 config 内容写入 openclaw.json
+      writeConfig(importData.config);
+
       console.log(`[agents:importConfig] 配置导入成功: ${agentId}`);
-      
+
       return { success: true };
     } catch (error) {
       console.error('[agents:importConfig] 错误:', error);
@@ -2592,165 +1473,80 @@ export function setupAgentsIPC() {
   });
 
   /**
-   * 克隆智能体
-   * 创建当前智能体的副本
-   */
-  ipcMain.handle('agents:clone', async (_, agentId: string, newName: string, workspace: string): Promise<{ success: boolean; newAgentId?: string; error?: string }> => {
-    try {
-      const { info, agent } = getAgentRecord(agentId);
-      
-      console.log(`[agents:clone] 克隆智能体: ${agentId} -> ${newName}`);
-      
-      // 使用 OpenClaw CLI 创建新智能体
-      const createResult = await runAgentCreateCommand({
-        name: newName,
-        workspace,
-        model: typeof agent.model === 'string' ? agent.model : agent.model?.primary,
-      });
-      
-      if (!createResult.success) {
-        throw new Error(createResult.error || '创建智能体失败');
-      }
-      
-      // 读取配置获取新智能体 ID
-      const config = readConfig();
-      const newAgent = config?.agents?.list?.find((a: any) => a.name === newName);
-      
-      if (!newAgent) {
-        throw new Error('无法找到新创建的智能体');
-      }
-      
-      const newInfo = mapAgentInfo(newAgent, config);
-      
-      // 复制增强功能配置
-      try {
-        const sourceConfig = readEnhancementConfig(info);
-        sourceConfig.agentId = newInfo.id;
-        writeEnhancementConfig(newInfo, sourceConfig);
-      } catch (error) {
-        console.warn('[agents:clone] 复制增强功能配置失败:', error);
-      }
-      
-      // 复制工作区文件
-      if (info.workspaceRoot && newInfo.workspaceRoot) {
-        for (const fileName of AGENT_WORKSPACE_FILES) {
-          try {
-            const sourcePath = join(info.workspaceRoot, fileName);
-            const targetPath = join(newInfo.workspaceRoot, fileName);
-            
-            if (existsSync(sourcePath)) {
-              const content = readFileSync(sourcePath, 'utf8');
-              mkdirSync(dirname(targetPath), { recursive: true });
-              writeFileSync(targetPath, content, 'utf8');
-            }
-          } catch (error) {
-            console.warn(`[agents:clone] 复制文件失败: ${fileName}`, error);
-          }
-        }
-      }
-      
-      console.log(`[agents:clone] 克隆成功: ${newInfo.id}`);
-      
-      return { success: true, newAgentId: newInfo.id };
-    } catch (error) {
-      console.error('[agents:clone] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  /**
-   * 生成性能报告
-   * 生成智能体的性能分析报告
-   */
-  ipcMain.handle('agents:generateReport', async (_, agentId: string, format: 'pdf' | 'markdown'): Promise<{ success: boolean; reportPath?: string; error?: string }> => {
-    try {
-      const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:generateReport] 生成报告: ${agentId}, 格式: ${format}`);
-      
-      // 收集性能数据
-      const metrics = performanceCollector.collectAll(info);
-      
-      // 读取测试历史
-      const testResults = readPerformanceTestResults(info);
-      
-      // 生成报告内容
-      const reportLines: string[] = [];
-      reportLines.push(`# ${info.name} 性能报告`);
-      reportLines.push('');
-      reportLines.push(`**生成时间**: ${new Date().toLocaleString('zh-CN')}`);
-      reportLines.push(`**智能体 ID**: ${info.id}`);
-      reportLines.push('');
-      reportLines.push('## 当前性能指标');
-      reportLines.push('');
-      reportLines.push(`- **CPU 使用率**: ${metrics.cpuUsage.toFixed(2)}%`);
-      reportLines.push(`- **内存使用量**: ${metrics.memoryUsage.toFixed(2)} MB`);
-      reportLines.push(`- **Tokens/秒**: ${metrics.tokensPerSecond.toFixed(2)}`);
-      reportLines.push(`- **响应时间**: ${metrics.responseTime.toFixed(2)}s`);
-      reportLines.push(`- **错误率**: ${metrics.errorRate.toFixed(2)}%`);
-      reportLines.push(`- **运行时间**: ${Math.floor(metrics.uptime / 3600)}h ${Math.floor((metrics.uptime % 3600) / 60)}m`);
-      reportLines.push(`- **活跃会话数**: ${metrics.sessionCount}`);
-      reportLines.push(`- **总消息数**: ${metrics.totalMessages}`);
-      reportLines.push('');
-      
-      if (testResults.length > 0) {
-        reportLines.push('## 性能测试历史');
-        reportLines.push('');
-        reportLines.push('| 测试时间 | 状态 | CPU | 内存 | 响应时间 | 吞吐量 |');
-        reportLines.push('|---------|------|-----|------|---------|--------|');
-        
-        testResults.slice(-10).forEach(result => {
-          const date = new Date(result.timestamp).toLocaleString('zh-CN');
-          reportLines.push(`| ${date} | ${result.status} | ${result.metrics.cpuUsage.toFixed(1)}% | ${result.metrics.memoryUsage.toFixed(1)}MB | ${result.metrics.responseTime.toFixed(2)}s | ${result.metrics.throughput.toFixed(2)} req/s |`);
-        });
-        
-        reportLines.push('');
-      }
-      
-      const reportContent = reportLines.join('\n');
-      
-      // 生成报告文件路径
-      const reportsDir = join(info.workspaceRoot || info.agentConfigRoot || getOpenClawRoot(), 'reports');
-      mkdirSync(reportsDir, { recursive: true });
-      
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const reportFileName = `performance-report-${timestamp}.${format === 'pdf' ? 'pdf' : 'md'}`;
-      const reportPath = join(reportsDir, reportFileName);
-      
-      // 保存报告（目前只支持 Markdown）
-      if (format === 'markdown') {
-        writeFileSync(reportPath, reportContent, 'utf8');
-      } else {
-        // PDF 格式需要额外的库支持，暂时保存为 Markdown
-        writeFileSync(reportPath.replace('.pdf', '.md'), reportContent, 'utf8');
-      }
-      
-      console.log(`[agents:generateReport] 报告已生成: ${reportPath}`);
-      
-      return { success: true, reportPath };
-    } catch (error) {
-      console.error('[agents:generateReport] 错误:', error);
-      return { success: false, error: String(error) };
-    }
-  });
-
-  /**
    * 重启智能体
-   * 重启智能体进程
+   * 通过 OpenClaw CLI 先停止再启动智能体进程
    */
   ipcMain.handle('agents:restart', async (_, agentId: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const { info } = getAgentRecord(agentId);
-      
-      console.log(`[agents:restart] 重启智能体: ${agentId}`);
-      
-      // TODO: 实现智能体进程重启
-      // 这需要与 OpenClaw Gateway 集成
-      // 暂时返回成功，实际功能需要在后续实现
-      
-      // 清理性能缓存
-      performanceCache.clear(agentId);
-      
+
+      const openclawCmd = resolveOpenClawCommand();
+      const shellPath = await getShellPath();
+      const spawnEnv = buildDoctorFixEnv(process.env, shellPath);
+
+      console.log(`[agents:restart] 正在停止智能体: ${agentId}`);
+
+      // 第一步：停止智能体
+      const stopResult = await new Promise<{ success: boolean; error?: string }>((resolvePromise) => {
+        const child = spawn(openclawCmd, ['--no-color', 'agents', 'stop', agentId], {
+          env: spawnEnv,
+        });
+
+        let stderr = '';
+
+        child.stdout.on('data', () => {});
+        child.stderr.on('data', (data) => { stderr += data.toString(); });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolvePromise({ success: true });
+          } else {
+            const errorMsg = stderr.trim() || `停止命令退出码 ${code}`;
+            resolvePromise({ success: false, error: errorMsg });
+          }
+        });
+
+        child.on('error', (err) => {
+          resolvePromise({ success: false, error: err.message });
+        });
+      });
+
+      if (!stopResult.success) {
+        return { success: false, error: `停止智能体失败: ${stopResult.error}` };
+      }
+
+      console.log(`[agents:restart] 正在启动智能体: ${agentId}`);
+
+      // 第二步：启动智能体
+      const startResult = await new Promise<{ success: boolean; error?: string }>((resolvePromise) => {
+        const child = spawn(openclawCmd, ['--no-color', 'agents', 'start', agentId], {
+          env: spawnEnv,
+        });
+
+        let stderr = '';
+
+        child.stdout.on('data', () => {});
+        child.stderr.on('data', (data) => { stderr += data.toString(); });
+
+        child.on('close', (code) => {
+          if (code === 0) {
+            resolvePromise({ success: true });
+          } else {
+            const errorMsg = stderr.trim() || `启动命令退出码 ${code}`;
+            resolvePromise({ success: false, error: errorMsg });
+          }
+        });
+
+        child.on('error', (err) => {
+          resolvePromise({ success: false, error: err.message });
+        });
+      });
+
+      if (!startResult.success) {
+        return { success: false, error: `启动智能体失败: ${startResult.error}` };
+      }
+
+      console.log(`[agents:restart] 智能体重启完成: ${agentId}`);
       return { success: true };
     } catch (error) {
       console.error('[agents:restart] 错误:', error);
@@ -2760,95 +1556,179 @@ export function setupAgentsIPC() {
 
   /**
    * 安全检查
-   * 执行智能体的安全审计
+   * 执行智能体的安全审计，覆盖三个检查类别：文件权限、API 密钥安全、配置安全性
    */
   ipcMain.handle('agents:securityCheck', async (_, agentId: string): Promise<{ success: boolean; results?: any[]; error?: string }> => {
     try {
-      const { info } = getAgentRecord(agentId);
-      
+      const { config, agent, info } = getAgentRecord(agentId);
+
       console.log(`[agents:securityCheck] 执行安全检查: ${agentId}`);
-      
-      const results: any[] = [];
-      
-      // 检查 1: 文件权限
-      if (info.workspaceRoot && existsSync(info.workspaceRoot)) {
-        try {
+
+      const results: Array<{
+        name: string;
+        riskLevel: 'low' | 'medium' | 'high';
+        status: 'pass' | 'warning' | 'fail';
+        message: string;
+        recommendation: string;
+      }> = [];
+
+      // ── 检查 1: 文件权限 ──
+      // 检查工作区目录权限（mode），权限大于 755 视为过于宽松
+      try {
+        if (info.workspaceRoot && existsSync(info.workspaceRoot)) {
           const stat = statSync(info.workspaceRoot);
-          const mode = stat.mode & parseInt('777', 8);
-          const isSecure = mode <= parseInt('755', 8);
-          
+          // 提取 Unix 权限位（低 9 位）
+          const mode = stat.mode & 0o777;
+          const isSecure = mode <= 0o755;
+
           results.push({
-            checkId: 'file-permissions',
             name: '文件权限检查',
-            category: 'file-permissions',
             riskLevel: isSecure ? 'low' : 'medium',
             status: isSecure ? 'pass' : 'warning',
-            message: isSecure ? '工作区文件权限设置合理' : '工作区文件权限过于宽松',
-            recommendation: isSecure ? undefined : '建议将工作区权限设置为 755 或更严格',
+            message: isSecure
+              ? `工作区目录权限正常 (${mode.toString(8)})`
+              : `工作区目录权限过于宽松 (${mode.toString(8)})，超过 755`,
+            recommendation: isSecure
+              ? '当前权限设置合理，无需调整'
+              : '建议执行 chmod 755 将工作区目录权限收紧至 755 或更严格',
           });
-        } catch (error) {
+        } else {
+          // 工作区目录不存在，标记为 fail
           results.push({
-            checkId: 'file-permissions',
             name: '文件权限检查',
-            category: 'file-permissions',
-            riskLevel: 'low',
-            status: 'pass',
-            message: '无法检查文件权限',
+            riskLevel: 'medium',
+            status: 'fail',
+            message: '工作区目录不存在，无法检查文件权限',
+            recommendation: '请确认 Agent 的 workspaceRoot 配置正确且目录已创建',
           });
         }
-      }
-      
-      // 检查 2: API 密钥安全
-      results.push({
-        checkId: 'api-keys',
-        name: 'API 密钥安全',
-        category: 'api-keys',
-        riskLevel: 'low',
-        status: 'pass',
-        message: 'API 密钥存储在系统配置中',
-        recommendation: '确保配置文件权限正确设置',
-      });
-      
-      // 检查 3: 网络暴露风险
-      results.push({
-        checkId: 'network',
-        name: '网络暴露风险',
-        category: 'network',
-        riskLevel: 'low',
-        status: 'pass',
-        message: '智能体运行在本地环境',
-      });
-      
-      // 检查 4: 配置安全性
-      try {
-        const config = readEnhancementConfig(info);
-        const hasSecurityAudit = config.enhancements['security-audit']?.enabled;
-        
+      } catch (error) {
+        // 单项检查失败不影响其他项
         results.push({
-          checkId: 'config-security',
-          name: '配置安全性',
-          category: 'config',
-          riskLevel: hasSecurityAudit ? 'low' : 'medium',
-          status: hasSecurityAudit ? 'pass' : 'warning',
-          message: hasSecurityAudit ? '安全审计功能已启用' : '安全审计功能未启用',
-          recommendation: hasSecurityAudit ? undefined : '建议启用安全审计增强功能',
+          name: '文件权限检查',
+          riskLevel: 'medium',
+          status: 'fail',
+          message: `文件权限检查异常: ${String(error)}`,
+          recommendation: '请检查工作区目录是否可访问',
+        });
+      }
+
+      // ── 检查 2: API 密钥安全 ──
+      // 读取 openclaw.json 配置，检查字段值中是否包含明文 API 密钥模式
+      try {
+        // 用于匹配常见明文 API 密钥前缀的正则
+        const apiKeyPatterns = [/sk-/i, /key-/i, /api[_-]?key/i, /secret[_-]?key/i, /token[_-]/i, /bearer\s+/i];
+        const configStr = JSON.stringify(config);
+        const foundPatterns: string[] = [];
+
+        for (const pattern of apiKeyPatterns) {
+          if (pattern.test(configStr)) {
+            foundPatterns.push(pattern.source);
+          }
+        }
+
+        const hasExposedKeys = foundPatterns.length > 0;
+
+        results.push({
+          name: 'API 密钥安全',
+          riskLevel: hasExposedKeys ? 'high' : 'low',
+          status: hasExposedKeys ? 'fail' : 'pass',
+          message: hasExposedKeys
+            ? `配置文件中检测到疑似明文 API 密钥 (匹配模式: ${foundPatterns.join(', ')})`
+            : '配置文件中未检测到明文 API 密钥',
+          recommendation: hasExposedKeys
+            ? '建议将 API 密钥移至环境变量或加密存储，避免在配置文件中明文保存'
+            : '当前配置安全，建议定期检查是否有新增的明文密钥',
         });
       } catch (error) {
+        // 单项检查失败不影响其他项
         results.push({
-          checkId: 'config-security',
-          name: '配置安全性',
-          category: 'config',
-          riskLevel: 'low',
-          status: 'pass',
-          message: '配置文件正常',
+          name: 'API 密钥安全',
+          riskLevel: 'medium',
+          status: 'fail',
+          message: `API 密钥安全检查异常: ${String(error)}`,
+          recommendation: '请确认 openclaw.json 配置文件可正常读取',
         });
       }
-      
+
+      // ── 检查 3: 配置安全性 ──
+      // 检查关键配置项是否使用安全默认值：allowAgents 不应为通配符、bindings 应有 channel 和 accountId
+      try {
+        const issues: string[] = [];
+
+        // 检查 allowAgents 是否包含通配符 '*'
+        const allowAgents = Array.isArray(agent?.subagents?.allowAgents)
+          ? agent.subagents.allowAgents
+          : [];
+        const hasWildcard = allowAgents.some((a: unknown) => a === '*');
+        if (hasWildcard) {
+          issues.push('allowAgents 包含通配符 "*"，允许所有子智能体访问');
+        }
+
+        // 检查 bindings 是否都有正确的 channel 和 accountId
+        const bindings = Array.isArray(config?.bindings) ? config.bindings : [];
+        const agentBindings = bindings.filter((b: any) => b?.agentId === agentId);
+        for (const binding of agentBindings) {
+          const channel = binding?.match?.channel;
+          const accountId = binding?.match?.accountId;
+          if (!channel || typeof channel !== 'string' || !channel.trim()) {
+            issues.push('存在缺少 channel 的绑定配置');
+          }
+          if (!accountId || typeof accountId !== 'string' || !accountId.trim()) {
+            issues.push('存在缺少 accountId 的绑定配置');
+          }
+        }
+
+        const hasIssues = issues.length > 0;
+
+        results.push({
+          name: '配置安全性',
+          riskLevel: hasIssues ? 'medium' : 'low',
+          status: hasIssues ? 'warning' : 'pass',
+          message: hasIssues
+            ? `发现 ${issues.length} 个配置安全问题: ${issues.join('; ')}`
+            : '关键配置项均使用安全默认值',
+          recommendation: hasIssues
+            ? '建议限制 allowAgents 范围（避免使用通配符），并确保所有 bindings 都配置了 channel 和 accountId'
+            : '当前配置安全，建议定期审查配置变更',
+        });
+      } catch (error) {
+        // 单项检查失败不影响其他项
+        results.push({
+          name: '配置安全性',
+          riskLevel: 'medium',
+          status: 'fail',
+          message: `配置安全性检查异常: ${String(error)}`,
+          recommendation: '请检查 Agent 配置是否完整',
+        });
+      }
+
       console.log(`[agents:securityCheck] 安全检查完成: ${agentId}, 发现 ${results.length} 个检查项`);
-      
+
       return { success: true, results };
     } catch (error) {
       console.error('[agents:securityCheck] 错误:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  /**
+   * 获取智能体历史统计数据
+   * 从 sessions 目录读取 JSONL transcript 文件，按日期聚合 Token 消耗、会话量、响应时间、错误率
+   */
+  ipcMain.handle('agents:getHistoryStats', async (_, agentId: string): Promise<{ success: boolean; stats?: import('./statsAggregator.js').DailyStats[]; error?: string }> => {
+    try {
+      const { info } = getAgentRecord(agentId);
+      const sessionsRoot = resolveSessionsRoot(info);
+
+      // sessions 目录不存在时返回空统计数据
+      if (!sessionsRoot) {
+        return { success: true, stats: [], totalSessions: 0 };
+      }
+
+      const { dailyStats: stats, totalSessions } = aggregateSessionStats(sessionsRoot);
+      return { success: true, stats, totalSessions };
+    } catch (error) {
       return { success: false, error: String(error) };
     }
   });

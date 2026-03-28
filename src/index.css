@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 /* ==================== 基础样式 ==================== */
+
+/* 去除 recharts 图表容器和 SVG 元素的默认 focus outline */
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface {
+  outline: none !important;
+}
+
 :root {
   /* 字体 */
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

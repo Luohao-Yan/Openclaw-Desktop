@@ -1085,15 +1085,6 @@ const Agents: React.FC = () => {
               <AgentEnhancer
                 agentId={selectedAgent.id}
                 agentName={selectedAgent.name}
-                onEnhancementToggle={(id, enabled) => {
-                  console.log(`Enhancement ${id} ${enabled ? 'enabled' : 'disabled'}`);
-                }}
-                onSettingsUpdate={(id, settings) => {
-                  console.log(`Enhancement ${id} settings updated:`, settings);
-                }}
-                onPerformanceTest={() => {
-                  console.log('Performance test started');
-                }}
               />
             ) : (
               <GlassCard className="p-12 text-center">

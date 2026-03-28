@@ -95,15 +95,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentsRename: (agentId, newName) => ipcRenderer.invoke('agents:rename', agentId, newName),
   agentsWriteModelsJson: (agentId, content) => ipcRenderer.invoke('agents:writeModelsJson', agentId, content),
   
-  // Agent Enhancement - 智能体增强功能
-  agentsGetPerformance: (agentId) => ipcRenderer.invoke('agents:getPerformance', agentId),
-  agentsRunPerformanceTest: (agentId) => ipcRenderer.invoke('agents:runPerformanceTest', agentId),
-  agentsGetEnhancements: (agentId) => ipcRenderer.invoke('agents:getEnhancements', agentId),
-  agentsToggleEnhancement: (agentId, enhancementId, enabled) => ipcRenderer.invoke('agents:toggleEnhancement', agentId, enhancementId, enabled),
-  agentsUpdateEnhancementSettings: (agentId, enhancementId, settings) => ipcRenderer.invoke('agents:updateEnhancementSettings', agentId, enhancementId, settings),
+  // Agent 运维工具箱 — 快速操作
   agentsOpenDebugTerminal: (agentId) => ipcRenderer.invoke('agents:openDebugTerminal', agentId),
   agentsExportConfig: (agentId) => ipcRenderer.invoke('agents:exportConfig', agentId),
-  agentsImportConfig: (agentId, filePath) => ipcRenderer.invoke('agents:importConfig', agentId, filePath),
+  agentsImportConfig: (agentId) => ipcRenderer.invoke('agents:importConfig', agentId),
 
   // Agent 配置加密导入/导出
   agentsExportBundle: (agentId, passphrase, filePath) => ipcRenderer.invoke('agents:exportBundle', agentId, passphrase, filePath),
@@ -118,10 +113,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('agents:importProgress', handler);
     return () => ipcRenderer.removeListener('agents:importProgress', handler);
   },
-  agentsClone: (agentId, newName, workspace) => ipcRenderer.invoke('agents:clone', agentId, newName, workspace),
-  agentsGenerateReport: (agentId, format) => ipcRenderer.invoke('agents:generateReport', agentId, format),
   agentsRestart: (agentId) => ipcRenderer.invoke('agents:restart', agentId),
   agentsSecurityCheck: (agentId) => ipcRenderer.invoke('agents:securityCheck', agentId),
+  // Agent 历史统计数据查询
+  agentsGetHistoryStats: (agentId) => ipcRenderer.invoke('agents:getHistoryStats', agentId),
 
   // Sessions
   sessionsList: () => ipcRenderer.invoke('sessions:list'),

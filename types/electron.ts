@@ -1034,72 +1034,16 @@ export interface FileActions {
   }>;
 }
 
-// ── 智能体增强功能相关类型 ──────────────────────────────────────────────────────────
+// ── 历史统计相关类型 ──────────────────────────────────────────────────────────
 
-/** 智能体性能指标 */
-export interface AgentPerformanceMetrics {
-  cpuUsage: number;          // CPU 使用率（百分比，0-100）
-  memoryUsage: number;       // 内存使用量（MB）
-  tokensPerSecond: number;   // Token 处理速度（tokens/秒）
-  responseTime: number;      // 平均响应时间（秒）
-  errorRate: number;         // 错误率（百分比，0-100）
-  uptime: number;            // 运行时间（秒）
-  sessionCount: number;      // 活跃会话数
-  totalMessages: number;     // 总消息数
-  lastUpdated: string;       // 最后更新时间（ISO 8601 格式）
-}
-
-/** 增强功能类型 */
-export type AgentEnhancementType = 'performance' | 'security' | 'monitoring' | 'integration' | 'automation' | 'utility';
-
-/** 增强功能状态 */
-export type AgentEnhancementStatus = 'active' | 'inactive' | 'error';
-
-/** 智能体增强功能 */
-export interface AgentEnhancementFeature {
-  id: string;                                    // 增强功能唯一标识
-  name: string;                                  // 显示名称
-  type: AgentEnhancementType;                    // 功能类型
-  description: string;                           // 功能描述
-  enabled: boolean;                              // 是否启用
-  settings: Record<string, any>;                 // 功能设置参数
-  lastApplied?: string;                          // 最后应用时间（ISO 8601）
-  status: AgentEnhancementStatus;                // 运行状态
-  dependencies?: string[];                       // 依赖的其他增强功能 ID
-  version?: string;                              // 功能版本
-}
-
-/** 增强功能配置文件结构 */
-export interface EnhancementConfig {
-  version: string;                              // 配置文件版本
-  agentId: string;                              // 智能体 ID
-  lastModified: string;                         // 最后修改时间
-  enhancements: {
-    [enhancementId: string]: {
-      enabled: boolean;                         // 是否启用
-      settings: Record<string, any>;            // 设置参数
-      lastApplied?: string;                     // 最后应用时间
-    };
-  };
-}
-
-/** 性能测试结果 */
-export interface PerformanceTestResult {
-  testId: string;                               // 测试 ID
-  agentId: string;                              // 智能体 ID
-  timestamp: string;                            // 测试时间
-  duration: number;                             // 测试时长（毫秒）
-  status: 'completed' | 'failed' | 'timeout';   // 测试状态
-  metrics: {
-    cpuUsage: number;                           // 测试期间平均 CPU 使用率
-    memoryUsage: number;                        // 测试期间平均内存使用量
-    tokensPerSecond: number;                    // Token 处理速度
-    responseTime: number;                       // 平均响应时间
-    errorRate: number;                          // 错误率
-    throughput: number;                         // 吞吐量（请求/秒）
-    success: boolean;                           // 测试是否成功
-  };
-  errors?: string[];                            // 错误信息列表
+/** 单日统计数据 */
+export interface DailyStats {
+  date: string;              // 日期字符串 'YYYY-MM-DD'
+  tokenUsage: number;        // 当日 Token 消耗总量
+  tokenEstimated: boolean;   // Token 数据是否为估算值
+  sessionCount: number;      // 当日会话数量
+  avgResponseMs: number;     // 当日平均响应时间（毫秒）
+  errorRate: number;         // 当日错误率（百分比 0-100）
 }
 
 /** 安全检查类别 */
@@ -1123,71 +1067,29 @@ export interface SecurityCheckResult {
   details?: Record<string, any>;                // 详细信息
 }
 
-/** 智能体配置导出数据 */
+/** 智能体配置导出数据（简化版） */
 export interface AgentConfigExport {
   exportVersion: string;                        // 导出格式版本
-  exportDate: string;                           // 导出时间
+  exportDate: string;                           // 导出时间（ISO 8601）
   agentInfo: {
     id: string;                                 // 智能体 ID
     name: string;                               // 智能体名称
     model: string;                              // 模型配置
     workspace: string;                          // 工作区路径
   };
-  config: {
-    openclaw: any;                              // openclaw.json 内容
-    enhancements: EnhancementConfig;            // 增强功能配置
-  };
-  workspaceFiles: {
-    [fileName: string]: string;                 // 工作区文件内容
-  };
-  metadata: {
-    desktopVersion: string;                     // Desktop 应用版本
-    openclawVersion: string;                    // OpenClaw CLI 版本
-  };
+  config: Record<string, any>;                  // openclaw.json 内容
 }
 
-/** 智能体增强功能操作接口 */
+/** 智能体运维工具箱操作接口 */
 export interface AgentEnhancementActions {
-  // 性能监控
-  agentsGetPerformance(agentId: string): Promise<{
+  // 历史统计
+  agentsGetHistoryStats(agentId: string): Promise<{
     success: boolean;
-    metrics?: AgentPerformanceMetrics;
+    stats?: DailyStats[];
+    totalSessions?: number;
     error?: string;
   }>;
-  
-  agentsRunPerformanceTest(agentId: string): Promise<{
-    success: boolean;
-    result?: PerformanceTestResult;
-    error?: string;
-  }>;
-  
-  // 增强功能管理
-  agentsGetEnhancements(agentId: string): Promise<{
-    success: boolean;
-    enhancements?: AgentEnhancementFeature[];
-    error?: string;
-  }>;
-  
-  agentsToggleEnhancement(
-    agentId: string,
-    enhancementId: string,
-    enabled: boolean
-  ): Promise<{
-    success: boolean;
-    enhancement?: AgentEnhancementFeature;
-    error?: string;
-  }>;
-  
-  agentsUpdateEnhancementSettings(
-    agentId: string,
-    enhancementId: string,
-    settings: Record<string, any>
-  ): Promise<{
-    success: boolean;
-    enhancement?: AgentEnhancementFeature;
-    error?: string;
-  }>;
-  
+
   // 快速操作
   agentsOpenDebugTerminal(agentId: string): Promise<{
     success: boolean;
@@ -1200,20 +1102,8 @@ export interface AgentEnhancementActions {
     error?: string;
   }>;
   
-  agentsImportConfig(agentId: string, filePath: string): Promise<{
+  agentsImportConfig(agentId: string): Promise<{
     success: boolean;
-    error?: string;
-  }>;
-  
-  agentsClone(agentId: string, newName: string, workspace: string): Promise<{
-    success: boolean;
-    newAgentId?: string;
-    error?: string;
-  }>;
-  
-  agentsGenerateReport(agentId: string, format: 'pdf' | 'markdown'): Promise<{
-    success: boolean;
-    reportPath?: string;
     error?: string;
   }>;
   
