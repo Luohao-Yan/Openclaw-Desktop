@@ -35,7 +35,7 @@ const SegmentedTabs = <T extends string>({
             key={item.key}
             type="button"
             onClick={() => onChange(item.key)}
-            className="inline-flex items-center whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-token-normal"
+            className="inline-flex items-center whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-token-normal cursor-pointer"
             style={active
               ? {
                   background: 'var(--app-segment-tab-active-bg)',
@@ -48,6 +48,18 @@ const SegmentedTabs = <T extends string>({
                   border: '1px solid transparent',
                   color: 'var(--app-segment-tab-inactive-text)',
                 }}
+            onMouseEnter={(e) => {
+              if (!active) {
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-segment-tab-hover-bg, rgba(0,0,0,0.04))';
+                (e.currentTarget as HTMLElement).style.color = 'var(--app-segment-tab-active-text, var(--app-text))';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) {
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--app-segment-tab-inactive-text)';
+              }
+            }}
           >
             {item.icon ? <span className="mr-2 inline-flex items-center">{item.icon}</span> : null}
             {item.label}
