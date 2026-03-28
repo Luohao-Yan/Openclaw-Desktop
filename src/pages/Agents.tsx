@@ -683,7 +683,7 @@ const Agents: React.FC = () => {
                 {activeTab === 'enhance' && selectedAgent && (
                   <button
                     onClick={() => setActiveTab('list')}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8"
                     style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
                   >
                     <ArrowRight className="w-4 h-4 rotate-180" />
@@ -696,7 +696,7 @@ const Agents: React.FC = () => {
                     <div className="relative">
                       <button
                         onClick={() => setMoreMenuOpen(v => !v)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8"
                         style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
                       >
                         <History className="w-4 h-4" />
@@ -712,30 +712,24 @@ const Agents: React.FC = () => {
                           >
                             <button
                               onClick={() => { setImportOpen(true); setMoreMenuOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/8"
                               style={{ color: 'var(--app-text)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
                             >
                               <Upload className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
                               导入配置
                             </button>
                             <button
                               onClick={() => { setHistoryOpen(true); setMoreMenuOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/8"
                               style={{ color: 'var(--app-text)', borderTop: '1px solid var(--app-border)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
                             >
                               <History className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
                               导出历史
                             </button>
                             <button
                               onClick={() => { setGroupImportOpen(true); setMoreMenuOpen(false); }}
-                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer transition-colors"
+                              className="flex items-center gap-2 w-full px-3 py-2.5 text-sm cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/8"
                               style={{ color: 'var(--app-text)', borderTop: '1px solid var(--app-border)' }}
-                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--app-bg-subtle)')}
-                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
                             >
                               <Upload className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
                               导入分组
@@ -748,7 +742,7 @@ const Agents: React.FC = () => {
                     <button
                       onClick={loadAgents}
                       disabled={loading}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-50"
                       style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
                       title="刷新"
                     >
@@ -771,7 +765,7 @@ const Agents: React.FC = () => {
                   <button
                     onClick={loadAgents}
                     disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-50"
                     style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
                     title="刷新"
                   >
