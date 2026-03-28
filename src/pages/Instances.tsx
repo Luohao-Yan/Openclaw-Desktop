@@ -9,6 +9,7 @@ import {
 import GlassCard from '../components/GlassCard';
 import GlobalLoading from '../components/GlobalLoading';
 import AppBadge from '../components/AppBadge';
+import AppButton from '../components/AppButton';
 import { useI18n } from '../i18n/I18nContext';
 
 interface InstanceInfo {
@@ -389,32 +390,21 @@ const Instances: React.FC = () => {
 
             {/* 操作按钮 */}
             <div className="flex items-center space-x-3 shrink-0">
-              <button
+              <AppButton
                 onClick={loadInstances}
                 disabled={loading}
-                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-token-normal disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
-                style={{
-                  backgroundColor: 'var(--app-bg-elevated)',
-                  border: '1px solid var(--app-border)',
-                  color: 'var(--app-text)',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                }}
+                variant="secondary"
+                icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 {loading ? t('common.loading') : t('common.refresh')}
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 onClick={() => alert('新建实例功能即将推出')}
-                className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-token-normal hover:scale-105 active:scale-95"
-                style={{
-                  background: 'linear-gradient(135deg, #00B4FF 0%, #22C55E 100%)',
-                  color: 'white',
-                  boxShadow: '0 4px 12px rgba(0, 180, 255, 0.3)',
-                }}
+                variant="primary"
+                icon={<Plus className="w-4 h-4" />}
               >
-                <Plus className="w-4 h-4 mr-2" />
                 {t('instances.createNew')}
-              </button>
+              </AppButton>
             </div>
           </div>
         </GlassCard>
