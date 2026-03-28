@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
   Clock3,
+  Copy,
   LoaderCircle,
   PlayCircle,
   Plus,
@@ -9,6 +11,11 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
+import { useI18n } from '../i18n/I18nContext';
+import type { TranslationKey } from '../i18n/I18nContext';
+
+/** 翻译函数类型，用于传入模块级工具函数 */
+export type TFunc = (key: TranslationKey) => string;
 import AppButton from '../components/AppButton';
 import AppModal from '../components/AppModal';
 import AppBadge from '../components/AppBadge';
@@ -55,9 +62,10 @@ const sanitizeText = (value?: string) => {
     .trim();
 };
 
-const formatDate = (dateString?: string) => {
+/** 格式化日期字符串，未设置时使用翻译键 */
+export const formatDate = (dateString: string | undefined, t: TFunc) => {
   if (!dateString) {
-    return '未设置';
+    return t('tasks.format.notSet');
   }
 
   const date = new Date(dateString);
@@ -68,40 +76,46 @@ const formatDate = (dateString?: string) => {
   return date.toLocaleString();
 };
 
-const formatRelativeTime = (dateString?: string) => {
+/** 格式化相对时间，所有文本使用翻译键 */
+export const formatRelativeTime = (dateString: string | undefined, t: TFunc) => {
   if (!dateString) {
-    return '待定';
+    return t('tasks.format.pending');
   }
 
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) {
-    return '待定';
+    return t('tasks.format.pending');
   }
 
   const diffMs = date.getTime() - Date.now();
   const diffMins = Math.round(Math.abs(diffMs) / (1000 * 60));
 
   if (diffMins < 1) {
-    return diffMs >= 0 ? '即将开始' : '刚刚';
+    return diffMs >= 0 ? t('tasks.format.imminent') : t('tasks.format.justNow');
   }
 
   if (diffMins < 60) {
-    return diffMs >= 0 ? `${diffMins}m 后` : `${diffMins}m 前`;
+    return diffMs >= 0
+      ? t('tasks.format.minutesLater').replace('{n}', String(diffMins))
+      : t('tasks.format.minutesAgo').replace('{n}', String(diffMins));
   }
 
   const diffHours = Math.round(diffMins / 60);
-  return diffMs >= 0 ? `${diffHours}h 后` : `${diffHours}h 前`;
+  return diffMs >= 0
+    ? t('tasks.format.hoursLater').replace('{n}', String(diffHours))
+    : t('tasks.format.hoursAgo').replace('{n}', String(diffHours));
 };
 
-const getScheduleSummary = (job: CronJobRecord) => {
+/** 获取调度摘要，前缀使用翻译键 */
+export const getScheduleSummary = (job: CronJobRecord, t: TFunc) => {
   const schedule = job.schedule || {};
 
   // 优先读标准字段
   if (typeof schedule.every === 'string' && schedule.every) {
-    return `每 ${schedule.every}`;
+    return `${t('tasks.format.every')} ${schedule.every}`;
   }
   if (typeof schedule.at === 'string' && schedule.at) {
-    return `定时 ${schedule.at}`;
+    return `${t('tasks.format.at')} ${schedule.at}`;
   }
   if (typeof schedule.cron === 'string' && schedule.cron) {
     return schedule.cron;
@@ -109,24 +123,24 @@ const getScheduleSummary = (job: CronJobRecord) => {
 
   // 兼容其他可能的字段名（interval / intervalMs / period）
   if (typeof schedule.interval === 'string' && schedule.interval) {
-    return `每 ${schedule.interval}`;
+    return `${t('tasks.format.every')} ${schedule.interval}`;
   }
   if (typeof schedule.intervalMs === 'number') {
     const ms = schedule.intervalMs as number;
-    if (ms >= 3600000) return `每 ${Math.round(ms / 3600000)}h`;
-    if (ms >= 60000) return `每 ${Math.round(ms / 60000)}m`;
-    return `每 ${Math.round(ms / 1000)}s`;
+    if (ms >= 3600000) return `${t('tasks.format.every')} ${Math.round(ms / 3600000)}h`;
+    if (ms >= 60000) return `${t('tasks.format.every')} ${Math.round(ms / 60000)}m`;
+    return `${t('tasks.format.every')} ${Math.round(ms / 1000)}s`;
   }
   if (typeof schedule.period === 'string' && schedule.period) {
-    return `每 ${schedule.period}`;
+    return `${t('tasks.format.every')} ${schedule.period}`;
   }
 
   // 尝试从 raw 里读取
   const raw = job.raw || {};
   const rawSchedule = raw.schedule as Record<string, unknown> | undefined;
   if (rawSchedule) {
-    if (typeof rawSchedule.every === 'string') return `每 ${rawSchedule.every}`;
-    if (typeof rawSchedule.at === 'string') return `定时 ${rawSchedule.at}`;
+    if (typeof rawSchedule.every === 'string') return `${t('tasks.format.every')} ${rawSchedule.every}`;
+    if (typeof rawSchedule.at === 'string') return `${t('tasks.format.at')} ${rawSchedule.at}`;
     if (typeof rawSchedule.cron === 'string') return rawSchedule.cron;
   }
 
@@ -137,7 +151,7 @@ const getScheduleSummary = (job: CronJobRecord) => {
   return '—';
 };
 
-const getPayloadKind = (job: CronJobRecord) => {
+export const getPayloadKind = (job: CronJobRecord) => {
   const payload = job.payload || {};
   const kind = String(payload.kind || payload.type || '').toLowerCase();
   if (kind.includes('system')) {
@@ -155,14 +169,15 @@ const getPayloadKind = (job: CronJobRecord) => {
   return 'unknown';
 };
 
-const getJobTone = (job: CronJobRecord) => {
+/** 获取任务状态样式和标签，标签使用翻译键 */
+export const getJobTone = (job: CronJobRecord, t: TFunc) => {
   if (job.enabled === false) {
     return {
       bg: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.10)',
       border: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.22)',
       text: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.85)',
       dot: 'rgba(var(--badge-rgb-neutral, 148,163,184), 0.85)',
-      label: '已停用',
+      label: t('tasks.list.statusDisabled'),
     };
   }
 
@@ -171,15 +186,15 @@ const getJobTone = (job: CronJobRecord) => {
     border: 'rgba(var(--badge-rgb-success, 52,211,153), 0.22)',
     text: 'rgba(var(--badge-rgb-success, 52,211,153), 0.85)',
     dot: 'rgba(var(--badge-rgb-success, 52,211,153), 0.85)',
-    label: '运行中',
+    label: t('tasks.list.statusRunning'),
   };
 };
 
-/* 根据 payload 类型返回可读标签 */
-const getPayloadLabel = (job: CronJobRecord) => {
+/** 根据 payload 类型返回可读标签，使用翻译键 */
+export const getPayloadLabel = (job: CronJobRecord, t: TFunc) => {
   const kind = getPayloadKind(job);
-  if (kind === 'systemEvent') return '系统事件';
-  if (kind === 'agentTurn') return 'Agent 消息';
+  if (kind === 'systemEvent') return t('tasks.list.payloadSystem');
+  if (kind === 'agentTurn') return t('tasks.list.payloadAgent');
   return kind;
 };
 
@@ -211,6 +226,7 @@ const buildInitialDraft = (): CronJobDraft => ({
 });
 
 const Tasks: React.FC = () => {
+  const { t } = useI18n();
   const [overview, setOverview] = useState<CoreConfigOverview | null>(null);
   const [jobs, setJobs] = useState<CronJobRecord[]>([]);
   const [selectedJobId, setSelectedJobId] = useState('');
@@ -224,6 +240,8 @@ const Tasks: React.FC = () => {
   const [error, setError] = useState('');
   // 立即执行的 loading 状态和 toast 提示
   const [runningJobId, setRunningJobId] = useState('');
+  // 复制 run ID 后的反馈状态
+  const [copiedRunId, setCopiedRunId] = useState('');
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   // toast 3 秒后自动消失
   useEffect(() => {
@@ -257,7 +275,7 @@ const Tasks: React.FC = () => {
 
       setAgents(result.agents.map((item: any) => ({
         id: String(item.id || item.name || ''),
-        name: String(item.name || item.id || '未命名 Agent'),
+        name: String(item.name || item.id || t('tasks.unnamedAgent')),
       })));
     } catch {
       setAgents([]);
@@ -270,7 +288,7 @@ const Tasks: React.FC = () => {
     try {
       const result = await electronAPI.cronList(true);
       if (!result.success) {
-        throw new Error(result.error || '读取 cron 任务失败');
+        throw new Error(result.error || t('tasks.error.loadFailed'));
       }
 
       const nextJobs = result.jobs || [];
@@ -351,7 +369,7 @@ const Tasks: React.FC = () => {
         job.name,
         job.status,
         job.session,
-        getScheduleSummary(job),
+        getScheduleSummary(job, t),
       ]
         .map((item) => sanitizeText(item))
         .join(' ')
@@ -463,7 +481,7 @@ const Tasks: React.FC = () => {
 
       const result = await electronAPI.cronCreate(payload);
       if (!result.success) {
-        throw new Error(result.error || '创建 cron 任务失败');
+        throw new Error(result.error || t('tasks.error.createFailed'));
       }
 
       closeCreateModal();
@@ -494,7 +512,7 @@ const Tasks: React.FC = () => {
     const action = job.enabled === false ? electronAPI.cronEnable : electronAPI.cronDisable;
     const result = await action(job.id);
     if (!result.success) {
-      setError(result.error || '更新 cron 状态失败');
+      setError(result.error || t('tasks.error.updateFailed'));
       return;
     }
     await loadJobs();
@@ -507,15 +525,15 @@ const Tasks: React.FC = () => {
     try {
       const result = await electronAPI.cronRun(job.id, true);
       if (!result.success) {
-        setError(result.error || '执行 cron 任务失败');
-        setToast({ type: 'error', message: result.error || '执行失败' });
+        setError(result.error || t('tasks.error.runFailed'));
+        setToast({ type: 'error', message: result.error || t('tasks.error.runFailed') });
         return;
       }
-      setToast({ type: 'success', message: `「${job.name}」已触发执行` });
+      setToast({ type: 'success', message: t('tasks.toast.runSuccess').replace('{name}', job.name || '') });
       // 刷新运行历史和任务列表
       await Promise.all([loadRuns(job.id), loadJobs()]);
     } catch (err: any) {
-      const msg = err?.message || '执行异常';
+      const msg = err?.message || t('tasks.error.runException');
       setError(msg);
       setToast({ type: 'error', message: msg });
     } finally {
@@ -524,13 +542,13 @@ const Tasks: React.FC = () => {
   };
 
   const handleRemove = async (job: CronJobRecord) => {
-    if (!confirm(`确认删除 cron 任务 ${job.name} 吗？`)) {
+    if (!confirm(t('tasks.confirm.delete').replace('{name}', job.name || ''))) {
       return;
     }
 
     const result = await electronAPI.cronRemove(job.id);
     if (!result.success) {
-      setError(result.error || '删除 cron 任务失败');
+      setError(result.error || t('tasks.error.deleteFailed'));
       return;
     }
 
@@ -583,7 +601,7 @@ const Tasks: React.FC = () => {
             </div>
             <div>
               <h1 className="text-lg font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
-                Cron 任务
+                {t('tasks.pageTitle')}
               </h1>
             </div>
           </div>
@@ -594,10 +612,10 @@ const Tasks: React.FC = () => {
           {/* 内联统计指标 pill 组 */}
           <div className="flex items-center gap-2 shrink-0">
             {[
-              { icon: Clock3, value: stats.total, label: '总任务数', color: '#60a5fa' },
-              { icon: PlayCircle, value: stats.enabled, label: '启用中', color: '#34d399' },
-              { icon: X, value: stats.disabled, label: '已停用', color: '#f87171' },
-              { icon: Sparkles, value: stats.runs, label: '最近记录', color: '#a78bfa' },
+              { icon: Clock3, value: stats.total, label: t('tasks.stats.total'), color: '#60a5fa' },
+              { icon: PlayCircle, value: stats.enabled, label: t('tasks.stats.enabled'), color: '#34d399' },
+              { icon: X, value: stats.disabled, label: t('tasks.stats.disabled'), color: '#f87171' },
+              { icon: Sparkles, value: stats.runs, label: t('tasks.stats.recentRuns'), color: '#a78bfa' },
             ].map((m) => {
               const Icon = m.icon;
               return (
@@ -629,14 +647,14 @@ const Tasks: React.FC = () => {
               disabled={loading || overviewLoading}
               icon={<RefreshCw size={14} className={loading || overviewLoading ? 'animate-spin' : ''} />}
             >
-              Refresh
+              {t('tasks.refresh')}
             </AppButton>
             <AppButton
               variant="primary"
               onClick={openCreateModal}
               icon={<Plus size={14} />}
             >
-              New Job
+              {t('tasks.newJob')}
             </AppButton>
           </div>
         </div>
@@ -663,7 +681,7 @@ const Tasks: React.FC = () => {
                 })}
                 icon={<Wrench size={13} />}
               >
-                运行 doctor --fix 修复配置
+                {t('tasks.doctorFix')}
               </AppButton>
             </div>
           ) : null}
@@ -684,7 +702,7 @@ const Tasks: React.FC = () => {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索任务名称..."
+            placeholder={t('tasks.list.searchPlaceholder')}
             className="flex-1 min-w-[160px] rounded-xl border px-3 py-2 text-sm outline-none"
             style={{
               backgroundColor: 'var(--app-bg)',
@@ -693,10 +711,11 @@ const Tasks: React.FC = () => {
             }}
           />
           <div className="flex gap-1.5">
+            {/* 筛选按钮：全部、启用、停用 */}
             {([
-              { key: 'all', label: `全部 ${jobs.length}` },
-              { key: 'enabled', label: `启用 ${stats.enabled}` },
-              { key: 'disabled', label: `停用 ${stats.disabled}` },
+              { key: 'all', label: `${t('tasks.list.filterAll')} ${jobs.length}` },
+              { key: 'enabled', label: `${t('tasks.list.filterEnabled')} ${stats.enabled}` },
+              { key: 'disabled', label: `${t('tasks.list.filterDisabled')} ${stats.disabled}` },
             ] as const).map((item) => {
               const isActive = filter === item.key;
               return (
@@ -726,10 +745,10 @@ const Tasks: React.FC = () => {
         ) : filteredJobs.length ? (
           <div>
             {filteredJobs.map((job, jobIndex) => {
-              const tone = getJobTone(job);
+              const tone = getJobTone(job, t);
               const scheduleColor = getScheduleColor(job);
-              const scheduleSummary = getScheduleSummary(job);
-              const payloadLabel = getPayloadLabel(job);
+              const scheduleSummary = getScheduleSummary(job, t);
+              const payloadLabel = getPayloadLabel(job, t);
               return (
                 <button
                   key={job.id}
@@ -794,10 +813,10 @@ const Tasks: React.FC = () => {
                             className="text-xs font-semibold tabular-nums"
                             style={{ color: '#6ee7b7' }}
                           >
-                            {formatRelativeTime(job.nextRunAt)}
+                            {formatRelativeTime(job.nextRunAt, t)}
                           </div>
                           <div className="text-[10px] mt-0.5" style={{ color: 'var(--app-text-muted)' }}>
-                            下次执行
+                            {t('tasks.list.nextRun')}
                           </div>
                         </div>
                       ) : (
@@ -840,8 +859,8 @@ const Tasks: React.FC = () => {
             >
               <Clock3 size={22} style={{ color: '#a5b4fc' }} />
             </div>
-            <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>暂无 Cron 任务</p>
-            <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>点击「New Job」创建第一个定时任务</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{t('tasks.list.emptyTitle')}</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.list.emptyDesc')}</p>
           </div>
         )}
       </div>
@@ -888,7 +907,7 @@ const Tasks: React.FC = () => {
                   {/* 状态 badge 组 */}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     {(() => {
-                      const tone = getJobTone(selectedJob);
+                      const tone = getJobTone(selectedJob, t);
                       return (
                         <AppBadge
                           size="sm"
@@ -899,11 +918,12 @@ const Tasks: React.FC = () => {
                       );
                     })()}
                     <AppBadge size="sm" variant="default" icon={<Clock3 size={10} />}>
-                      {getScheduleSummary(selectedJob)}
+                      {getScheduleSummary(selectedJob, t)}
                     </AppBadge>
                     {selectedJob.nextRunAt && (
                       <AppBadge size="sm" variant="success">
-                        下次 {formatRelativeTime(selectedJob.nextRunAt)}
+                        {/* 「下次」前缀使用翻译键 */}
+                        {t('tasks.detail.nextPrefix')} {formatRelativeTime(selectedJob.nextRunAt, t)}
                       </AppBadge>
                     )}
                     <AppBadge size="sm" variant="neutral">
@@ -932,7 +952,8 @@ const Tasks: React.FC = () => {
                   style={{ backgroundColor: 'rgb(99,102,241)', color: '#fff' }}
                 >
                   {runningJobId === selectedJob.id ? <LoaderCircle size={14} className="animate-spin" /> : <PlayCircle size={14} />}
-                  {runningJobId === selectedJob.id ? '执行中…' : '立即执行'}
+                  {/* 立即执行 / 执行中… 按钮文本 */}
+                  {runningJobId === selectedJob.id ? t('tasks.detail.running') : t('tasks.detail.runNow')}
                 </button>
                 <button
                   type="button"
@@ -941,7 +962,8 @@ const Tasks: React.FC = () => {
                   style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)', border: '1px solid var(--app-border)' }}
                 >
                   {selectedJob.enabled === false ? <PlayCircle size={14} /> : <X size={14} />}
-                  {selectedJob.enabled === false ? '启用' : '停用'}
+                  {/* 启用 / 停用 按钮文本 */}
+                  {selectedJob.enabled === false ? t('tasks.detail.enable') : t('tasks.detail.disable')}
                 </button>
                 <button
                   type="button"
@@ -950,7 +972,8 @@ const Tasks: React.FC = () => {
                   style={{ backgroundColor: 'rgb(239,68,68)', color: '#fff' }}
                 >
                   <X size={14} />
-                  删除
+                  {/* 删除按钮文本 */}
+                  {t('tasks.detail.delete')}
                 </button>
               </div>
             </div>
@@ -963,28 +986,31 @@ const Tasks: React.FC = () => {
                 className="rounded-2xl border px-4 py-3.5"
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
               >
-                <div className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--app-text-muted)' }}>基本信息</div>
+                {/* 基本信息区域标题 */}
+                <div className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.detail.basicInfo')}</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                  {/* 基本信息字段列表：使用翻译键替换硬编码标签 */}
                   {([
-                    { label: '任务 ID', value: selectedJob.id },
-                    { label: '调度方式', value: getScheduleSummary(selectedJob) },
-                    { label: '下次运行', value: formatDate(selectedJob.nextRunAt) },
-                    (selectedJob as any).lastRunAt ? { label: '上次运行', value: formatDate((selectedJob as any).lastRunAt) } : null,
-                    selectedJob.status ? { label: '上次状态', value: selectedJob.status } : null,
-                    (selectedJob as any).lastDurationMs != null ? { label: '上次耗时', value: `${(selectedJob as any).lastDurationMs} ms` } : null,
+                    { label: t('tasks.detail.jobId'), value: selectedJob.id },
+                    { label: t('tasks.detail.schedule'), value: getScheduleSummary(selectedJob, t) },
+                    { label: t('tasks.detail.nextRun'), value: formatDate(selectedJob.nextRunAt, t) },
+                    (selectedJob as any).lastRunAt ? { label: t('tasks.detail.lastRun'), value: formatDate((selectedJob as any).lastRunAt, t) } : null,
+                    selectedJob.status ? { label: t('tasks.detail.lastStatus'), value: selectedJob.status } : null,
+                    (selectedJob as any).lastDurationMs != null ? { label: t('tasks.detail.lastDuration'), value: `${(selectedJob as any).lastDurationMs} ms` } : null,
                     (selectedJob as any).agentId ? { label: 'Agent ID', value: String((selectedJob as any).agentId) } : null,
-                    { label: '创建时间', value: formatDate(selectedJob.createdAt) },
-                    { label: '更新时间', value: formatDate(selectedJob.updatedAt) },
+                    { label: t('tasks.detail.createdAt'), value: formatDate(selectedJob.createdAt, t) },
+                    { label: t('tasks.detail.updatedAt'), value: formatDate(selectedJob.updatedAt, t) },
                   ] as const).filter(Boolean).map((item) => (
                     <div key={item!.label} className="flex items-start gap-2 min-w-0">
                       <span className="shrink-0 text-[11px] pt-0.5 w-16" style={{ color: 'var(--app-text-muted)' }}>{item!.label}</span>
-                      <span className="text-[11px] font-medium break-all" style={{ color: 'var(--app-text)' }}>{item!.value}</span>
+                      <span className="text-[11px] font-semibold break-all" style={{ color: 'var(--app-text)' }}>{item!.value}</span>
                     </div>
                   ))}
                   {/* 上次错误单独一行 */}
                   {(selectedJob as any).lastError && (
                     <div className="col-span-2 flex items-start gap-2">
-                      <span className="shrink-0 text-[11px] pt-0.5 w-16" style={{ color: '#f87171' }}>上次错误</span>
+                      {/* 上次错误标签 */}
+                      <span className="shrink-0 text-[11px] pt-0.5 w-16" style={{ color: '#f87171' }}>{t('tasks.detail.lastError')}</span>
                       <span className="text-[11px] break-all" style={{ color: '#fca5a5' }}>
                         {sanitizeText(String((selectedJob as any).lastError))}
                       </span>
@@ -999,7 +1025,8 @@ const Tasks: React.FC = () => {
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>载荷</div>
+                  {/* 载荷区域标题 */}
+                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.detail.payloadTitle')}</div>
                   {/* Payload 类型 badge */}
                   <AppBadge size="sm" variant="default">
                     {getPayloadKind(selectedJob)}
@@ -1009,19 +1036,20 @@ const Tasks: React.FC = () => {
                   {Object.entries(selectedJob.payload || {}).map(([k, v]) => (
                     <div key={k} className="flex items-start gap-2 min-w-0">
                       <span className="shrink-0 text-[11px] pt-0.5 w-16 font-mono" style={{ color: 'var(--app-text-muted)' }}>{k}</span>
-                      <span className="text-[11px] break-all" style={{ color: 'var(--app-text)' }}>{String(v ?? '')}</span>
+                      <span className="text-[11px] font-semibold break-all" style={{ color: 'var(--app-text)' }}>{String(v ?? '')}</span>
                     </div>
                   ))}
                 </div>
                 {/* Delivery 配置（如有） */}
                 {(selectedJob as any).delivery && (
                   <>
-                    <div className="mt-3 mb-2 text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>投递配置</div>
+                    {/* 投递配置区域标题 */}
+                    <div className="mt-3 mb-2 text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.detail.deliveryTitle')}</div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                       {Object.entries((selectedJob as any).delivery).map(([k, v]) => (
                         <div key={k} className="flex items-start gap-2 min-w-0">
                           <span className="shrink-0 text-[11px] pt-0.5 w-16 font-mono" style={{ color: 'var(--app-text-muted)' }}>{k}</span>
-                          <span className="text-[11px] break-all" style={{ color: 'var(--app-text)' }}>{String(v ?? '')}</span>
+                          <span className="text-[11px] font-semibold break-all" style={{ color: 'var(--app-text)' }}>{String(v ?? '')}</span>
                         </div>
                       ))}
                     </div>
@@ -1035,11 +1063,11 @@ const Tasks: React.FC = () => {
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)' }}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>运行历史</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.history.title')}</div>
                   {runsLoading ? (
                     <LoaderCircle size={13} className="animate-spin" style={{ color: 'var(--app-text-muted)' }} />
                   ) : (
-                    <span className="text-[11px]" style={{ color: 'var(--app-text-muted)' }}>最近 {runs.length} 条</span>
+                    <span className="text-[11px]" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.history.recentCount').replace('{n}', String(runs.length))}</span>
                   )}
                 </div>
                 {runs.length ? (
@@ -1061,8 +1089,30 @@ const Tasks: React.FC = () => {
                           <div className="mt-1 h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-[11px] font-medium truncate" style={{ color: 'var(--app-text)' }}>
-                                {run.runId || run.id || `Run #${index + 1}`}
+                              <span className="flex items-center gap-1 min-w-0">
+                                <span className="text-[11px] font-medium truncate" style={{ color: 'var(--app-text)' }}>
+                                  {run.runId || run.id || `Run #${index + 1}`}
+                                </span>
+                                {/* 复制 run ID 按钮 */}
+                                {(run.runId || run.id) && (
+                                  <button
+                                    type="button"
+                                    className="shrink-0 p-0.5 rounded transition-colors hover:bg-white/10"
+                                    style={{ color: copiedRunId === (run.runId || run.id) ? '#34d399' : 'var(--app-text-muted)' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const id = run.runId || run.id || '';
+                                      void navigator.clipboard.writeText(id);
+                                      setCopiedRunId(id);
+                                      setTimeout(() => setCopiedRunId((prev) => prev === id ? '' : prev), 1500);
+                                    }}
+                                    title={copiedRunId === (run.runId || run.id) ? 'Copied' : 'Copy ID'}
+                                  >
+                                    {copiedRunId === (run.runId || run.id)
+                                      ? <Check size={11} />
+                                      : <Copy size={11} />}
+                                  </button>
+                                )}
                               </span>
                               <span
                                 className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
@@ -1072,8 +1122,8 @@ const Tasks: React.FC = () => {
                               </span>
                             </div>
                             <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]" style={{ color: 'var(--app-text-muted)' }}>
-                              {run.startedAt && <span>开始 {formatDate(run.startedAt)}</span>}
-                              {run.finishedAt && <span>结束 {formatDate(run.finishedAt)}</span>}
+                              {run.startedAt && <span>{t('tasks.history.start')} {formatDate(run.startedAt, t)}</span>}
+                              {run.finishedAt && <span>{t('tasks.history.end')} {formatDate(run.finishedAt, t)}</span>}
                               {run.summary && <span className="w-full truncate">{run.summary}</span>}
                             </div>
                           </div>
@@ -1082,7 +1132,7 @@ const Tasks: React.FC = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="text-[11px] py-3 text-center" style={{ color: 'var(--app-text-muted)' }}>暂无运行记录</div>
+                  <div className="text-[11px] py-3 text-center" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.history.empty')}</div>
                 )}
               </div>
 
@@ -1100,39 +1150,43 @@ const Tasks: React.FC = () => {
           color: 'var(--app-text-muted)',
         }}
       >
-        <div>共 {stats.total} 个 cron 任务，其中启用 {stats.enabled} 个。</div>
-        <div>{overview ? `OpenClaw ${overview.openclawVersion}` : '正在读取 OpenClaw 配置...'}</div>
+        {/* 页脚统计文本：使用翻译键 + 参数替换 */}
+        <div>{t('tasks.list.footer').replace('{total}', String(stats.total)).replace('{enabled}', String(stats.enabled))}</div>
+        <div>{overview ? `OpenClaw ${overview.openclawVersion}` : t('tasks.loadingConfig')}</div>
       </div>
 
 
       {/* ── 新建 Cron 任务 Modal ── */}
+      {/* 新建定时任务弹窗 */}
       <AppModal
         open={showCreateModal}
         onClose={closeCreateModal}
-        title="New cron job"
+        title={t('tasks.create.title')}
         icon={<Clock3 size={20} />}
         variant="default"
         size="xl"
         disableClose={saving}
         footer={
           <>
+            {/* 取消按钮 */}
             <AppButton variant="secondary" onClick={closeCreateModal} disabled={saving}>
-              取消
+              {t('tasks.create.cancel')}
             </AppButton>
+            {/* 保存按钮 */}
             <AppButton
               variant="primary"
               onClick={() => void handleCreate()}
               disabled={saving || !draft.name.trim()}
               icon={saving ? <LoaderCircle size={14} className="animate-spin" /> : undefined}
             >
-              保存
+              {t('tasks.create.save')}
             </AppButton>
           </>
         }
       >
         {/* 副标题说明 */}
         <p className="text-sm mb-5" style={{ color: 'var(--app-text-muted)' }}>
-          Create a schedule that wakes OpenClaw via the Gateway. 不同的 session target 和 payload 类型会切换不同字段。
+          {t('tasks.create.subtitle')}
         </p>
 
         {/* 内容区：限制最大高度并允许滚动 */}
@@ -1143,44 +1197,44 @@ const Tasks: React.FC = () => {
             className="rounded-2xl border p-5"
             style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}
           >
-            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--app-text)' }}>Basics</div>
+            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--app-text)' }}>{t('tasks.basics')}</div>
             <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-4">
-              {/* Name */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Name</div>
+              {/* Name（名称） */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.name')}</div>
               <input
                 value={draft.name}
                 onChange={(event) => updateDraft({ name: event.target.value })}
-                placeholder='Required (e.g. "Daily summary")'
+                placeholder={t('tasks.namePlaceholder')}
                 className={inputClassName}
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
               />
 
-              {/* Description */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Description</div>
+              {/* Description（描述） */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.description')}</div>
               <input
                 value={draft.description || ''}
                 onChange={(event) => updateDraft({ description: event.target.value })}
-                placeholder="Optional notes"
+                placeholder={t('tasks.descriptionPlaceholder')}
                 className={inputClassName}
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
               />
 
-              {/* Agent ID */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>智能体ID</div>
+              {/* Agent ID（智能体 ID） */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.agentId')}</div>
               <select
                 value={draft.agentId || ''}
                 onChange={(event) => updateDraft({ agentId: event.target.value })}
                 className={inputClassName}
                 style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
               >
-                <option value="">可选（默认智能体）</option>
+                <option value="">{t('tasks.create.agentIdPlaceholder')}</option>
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
               </select>
 
-              {/* Enabled 开关 */}
-              <div className="pt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>Enabled</div>
+              {/* Enabled（启用开关） */}
+              <div className="pt-2 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.enabled')}</div>
               <div className="flex items-center">
                 <button
                   type="button"
@@ -1195,8 +1249,8 @@ const Tasks: React.FC = () => {
                 </button>
               </div>
 
-              {/* Session target */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Session target</div>
+              {/* Session target（会话目标） */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.sessionTarget')}</div>
               <div className="flex flex-wrap gap-2">
                 {cronSessionTargetOptions.map((item) => {
                   const value = item.value as 'main' | 'isolated';
@@ -1219,8 +1273,8 @@ const Tasks: React.FC = () => {
                 })}
               </div>
 
-              {/* Wake mode */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Wake mode</div>
+              {/* Wake mode（唤醒模式） */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.wakeMode')}</div>
               <div>
                 <div className="flex flex-wrap gap-2">
                   {cronWakeModeOptions.map((item) => {
@@ -1245,8 +1299,9 @@ const Tasks: React.FC = () => {
                     );
                   })}
                 </div>
+                {/* Wake mode 提示文本 */}
                 <div className="mt-2 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  System event 会使用这个 wake mode。Agent turn 默认走独立会话执行。
+                  {t('tasks.create.wakeModeHint')}
                 </div>
               </div>
             </div>
@@ -1257,10 +1312,11 @@ const Tasks: React.FC = () => {
             className="rounded-2xl border p-5"
             style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}
           >
-            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--app-text)' }}>调度配置</div>
+            {/* 调度配置区域标题 */}
+            <div className="text-sm font-semibold mb-4" style={{ color: 'var(--app-text)' }}>{t('tasks.create.scheduleTitle')}</div>
             <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-4">
-              {/* Kind */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>类型</div>
+              {/* 调度类型 */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.create.scheduleType')}</div>
               <div>
                 <div className="flex flex-wrap gap-2">
                   {cronScheduleKindOptions.map((item) => {
@@ -1283,8 +1339,9 @@ const Tasks: React.FC = () => {
                     );
                   })}
                 </div>
+                {/* 调度类型提示 */}
                 <div className="mt-2 text-xs leading-6" style={{ color: 'var(--app-text-muted)' }}>
-                  "At" 单次执行，"Every" 按间隔循环，"Cron" 使用 5 段表达式。
+                  {t('tasks.create.scheduleTypeHint')}
                 </div>
               </div>
 
@@ -1330,13 +1387,15 @@ const Tasks: React.FC = () => {
             className="rounded-2xl border p-5"
             style={{ borderColor: 'var(--app-border)', backgroundColor: 'var(--app-bg-subtle)' }}
           >
-            <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>Payload</div>
+            {/* Payload 区域标题 */}
+            <div className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>{t('tasks.payload')}</div>
+            {/* Payload 副标题 */}
             <div className="mt-1 mb-4 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-              不同 payload 会显示不同的表单字段。
+              {t('tasks.create.payloadSubtitle')}
             </div>
             <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-4">
-              {/* Kind */}
-              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Kind</div>
+              {/* Payload Kind（类型） */}
+              <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.kind')}</div>
               <div className="flex flex-wrap gap-2">
                 {cronPayloadKindOptions.map((item) => {
                   const value = item.value as 'systemEvent' | 'agentTurn';
@@ -1362,7 +1421,8 @@ const Tasks: React.FC = () => {
               {/* systemEvent 字段 */}
               {draft.payload.kind === 'systemEvent' ? (
                 <>
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>System event text</div>
+                  {/* System event text（系统事件文本） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.systemEventText')}</div>
                   <textarea
                     value={draft.payload.text}
                     onChange={(event) => updatePayload({ text: event.target.value })}
@@ -1372,47 +1432,47 @@ const Tasks: React.FC = () => {
                 </>
               ) : agentTurnPayload ? (
                 <>
-                  {/* Message */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Message</div>
+                  {/* Message（消息） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.message')}</div>
                   <textarea
                     value={agentTurnPayload.message}
                     onChange={(event) => updatePayload({ message: event.target.value })}
-                    placeholder="What should OpenClaw do?"
+                    placeholder={t('tasks.create.messagePlaceholder')}
                     className={textareaClassName}
                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                   />
 
-                  {/* Thinking */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Thinking</div>
+                  {/* Thinking（思考模式） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.thinking')}</div>
                   <select
                     value={agentTurnPayload.thinking || ''}
                     onChange={(event) => updatePayload({ thinking: event.target.value as any })}
                     className={inputClassName}
                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                   >
-                    <option value="">Optional</option>
+                    <option value="">{t('tasks.optional')}</option>
                     {cronThinkingOptions.map((item) => (
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
 
-                  {/* Timeout */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>超时时间</div>
+                  {/* Timeout（超时时间） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.timeout')}</div>
                   <input
                     type="number"
                     value={agentTurnPayload.timeoutSeconds || ''}
                     onChange={(event) => updatePayload({ timeoutSeconds: Number(event.target.value || 0) || undefined })}
-                    placeholder="秒数（可选）"
+                    placeholder={t('tasks.create.timeoutPlaceholder')}
                     className={inputClassName}
                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                   />
 
-                  {/* Delivery */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Delivery</div>
+                  {/* Delivery（投递方式） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.delivery')}</div>
                   <div className="flex flex-wrap gap-2">
                     {[
-                      { key: true, label: 'Announce summary' },
-                      { key: false, label: 'None' },
+                      { key: true, label: t('tasks.create.deliveryAnnounce') },
+                      { key: false, label: t('tasks.create.deliveryNone') },
                     ].map((item) => {
                       const isActive = agentTurnPayload.deliver === item.key;
                       return (
@@ -1433,8 +1493,8 @@ const Tasks: React.FC = () => {
                     })}
                   </div>
 
-                  {/* Channel */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>Channel</div>
+                  {/* Channel（渠道） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.channel')}</div>
                   <div className="flex flex-wrap gap-2">
                     {cronDeliveryChannelOptions.map((item) => {
                       const channel = item.value;
@@ -1457,12 +1517,12 @@ const Tasks: React.FC = () => {
                     })}
                   </div>
 
-                  {/* To */}
-                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>To</div>
+                  {/* To（接收方） */}
+                  <div className="pt-3 text-sm" style={{ color: 'var(--app-text-muted)' }}>{t('tasks.to')}</div>
                   <input
                     value={agentTurnPayload.to || ''}
                     onChange={(event) => updatePayload({ to: event.target.value })}
-                    placeholder="Optional override (phone number / chat id / Discord channel)"
+                    placeholder={t('tasks.create.toPlaceholder')}
                     className={inputClassName}
                     style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
                   />
