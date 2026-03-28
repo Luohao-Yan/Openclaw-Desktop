@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Search,
   Wrench,
+  Sparkles,
   Activity,
   Users,
   Database,
@@ -553,7 +554,7 @@ const Sessions: React.FC = () => {
               tint="default"
               onClick={() => void handleCleanup(true)}
               title={t('sessions.cleanup')}
-              icon={<Wrench size={16} />}
+              icon={<Sparkles size={16} />}
             />
             {/* 刷新按钮 */}
             <AppButton
