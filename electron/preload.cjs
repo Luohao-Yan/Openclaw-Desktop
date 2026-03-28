@@ -155,6 +155,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('install:output', handler);
   },
   testModelConnection: (params) => ipcRenderer.invoke('system:testModelConnection', params),
+  resolveApiKey: (apiKey) => ipcRenderer.invoke('system:resolveApiKey', apiKey),
 
   // 执行 openclaw doctor --fix 自动修复配置
   doctorFix: () => ipcRenderer.invoke('system:doctorFix'),

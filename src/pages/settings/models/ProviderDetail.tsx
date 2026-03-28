@@ -93,6 +93,9 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
   const [showApiKey, setShowApiKey] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
+  // 环境变量引用解析状态
+  const [resolvedApiKey, setResolvedApiKey] = useState<{ resolved: string | null; error?: string } | null>(null);
+
   // 添加自定义提供商表单状态
   const [addCustomForm, setAddCustomForm] = useState({
     id: '',
@@ -127,6 +130,22 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
     setTestingModels({});
     setTestResults({});
   }, [provider?.id, provider?.isConfigured]);
+
+  // 当 apiKey 为 ${VAR_NAME} 格式时，异步解析环境变量引用
+  useEffect(() => {
+    const apiKey = configForm.apiKey || provider?.apiKey;
+    if (!apiKey || !/^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(apiKey)) {
+      setResolvedApiKey(null);
+      return;
+    }
+    let cancelled = false;
+    window.electronAPI?.resolveApiKey?.(apiKey).then((result) => {
+      if (!cancelled) setResolvedApiKey(result);
+    }).catch(() => {
+      if (!cancelled) setResolvedApiKey(null);
+    });
+    return () => { cancelled = true; };
+  }, [configForm.apiKey, provider?.apiKey]);
 
   /** 渲染认证状态徽章 */
   const renderStatusBadge = (status: ProviderAuthStatus) => {
@@ -767,6 +786,55 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                     </div>
                   </div>
 
+                  {/* 环境变量解析：点击显示密钥时展示真实值 */}
+                  {showApiKey && resolvedApiKey && (
+                    resolvedApiKey.resolved ? (
+                      <div
+                        className="text-xs rounded-lg px-3 py-2 flex items-center gap-2"
+                        style={{
+                          backgroundColor: 'rgba(34, 197, 94, 0.10)',
+                          border: '1px solid rgba(34, 197, 94, 0.30)',
+                          color: '#4ADE80',
+                        }}
+                      >
+                        <span>✓ 实际密钥：</span>
+                        <code className="font-mono flex-1 select-all" style={{ color: 'var(--app-text)', wordBreak: 'break-all' }}>{resolvedApiKey.resolved}</code>
+                        <AppButton
+                          iconOnly
+                          size="xs"
+                          variant="ghost"
+                          onClick={() => copyToClipboard(resolvedApiKey.resolved!, '实际密钥')}
+                          title="复制实际密钥"
+                          icon={<Copy size={14} />}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="text-xs rounded-lg px-3 py-2"
+                        style={{
+                          backgroundColor: 'rgba(251, 113, 133, 0.10)',
+                          border: '1px solid rgba(251, 113, 133, 0.30)',
+                          color: '#FB7185',
+                        }}
+                      >
+                        ✗ {resolvedApiKey.error || '环境变量未设置'}
+                      </div>
+                    )
+                  )}
+                  {/* 环境变量设置说明 */}
+                  {configForm.apiKey && /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(configForm.apiKey) && (
+                    <div
+                      className="text-xs rounded-lg px-3 py-2"
+                      style={{
+                        backgroundColor: 'rgba(96, 165, 250, 0.08)',
+                        border: '1px solid rgba(96, 165, 250, 0.20)',
+                        color: 'var(--app-text-muted)',
+                      }}
+                    >
+                      💡 环境变量值的设置方式：在 <code className="font-mono" style={{ color: 'var(--app-text)' }}>openclaw.json</code> 的 <code className="font-mono" style={{ color: 'var(--app-text)' }}>env</code> 节点中添加，或在系统终端中 <code className="font-mono" style={{ color: 'var(--app-text)' }}>export {configForm.apiKey.slice(2, -1)}=你的密钥</code>
+                    </div>
+                  )}
+
                   {/* 复制成功提示 */}
                   {copyFeedback && (
                     <div
@@ -840,7 +908,7 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
               )}
             </div>
           </div>
-          {renderStatusBadge(provider.authStatus)}
+          {provider.authStatus !== 'unknown' && renderStatusBadge(provider.authStatus)}
         </div>
       </GlassCard>
 
@@ -1266,7 +1334,7 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                   {/* 测试结果显示 */}
                   {testingModels[model.id] && testingModels[model.id] !== 'testing' && testResults[model.id] && (
                     <div
-                      className="mt-2 rounded-lg px-3 py-2 text-xs flex items-center gap-2"
+                      className="mt-2 rounded-lg px-3 py-2 text-xs"
                       style={{
                         backgroundColor: testingModels[model.id] === 'success'
                           ? 'rgba(74, 222, 128, 0.10)'
@@ -1278,7 +1346,7 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                       }}
                     >
                       {testingModels[model.id] === 'success' ? (
-                        <>
+                        <div className="flex items-center gap-2">
                           <CheckCircle size={13} />
                           <span>连通成功</span>
                           {testResults[model.id]?.latencyMs != null && (
@@ -1286,17 +1354,57 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                               · 延迟 {testResults[model.id].latencyMs}ms
                             </span>
                           )}
-                        </>
+                        </div>
                       ) : (
-                        <>
-                          <XCircle size={13} />
-                          <span>连通失败</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <XCircle size={13} className="shrink-0" />
+                            <span>连通失败</span>
+                            {testResults[model.id]?.latencyMs != null && (
+                              <span style={{ color: 'var(--app-text-muted)' }}>
+                                · 延迟 {testResults[model.id].latencyMs}ms
+                              </span>
+                            )}
+                          </div>
                           {testResults[model.id]?.error && (
-                            <span style={{ color: 'var(--app-text-muted)' }}>
-                              · {testResults[model.id].error}
-                            </span>
+                            <div className="mt-1.5 pl-5 leading-relaxed" style={{ color: 'var(--app-text-muted)', wordBreak: 'break-word' }}>
+                              {(() => {
+                                const raw = testResults[model.id].error!;
+                                // 尝试从 JSON 格式的错误中提取可读信息
+                                try {
+                                  const parsed = JSON.parse(raw.replace(/^[^{]*/, '').replace(/[^}]*$/, ''));
+                                  const msg = parsed?.error?.message || parsed?.message || parsed?.error;
+                                  const type = parsed?.error?.type || parsed?.type;
+                                  if (msg) {
+                                    return (
+                                      <>
+                                        <div>{typeof msg === 'string' ? msg : raw}</div>
+                                        {type && <div className="mt-0.5 opacity-70">类型：{type}</div>}
+                                      </>
+                                    );
+                                  }
+                                } catch { /* 非 JSON，直接显示 */ }
+                                // 截取"请求参数错误："等前缀后的内容
+                                const prefixMatch = raw.match(/^(.+?)[：:]\s*(\{.+)/);
+                                if (prefixMatch) {
+                                  try {
+                                    const parsed = JSON.parse(prefixMatch[2]);
+                                    const msg = parsed?.error?.message || parsed?.message;
+                                    if (msg) {
+                                      return (
+                                        <>
+                                          <div>{prefixMatch[1]}</div>
+                                          <div className="mt-0.5">{msg}</div>
+                                        </>
+                                      );
+                                    }
+                                  } catch { /* 解析失败 */ }
+                                }
+                                return raw;
+                              })()}
+                            </div>
                           )}
-                        </>
+                        </div>
                       )}
                     </div>
                   )}

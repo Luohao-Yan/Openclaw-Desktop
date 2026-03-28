@@ -14,7 +14,7 @@ import {
 } from './settings.js';
 import { resolveRuntime, getBundledNodePath, getBundledOpenClawCLIPath } from './runtime.js';
 import type { RuntimeTier } from './runtimeLogic.js';
-import { buildModelTestUrl } from './modelTestLogic.js';
+import { buildModelTestUrl, resolveApiKey } from './modelTestLogic.js';
 import { resolveClawHubStatus, buildClawHubFixableIssue } from './clawhubInstallLogic.js';
 import { CURRENT_MANIFEST_VERSION, SUPPORTED_MANIFEST_VERSIONS } from '../config/manifest-version.js';
 // 统一命令执行入口（供后续迁移使用）
@@ -1134,7 +1134,27 @@ async function testModelConnection(params: {
   let headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
   if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
+    // 解析 apiKey 中可能的环境变量引用（${VAR_NAME} 格式）
+    let configEnv: Record<string, string> | undefined;
+    try {
+      const configPath = path.join(getOpenClawRootDir(), 'openclaw.json');
+      const raw = await fs.readFile(configPath, 'utf-8');
+      const config = JSON.parse(raw);
+      if (config?.env && typeof config.env === 'object') {
+        configEnv = config.env as Record<string, string>;
+      }
+    } catch {
+      // 配置文件不存在或解析失败，忽略，仅依赖 process.env
+    }
+
+    const { resolved, error } = resolveApiKey(apiKey, configEnv);
+    if (resolved == null && error) {
+      // 环境变量未设置，直接返回错误，避免发送无效请求
+      return { success: false, error };
+    }
+    if (resolved != null) {
+      headers['Authorization'] = `Bearer ${resolved}`;
+    }
   }
 
   // 发送最小化测试请求
@@ -1200,6 +1220,27 @@ export function setupSystemIPC() {
   ipcMain.handle('system:setupEnvironmentCheck', getSetupEnvironmentCheck);
   ipcMain.handle('system:setupInstallOpenClaw', (event, version?: string) => installOpenClawForSetup(event.sender, version));
   ipcMain.handle('system:testModelConnection', (_event, params) => testModelConnection(params));
+
+  /**
+   * system:resolveApiKey - 解析 API Key 中的环境变量引用
+   * 前端用于在 UI 上显示环境变量解析状态
+   */
+  ipcMain.handle('system:resolveApiKey', async (_event, apiKey: string) => {
+    // 读取 openclaw.json 的 env 节点
+    let configEnv: Record<string, string> | undefined;
+    try {
+      const configPath = path.join(getOpenClawRootDir(), 'openclaw.json');
+      const raw = await fs.readFile(configPath, 'utf-8');
+      const config = JSON.parse(raw);
+      if (config?.env && typeof config.env === 'object') {
+        configEnv = config.env as Record<string, string>;
+      }
+    } catch {
+      // 配置文件不存在或解析失败，忽略
+    }
+    return resolveApiKey(apiKey, configEnv);
+  });
+
   ipcMain.handle('runtime:info', getRuntimeInfo);
   ipcMain.handle('runtime:capabilities', getRuntimeCapabilities);
 

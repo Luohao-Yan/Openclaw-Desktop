@@ -158,6 +158,7 @@ export interface RuntimeActions {
   onInstallProgress?(callback: (event: InstallProgressEvent) => void): () => void;
   onInstallOutput?(callback: (event: InstallOutputEvent) => void): () => void;
   testModelConnection?(params: { provider: string; model: string; apiKey?: string; baseUrl?: string }): Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+  resolveApiKey?(apiKey: string): Promise<{ resolved: string | null; error?: string }>;
 
   /** 修复环境问题（安装/升级/修复PATH） */
   fixEnvironment(action: 'install' | 'upgrade' | 'fixPath', ...args: any[]): Promise<FixResult>;

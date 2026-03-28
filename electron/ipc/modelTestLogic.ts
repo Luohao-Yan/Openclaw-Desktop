@@ -22,6 +22,16 @@ const endpointMap: Record<string, string> = {
   mistral: 'https://api.mistral.ai/v1/chat/completions',
   xai: 'https://api.x.ai/v1/chat/completions',
   openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+  // 以下为新增的 provider 端点映射
+  volcengine: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+  'volcengine-plan': 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+  byteplus: 'https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions',
+  'byteplus-plan': 'https://ark.ap-southeast.bytepluses.com/api/v3/chat/completions',
+  cerebras: 'https://api.cerebras.ai/v1/chat/completions',
+  kilocode: 'https://api.kilo.ai/api/gateway/chat/completions',
+  huggingface: 'https://api-inference.huggingface.co/v1/chat/completions',
+  zai: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+  minimax: 'https://api.minimax.chat/v1/text/chatcompletion_v2',
 };
 
 /** 构建模型连通性测试 URL 的参数 */
@@ -66,3 +76,55 @@ export function buildModelTestUrl(params: BuildModelTestUrlParams): string {
 
 /** 导出 endpointMap 供测试使用 */
 export { endpointMap };
+
+/** resolveApiKey 函数的返回类型 */
+export type ResolveApiKeyResult = { resolved: string | null; error?: string };
+
+/** 匹配 ${VAR_NAME} 格式的环境变量引用正则 */
+const ENV_VAR_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+/**
+ * 解析 API Key 中的环境变量引用
+ *
+ * - 当 apiKey 为 `${VAR_NAME}` 格式时，按优先级解析：先查 envStore，再查 process.env
+ * - 环境变量存在且非空时返回实际值
+ * - 环境变量未设置或为空时返回错误信息
+ * - 非环境变量引用格式时原样返回
+ * - 空值/undefined 时返回 { resolved: null }
+ *
+ * @param apiKey - API Key 字符串，可能为环境变量引用格式
+ * @param envStore - 可选的环境变量存储（来自 openclaw.json 的 env 节点）
+ */
+export function resolveApiKey(
+  apiKey: string | null | undefined,
+  envStore?: Record<string, string>,
+): ResolveApiKeyResult {
+  // 空值/undefined 直接返回 null
+  if (apiKey == null) {
+    return { resolved: null };
+  }
+
+  // 匹配 ${VAR_NAME} 格式
+  const match = ENV_VAR_PATTERN.exec(apiKey);
+  if (!match) {
+    // 非环境变量引用格式，原样返回
+    return { resolved: apiKey };
+  }
+
+  const varName = match[1];
+
+  // 优先从 envStore（openclaw.json env 节点）查找
+  const fromStore = envStore?.[varName];
+  if (fromStore != null && fromStore !== '') {
+    return { resolved: fromStore };
+  }
+
+  // 其次从 process.env 系统环境变量查找
+  const fromEnv = process.env[varName];
+  if (fromEnv != null && fromEnv !== '') {
+    return { resolved: fromEnv };
+  }
+
+  // 两处均未找到，返回错误信息
+  return { resolved: null, error: `环境变量 ${varName} 未设置` };
+}

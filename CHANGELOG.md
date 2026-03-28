@@ -16,6 +16,7 @@
 - **运行历史复制按钮**：运行历史 run ID 旁增加复制按钮，点击后显示 ✓ 图标反馈
 - **日志行数选择优化**：日志页面行数输入改为下拉选择（100/300/500/1000），切换后自动重新加载
 - **分组标签右键菜单提示**：hover 分组标签 500ms 后显示自定义 tooltip 提示「右键管理分组」
+- **环境变量密钥查看**：编辑模式下点击眼睛图标可查看 `${VAR_NAME}` 格式 API Key 解析后的真实密钥值，支持一键复制
 
 ### 🐛 修复 (Fixes)
 
@@ -24,6 +25,8 @@
 - **Settings 详情页遮罩**：去掉内容容器 boxShadow 遮罩，外层容器 overflow-hidden 改为 min-h-0，修复返回按钮 hover 被截断
 - **Settings 未实现分类禁用**：扩展、通知、隐私、关于 4 个未实现分类加 disabled 样式 + 即将上线标签，阻止用户点击进入空页面
 - **会话列表 hover 效果**：改用蓝色淡底 + 边框样式，确保深浅主题下都有明显的交互反馈
+- **模型连通性测试环境变量解析**：新增 `resolveApiKey` 纯函数，解析 `${VAR_NAME}` 格式的 API Key 环境变量引用，优先从 `openclaw.json` env 节点查找，其次从 `process.env` 查找
+- **endpointMap 映射补全**：补全 volcengine、volcengine-plan、byteplus、byteplus-plan、cerebras、kilocode、huggingface、zai、minimax 共 9 个缺失 provider 的 API 端点映射
 
 ### 🎨 UI/UX 优化 (UI/UX)
 
@@ -34,12 +37,16 @@
 - **分组标签交互优化**：去掉 hover 图标组，改为纯右键菜单交互 + tooltip 提示
 - **抽屉详情数据加粗**：Detail Drawer 数据值改为 font-semibold，提升标签/数据视觉区分
 - **分组标签视觉优化**：使用分组颜色作为 tag 色调，Agent 卡片分组选择器改为 tag 风格
+- **隐藏未知认证状态 badge**：`authStatus` 为 `unknown` 时不再显示灰色"未知"标签，减少视觉干扰
+- **连通性测试错误信息优化**：自动解析 JSON 格式错误响应，提取可读的 message 和 type，多行布局避免长文本溢出
 
 ### 🧪 测试 (Tests)
 
 - 新增 `src/pages/__tests__/tasksI18nKeys.pbt.test.ts`：Property 3（翻译键双向一致性）、Property 4（任务翻译键命名规范）
 - 新增 `src/pages/__tests__/tasksI18nFunctions.pbt.test.ts`：Property 1（格式化函数翻译键输出）、Property 2（标签函数翻译键输出）
-- 共 4 个正确性属性，全部通过
+- 新增 `electron/ipc/__tests__/modelTestLogic.pbt.test.ts`：Bug 条件探索测试（环境变量引用解析 + endpointMap 缺失映射），7 个属性测试
+- 新增 `electron/ipc/__tests__/modelTestLogicPreservation.pbt.test.ts`：Preservation 测试（已有映射不变 + 自定义 baseUrl 优先 + stripTrailingSlash 幂等），8 个属性测试
+- 共 19 个正确性属性，全部通过
 
 ### 📦 其他 (Other)
 

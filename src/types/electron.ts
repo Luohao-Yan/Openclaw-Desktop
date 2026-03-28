@@ -839,6 +839,7 @@ export interface ElectronAPI {
   onInstallProgress: (callback: (event: InstallProgressEvent) => void) => () => void;
   onInstallOutput: (callback: (event: InstallOutputEvent) => void) => () => void;
   testModelConnection: (params: { provider: string; model: string; apiKey?: string; baseUrl?: string }) => Promise<{ success: boolean; error?: string; latencyMs?: number }>;
+  resolveApiKey: (apiKey: string) => Promise<{ resolved: string | null; error?: string }>;
   instancesGetAll: () => Promise<any>;
   instancesStart: (instanceId: string) => Promise<any>;
   instancesStop: (instanceId: string) => Promise<any>;
