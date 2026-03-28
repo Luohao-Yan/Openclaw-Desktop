@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import { Bot, Server, CheckCircle, XCircle, HelpCircle, Star, Trash2, Edit2, Eye, EyeOff, Copy, Zap, Loader2 } from 'lucide-react';
 import GlassCard from '../../../components/GlassCard';
 import AppButton from '../../../components/AppButton';
-import AppIconButton from '../../../components/AppIconButton';
 import AppBadge from '../../../components/AppBadge';
 import AppInput from '../../../components/AppInput';
 import { useI18n } from '../../../i18n/I18nContext';
@@ -515,12 +514,14 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
               />
               {addCustomForm.apiKey && (
                 <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <AppIconButton
+                  <AppButton
+                    iconOnly
+                    size="xs"
+                    variant="ghost"
                     onClick={() => setShowAddCustomApiKey(!showAddCustomApiKey)}
                     title={showAddCustomApiKey ? '隐藏 API Key' : '显示 API Key'}
-                  >
-                    {showAddCustomApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </AppIconButton>
+                    icon={showAddCustomApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  />
                 </div>
               )}
             </div>
@@ -710,13 +711,15 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                         className="pr-10 font-mono"
                       />
                       {configForm.baseUrl && (
-                        <AppIconButton
+                        <AppButton
+                          iconOnly
+                          size="xs"
+                          variant="ghost"
                           onClick={() => copyToClipboard(configForm.baseUrl, 'Base URL')}
                           className="absolute right-2 top-1/2 -translate-y-1/2"
                           title="复制 Base URL"
-                        >
-                          <Copy size={14} />
-                        </AppIconButton>
+                          icon={<Copy size={14} />}
+                        />
                       )}
                     </div>
                   </div>
@@ -742,18 +745,22 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                         {configForm.apiKey && (
                           <>
-                            <AppIconButton
+                            <AppButton
+                              iconOnly
+                              size="xs"
+                              variant="ghost"
                               onClick={() => setShowApiKey(!showApiKey)}
                               title={showApiKey ? '隐藏 API Key' : '显示 API Key'}
-                            >
-                              {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </AppIconButton>
-                            <AppIconButton
+                              icon={showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                            />
+                            <AppButton
+                              iconOnly
+                              size="xs"
+                              variant="ghost"
                               onClick={() => copyToClipboard(configForm.apiKey, 'API Key')}
                               title="复制 API Key"
-                            >
-                              <Copy size={14} />
-                            </AppIconButton>
+                              icon={<Copy size={14} />}
+                            />
                           </>
                         )}
                       </div>
@@ -1186,13 +1193,14 @@ const ProviderDetail: React.FC<ProviderDetailProps> = ({
                         <div className="text-sm font-mono font-semibold truncate" style={{ color: 'var(--app-text)' }}>
                           {model.id}
                         </div>
-                        <AppIconButton
+                        <AppButton
+                          iconOnly
+                          size="xs"
+                          tint="default"
                           onClick={() => startEditModel(model)}
                           title="编辑模型"
-                          tint="default"
-                        >
-                          <Edit2 size={12} />
-                        </AppIconButton>
+                          icon={<Edit2 size={12} />}
+                        />
                       </div>
                       
                       <div className="mt-1 text-xs" style={{ color: 'var(--app-text-muted)' }}>

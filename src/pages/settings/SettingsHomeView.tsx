@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronRight, Search, Sparkles } from 'lucide-react';
-import AppIconButton from '../../components/AppIconButton';
+import AppButton from '../../components/AppButton';
 import AppBadge from '../../components/AppBadge';
 import GlassCard from '../../components/GlassCard';
 import { sectionAccentMap } from './constants';
@@ -110,7 +110,8 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
                   style={{ color: 'var(--app-text)' }}
                 />
               </div>
-              <AppIconButton
+              <AppButton
+                iconOnly
                 tint="default"
                 className="relative z-10 h-11 w-11 rounded-full"
                 onMouseEnter={onSearchExpand}
@@ -123,9 +124,8 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
                   boxShadow: '0 8px 20px rgba(15, 23, 42, 0.10)',
                   backdropFilter: 'blur(12px)',
                 }}
-              >
-                <Search size={18} />
-              </AppIconButton>
+                icon={<Search size={18} />}
+              />
             </div>
           </div>
 

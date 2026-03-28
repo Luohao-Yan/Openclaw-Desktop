@@ -30,6 +30,9 @@ export type AppButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 
 /** 尺寸 */
 export type AppButtonSize = 'xs' | 'sm' | 'md';
 
+/** iconOnly 模式的色调（兼容原 AppIconButton 的 tint） */
+export type AppButtonTint = 'default' | 'blue' | 'purple';
+
 export interface AppButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children?: React.ReactNode;
   /** 额外 className */
@@ -46,6 +49,8 @@ export interface AppButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEle
   loading?: boolean;
   /** 图标按钮模式：正方形，无文字，padding 均等 */
   iconOnly?: boolean;
+  /** iconOnly 模式的色调（替代原 AppIconButton 的 tint） */
+  tint?: AppButtonTint;
 }
 
 // ── 样式配置 ──────────────────────────────────────────────────────────────────
@@ -147,6 +152,41 @@ const ACTIVE_STYLES: Record<AppButtonVariant, React.CSSProperties> = {
   },
 };
 
+// ── Tint 样式（iconOnly 模式专用，兼容原 AppIconButton） ─────────────────
+
+/** iconOnly 模式的色调基础样式 */
+const TINT_STYLES: Record<AppButtonTint, React.CSSProperties> = {
+  default: {
+    background: 'var(--app-icon-button-default-bg)',
+    border: '1px solid var(--app-icon-button-default-border)',
+    color: 'var(--app-icon-button-default-text)',
+  },
+  blue: {
+    background: 'var(--app-icon-button-blue-bg)',
+    border: '1px solid var(--app-icon-button-blue-border)',
+    color: 'var(--app-icon-button-blue-text)',
+  },
+  purple: {
+    background: 'var(--app-icon-button-purple-bg)',
+    border: '1px solid var(--app-icon-button-purple-border)',
+    color: 'var(--app-icon-button-purple-text)',
+  },
+};
+
+/** iconOnly tint 模式的 hover 样式 */
+const TINT_HOVER_STYLE: React.CSSProperties = {
+  transform: 'translateY(-1px)',
+  boxShadow: '0 10px 22px rgba(15, 23, 42, 0.10)',
+  filter: 'brightness(1.04)',
+};
+
+/** iconOnly tint 模式的 active 样式 */
+const TINT_ACTIVE_STYLE: React.CSSProperties = {
+  transform: 'translateY(0)',
+  boxShadow: '0 4px 10px rgba(15, 23, 42, 0.06)',
+  filter: 'brightness(1)',
+};
+
 // ── 尺寸配置 ──────────────────────────────────────────────────────────────────
 
 /** 普通按钮的尺寸 Tailwind 类 */
@@ -175,6 +215,7 @@ const AppButton: React.FC<AppButtonProps> = ({
   loading = false,
   size = 'md',
   style,
+  tint,
   type = 'button',
   variant = 'secondary',
   ...props
@@ -186,13 +227,19 @@ const AppButton: React.FC<AppButtonProps> = ({
   // loading 时视为 disabled
   const isDisabled = disabled || loading;
 
+  // 是否使用 tint 模式（iconOnly + tint 指定时启用）
+  const useTint = iconOnly && tint;
+
+  // 基础样式：tint 模式用 TINT_STYLES，否则用 VARIANT_STYLES
+  const baseStyle = useTint ? TINT_STYLES[tint] : VARIANT_STYLES[variant];
+
   // 根据交互状态选择样式叠加层
   const interactionStyle = isDisabled
     ? undefined
     : isPressed
-      ? ACTIVE_STYLES[variant]
+      ? (useTint ? TINT_ACTIVE_STYLE : ACTIVE_STYLES[variant])
       : isHovered
-        ? HOVER_STYLES[variant]
+        ? (useTint ? TINT_HOVER_STYLE : HOVER_STYLES[variant])
         : undefined;
 
   // focus 环样式
@@ -228,7 +275,7 @@ const AppButton: React.FC<AppButtonProps> = ({
         ${className}
       `}
       style={{
-        ...VARIANT_STYLES[variant],
+        ...baseStyle,
         ...interactionStyle,
         ...focusStyle,
         ...style,

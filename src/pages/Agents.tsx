@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { computeBindingCounts } from '../utils/skillBindingUtils';
 import AppButton from '../components/AppButton';
-import AppIconButton from '../components/AppIconButton';
 import AppModal from '../components/AppModal';
 import AppBadge from '../components/AppBadge';
 import GlassCard from '../components/GlassCard';
@@ -390,18 +389,10 @@ const Agents: React.FC = () => {
           </div>
           {/* 操作按钮 */}
           <div className="flex items-center gap-1 flex-shrink-0">
-            <AppIconButton onClick={() => setExportTarget(agent)} tint="default" title="导出 Agent 配置">
-              <Download className="w-4 h-4" />
-            </AppIconButton>
-            <AppIconButton onClick={() => { setSelectedAgent(agent); setActiveTab('enhance'); }} tint="blue" title="增强智能体">
-              <Zap className="w-4 h-4" />
-            </AppIconButton>
-            <AppIconButton onClick={() => openAgentWorkspace(agent.id)} tint="purple" title="打开智能体工作区">
-              <Settings className="w-4 h-4" />
-            </AppIconButton>
-            <AppIconButton onClick={() => { setDeleteError(''); setDeleteTarget(agent); }} tint="default" title="删除智能体" style={{ color: '#ef4444' }}>
-              <Trash2 className="w-4 h-4" />
-            </AppIconButton>
+            <AppButton iconOnly tint="default" onClick={() => setExportTarget(agent)} title="导出 Agent 配置" icon={<Download className="w-4 h-4" />} />
+            <AppButton iconOnly tint="blue" onClick={() => { setSelectedAgent(agent); setActiveTab('enhance'); }} title="增强智能体" icon={<Zap className="w-4 h-4" />} />
+            <AppButton iconOnly tint="purple" onClick={() => openAgentWorkspace(agent.id)} title="打开智能体工作区" icon={<Settings className="w-4 h-4" />} />
+            <AppButton iconOnly tint="default" onClick={() => { setDeleteError(''); setDeleteTarget(agent); }} title="删除智能体" style={{ color: '#ef4444' }} icon={<Trash2 className="w-4 h-4" />} />
           </div>
         </div>
         {/* 第二行：ID badge + 已配置 badge */}

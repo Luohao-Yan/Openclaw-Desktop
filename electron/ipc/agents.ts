@@ -2350,14 +2350,13 @@ export function setupAgentsIPC() {
     try {
       const { info } = getAgentRecord(agentId);
       
-      // 尝试从缓存获取
+      // 尝试从缓存获取（缓存命中时不打日志，避免控制台刷屏）
       const cached = performanceCache.get(agentId);
       if (cached) {
-        console.log(`[agents:getPerformance] 返回缓存数据: ${agentId}`);
         return { success: true, metrics: cached };
       }
       
-      // 收集性能数据
+      // 缓存未命中，收集性能数据
       console.log(`[agents:getPerformance] 收集性能数据: ${agentId}`);
       const metrics = performanceCollector.collectAll(info);
       

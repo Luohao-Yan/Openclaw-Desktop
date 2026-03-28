@@ -173,15 +173,13 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({
     // 初始加载数据
     loadAllData();
 
-    // 设置3秒自动刷新性能指标
-    const interval = setInterval(loadPerformanceMetrics, 3000);
+    // 设置30秒自动刷新性能指标（避免高频轮询刷屏）
+    const interval = setInterval(loadPerformanceMetrics, 30000);
     setAutoRefreshInterval(interval);
 
-    // 清理函数
+    // 清理函数：直接引用局部变量 interval，避免 stale state 问题
     return () => {
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-      }
+      clearInterval(interval);
     };
   }, [agentId]);
 

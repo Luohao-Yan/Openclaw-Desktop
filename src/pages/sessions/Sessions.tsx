@@ -18,7 +18,6 @@ import {
 import { useI18n } from '../../i18n/I18nContext';
 import GlobalLoading from '../../components/GlobalLoading';
 import AppButton from '../../components/AppButton';
-import AppIconButton from '../../components/AppIconButton';
 import type { Session, SessionStats, TranscriptMessage } from './types';
 import SessionList from './SessionList';
 import SessionChatPanel from './SessionChatPanel';
@@ -549,22 +548,22 @@ const Sessions: React.FC = () => {
           {/* 操作按钮组 */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* 清理按钮 */}
-            <AppIconButton
+            <AppButton
+              iconOnly
               tint="default"
               onClick={() => void handleCleanup(true)}
               title={t('sessions.cleanup')}
-            >
-              <Wrench size={16} />
-            </AppIconButton>
+              icon={<Wrench size={16} />}
+            />
             {/* 刷新按钮 */}
-            <AppIconButton
+            <AppButton
+              iconOnly
               tint="default"
               onClick={() => void loadSessions()}
               disabled={loading}
               title={loading ? t('sessions.loading') : t('sessions.refresh')}
-            >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </AppIconButton>
+              icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />}
+            />
             {/* 新建会话按钮 */}
             <AppButton
               variant="primary"
