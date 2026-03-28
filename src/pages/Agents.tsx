@@ -681,27 +681,27 @@ const Agents: React.FC = () => {
               {/* 右侧：操作按钮组，shrink-0 防止被左侧内容挤压 */}
               <div className="flex items-center gap-2 shrink-0">
                 {activeTab === 'enhance' && selectedAgent && (
-                  <button
+                  <AppButton
                     onClick={() => setActiveTab('list')}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    variant="secondary"
+                    size="sm"
+                    icon={<ArrowRight className="w-4 h-4 rotate-180" />}
                   >
-                    <ArrowRight className="w-4 h-4 rotate-180" />
                     返回列表
-                  </button>
+                  </AppButton>
                 )}
                 {activeTab === 'list' && (
                   <>
                     {/* 更多操作下拉菜单：导入 + 导出历史 */}
                     <div className="relative">
-                      <button
+                      <AppButton
                         onClick={() => setMoreMenuOpen(v => !v)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8"
-                        style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                        variant="secondary"
+                        size="sm"
+                        icon={<History className="w-4 h-4" />}
                       >
-                        <History className="w-4 h-4" />
                         更多
-                      </button>
+                      </AppButton>
                       {moreMenuOpen && (
                         <>
                           {/* 点击遮罩关闭菜单 */}
@@ -739,39 +739,39 @@ const Agents: React.FC = () => {
                       )}
                     </div>
                     {/* 刷新按钮（带文字标签，与技能页面风格一致，放在主操作按钮左侧） */}
-                    <button
+                    <AppButton
                       onClick={loadAgents}
                       disabled={loading}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                      variant="secondary"
+                      size="sm"
+                      icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
                       title="刷新"
                     >
-                      <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                       <span className="hidden sm:inline">刷新</span>
-                    </button>
+                    </AppButton>
                     {/* 新增智能体主按钮（主操作放最右侧） */}
-                    <button
+                    <AppButton
                       onClick={handleOpenCreateModal}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
-                      style={{ background: 'linear-gradient(135deg, #3B82F6, #6366F1)', color: '#fff' }}
+                      variant="primary"
+                      size="sm"
+                      icon={<Plus className="w-4 h-4" />}
                     >
-                      <Plus className="w-4 h-4" />
                       新增智能体
-                    </button>
+                    </AppButton>
                   </>
                 )}
                 {/* enhance 模式下的刷新按钮 */}
                 {activeTab === 'enhance' && (
-                  <button
+                  <AppButton
                     onClick={loadAgents}
                     disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer hover:bg-black/5 dark:hover:bg-white/8 disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    variant="secondary"
+                    size="sm"
+                    icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
                     title="刷新"
                   >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">刷新</span>
-                  </button>
+                  </AppButton>
                 )}
               </div>
             </div>
