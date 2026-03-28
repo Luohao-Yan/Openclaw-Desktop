@@ -18,6 +18,7 @@ import {
 import { useI18n } from '../../i18n/I18nContext';
 import GlobalLoading from '../../components/GlobalLoading';
 import AppButton from '../../components/AppButton';
+import AppIconButton from '../../components/AppIconButton';
 import type { Session, SessionStats, TranscriptMessage } from './types';
 import SessionList from './SessionList';
 import SessionChatPanel from './SessionChatPanel';
@@ -548,31 +549,26 @@ const Sessions: React.FC = () => {
           {/* 操作按钮组 */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* 清理按钮 */}
-            <AppButton
-              variant="secondary"
-              size="xs"
-              icon={<Wrench size={14} />}
+            <AppIconButton
+              tint="default"
               onClick={() => void handleCleanup(true)}
               title={t('sessions.cleanup')}
             >
-              <span className="hidden lg:inline">{t('sessions.cleanup')}</span>
-            </AppButton>
-            {/* 刷新按钮：loading 时自动显示 spinner */}
-            <AppButton
-              variant="secondary"
-              size="xs"
-              icon={<RefreshCw size={14} />}
-              loading={loading}
+              <Wrench size={16} />
+            </AppIconButton>
+            {/* 刷新按钮 */}
+            <AppIconButton
+              tint="default"
               onClick={() => void loadSessions()}
+              disabled={loading}
+              title={loading ? t('sessions.loading') : t('sessions.refresh')}
             >
-              <span className="hidden lg:inline">
-                {loading ? t('sessions.loading') : t('sessions.refresh')}
-              </span>
-            </AppButton>
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </AppIconButton>
             {/* 新建会话按钮 */}
             <AppButton
               variant="primary"
-              size="xs"
+              size="sm"
               icon={<Plus size={14} />}
               onClick={() => setShowCreateModal(true)}
             >
