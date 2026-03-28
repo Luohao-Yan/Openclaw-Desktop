@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Search,
   Wrench,
-  Brush,
+  Eraser,
   Activity,
   Users,
   Database,
@@ -550,12 +550,14 @@ const Sessions: React.FC = () => {
           <div className="flex items-center gap-1.5 shrink-0">
             {/* 清理按钮 */}
             <AppButton
-              iconOnly
-              tint="default"
+              variant="secondary"
+              size="sm"
               onClick={() => void handleCleanup(true)}
               title={t('sessions.cleanup')}
-              icon={<Brush size={16} />}
-            />
+              icon={<Eraser size={14} />}
+            >
+              清理
+            </AppButton>
             {/* 刷新按钮 */}
             <AppButton
               iconOnly
