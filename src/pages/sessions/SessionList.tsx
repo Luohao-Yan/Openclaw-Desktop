@@ -58,12 +58,14 @@ const SessionList: React.FC<SessionListProps> = ({ sessions, selectedSession, on
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected) {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--app-bg-subtle)';
+                    (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(96, 165, 250, 0.08)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'rgba(96, 165, 250, 0.12)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isSelected) {
                     (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'transparent';
                   }
                 }}>
                 <div className="flex items-center gap-2.5">
