@@ -6,6 +6,48 @@
 
 ---
 
+## [0.3.24-preview-2] - 2026-03-28
+
+### ✨ 新增 (Features)
+
+- **仪表板运行概览面板**：替换原有快捷操作区域为全局运行概览统计面板，展示智能体、会话、任务、技能等核心指标
+- **Agent Enhancement 重构**：重构为运维工具箱 + 历史统计面板，提供性能测试、安全审计、调试终端等运维操作入口
+- **任务页面完整国际化**：Tasks.tsx 80+ 处硬编码文本替换为 `t()` 翻译键调用，translations.ts 新增约 100 个 `tasks.*` 中英文翻译键
+- **运行历史复制按钮**：运行历史 run ID 旁增加复制按钮，点击后显示 ✓ 图标反馈
+- **日志行数选择优化**：日志页面行数输入改为下拉选择（100/300/500/1000），切换后自动重新加载
+- **分组标签右键菜单提示**：hover 分组标签 500ms 后显示自定义 tooltip 提示「右键管理分组」
+
+### 🐛 修复 (Fixes)
+
+- **路由切换滚动重置**：新增 ScrollToTop 组件，路由 pathname 变化时自动将 main 滚动容器重置到顶部
+- **AppModal 高度溢出**：限制 Modal 内容最大高度并支持滚动，修复分组弹窗等内容过多时撑满屏幕的问题
+- **Settings 详情页遮罩**：去掉内容容器 boxShadow 遮罩，外层容器 overflow-hidden 改为 min-h-0，修复返回按钮 hover 被截断
+- **Settings 未实现分类禁用**：扩展、通知、隐私、关于 4 个未实现分类加 disabled 样式 + 即将上线标签，阻止用户点击进入空页面
+- **会话列表 hover 效果**：改用蓝色淡底 + 边框样式，确保深浅主题下都有明显的交互反馈
+
+### 🎨 UI/UX 优化 (UI/UX)
+
+- **全局 cursor: pointer**：`src/index.css` 添加 `button { cursor: pointer }` 统一所有按钮手型光标
+- **AppButton 组件统一**：更多/刷新/新增/返回等按钮统一改用 AppButton 组件，删除 AppIconButton，统一用 AppButton iconOnly + tint
+- **SegmentedTabs 交互**：加 cursor-pointer 和 hover 效果
+- **技能页面按钮统一**：统一技能页面按钮为 AppButton 组件并修复插件 tab 内边距
+- **分组标签交互优化**：去掉 hover 图标组，改为纯右键菜单交互 + tooltip 提示
+- **抽屉详情数据加粗**：Detail Drawer 数据值改为 font-semibold，提升标签/数据视觉区分
+- **分组标签视觉优化**：使用分组颜色作为 tag 色调，Agent 卡片分组选择器改为 tag 风格
+
+### 🧪 测试 (Tests)
+
+- 新增 `src/pages/__tests__/tasksI18nKeys.pbt.test.ts`：Property 3（翻译键双向一致性）、Property 4（任务翻译键命名规范）
+- 新增 `src/pages/__tests__/tasksI18nFunctions.pbt.test.ts`：Property 1（格式化函数翻译键输出）、Property 2（标签函数翻译键输出）
+- 共 4 个正确性属性，全部通过
+
+### 📦 其他 (Other)
+
+- **README SEO 优化**：增加英文标题/描述/关键词、双语 About 段落、GitHub Pages 落地页（含 Open Graph + JSON-LD 结构化数据）
+- **package.json 元数据**：新增 keywords、homepage、repository 字段
+
+---
+
 ## [0.3.24-preview-1] - 2026-03-27
 
 ### 🔧 技术改进 (Technical)

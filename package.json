@@ -1,7 +1,28 @@
 {
   "name": "openclaw-desktop",
-  "version": "0.3.24-preview-1",
+  "version": "0.3.24-preview-2",
   "description": "OpenClaw Desktop - 基于 Electron 的多智能体 AI 系统桌面管理客户端 | Desktop management client for OpenClaw multi-agent AI system",
+  "keywords": [
+    "openclaw",
+    "openclaw-desktop",
+    "ai-agent",
+    "multi-agent",
+    "electron",
+    "desktop-app",
+    "chatbot",
+    "llm",
+    "agent-management",
+    "feishu-bot",
+    "telegram-bot",
+    "cron-scheduler",
+    "react",
+    "typescript"
+  ],
+  "homepage": "https://github.com/Luohao-Yan/Openclaw-Desktop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Luohao-Yan/Openclaw-Desktop.git"
+  },
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "npm run dev:prepare && concurrently \"npm run dev:vite\" \"npm run dev:electron:watch\" \"npm run dev:electron\"",

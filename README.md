@@ -1,33 +1,39 @@
 <div align="center">
 
-<img src="resources/app-icon.svg" width="128" height="128" alt="OpenClaw Desktop Logo">
+<img src="resources/app-icon.svg" width="128" height="128" alt="OpenClaw Desktop - AI Agent Management Dashboard">
 
 # OpenClaw Desktop
 
-OpenClaw 多智能体 AI 系统的桌面管理客户端
+**A desktop management client for the OpenClaw multi-agent AI system**
 
-[![Latest Release](https://img.shields.io/github/v/release/Luohao-Yan/Openclaw-Desktop?include_prereleases&label=最新版本&color=blue)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Luohao-Yan/Openclaw-Desktop/total?label=下载量&color=green)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases)
-[![License](https://img.shields.io/github/license/Luohao-Yan/Openclaw-Desktop?label=许可证)](LICENSE)
+OpenClaw 多智能体 AI 系统的桌面管理客户端 — 可视化管理 AI 智能体、会话、定时任务、技能和日志
+
+[![Latest Release](https://img.shields.io/github/v/release/Luohao-Yan/Openclaw-Desktop?include_prereleases&label=latest&color=blue)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Luohao-Yan/Openclaw-Desktop/total?label=downloads&color=green)](https://github.com/Luohao-Yan/Openclaw-Desktop/releases)
+[![License](https://img.shields.io/github/license/Luohao-Yan/Openclaw-Desktop)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/Luohao-Yan/Openclaw-Desktop?style=social)](https://github.com/Luohao-Yan/Openclaw-Desktop/stargazers)
 
-[下载安装](#安装) · [功能特性](#功能特性) · [开发指南](#开发指南) · [项目结构](#项目结构) · [更新日志](CHANGELOG.md)
+[Download](#安装) · [Features](#功能特性) · [Development](#开发指南) · [Structure](#项目结构) · [Changelog](CHANGELOG.md)
+
+**Keywords:** `AI agent` `multi-agent` `desktop app` `electron` `chatbot management` `LLM` `openclaw` `feishu bot` `telegram bot` `cron scheduler` `agent orchestration`
 
 </div>
 
 ---
 
-## 🌟 愿景
+## 🌟 愿景 / Vision
 
 > **让每一个用户都能以最简单的方式，享受 AI 科技带来的福利。**
+> 
+> **Make AI accessible to everyone through the simplest possible experience.**
 
 我们相信 AI 不应该只属于技术专家。OpenClaw Desktop 致力于将复杂的多智能体 AI 系统包装成人人可用的桌面工具，降低使用门槛，让普通用户也能轻松部署和管理自己的 AI 智能体。
 
-## 简介
+## 简介 / About
 
-OpenClaw Desktop 是一款基于 Electron 的桌面应用，为 [OpenClaw](https://github.com/nicepkg/openclaw) 多智能体 AI 系统提供可视化管理界面。通过它可以监控和管理本地或远程运行的 AI 智能体、会话、任务、日志、实例和技能。
+OpenClaw Desktop is an Electron-based desktop application that provides a visual management dashboard for the [OpenClaw](https://github.com/nicepkg/openclaw) multi-agent AI system. Monitor and manage AI agents, chat sessions, scheduled tasks, logs, instances, and skills — locally or remotely.
 
-应用内置首次运行引导流程，支持本地安装和远程连接两种模式，配置完成后即可通过侧边栏导航使用各项功能。
+OpenClaw Desktop 是一款基于 Electron 的桌面应用，为 [OpenClaw](https://github.com/nicepkg/openclaw) 多智能体 AI 系统提供可视化管理界面。支持本地安装和远程连接两种模式，内置零基础引导流程。
 
 ### 零基础入门
 
@@ -59,11 +65,13 @@ OpenClaw Desktop 是一款基于 Electron 的桌面应用，为 [OpenClaw](https
     <td align="center"><img src="public/assets/agent-overview.png" width="400" alt="智能体总览"><br><sub>智能体管理</sub></td>
   </tr>
   <tr>
+    <td align="center"><img src="public/assets/agent-overview-01.png" width="400" alt="智能体详情"><br><sub>智能体详情</sub></td>
     <td align="center"><img src="public/assets/agent-01.png" width="400" alt="智能体工作区"><br><sub>智能体工作区</sub></td>
-    <td align="center"><img src="public/assets/session.png" width="400" alt="会话聊天"><br><sub>会话聊天</sub></td>
   </tr>
   <tr>
+    <td align="center"><img src="public/assets/session.png" width="400" alt="会话聊天"><br><sub>会话聊天</sub></td>
     <td align="center"><img src="public/assets/skills.png" width="400" alt="技能管理"><br><sub>技能管理</sub></td>
+  </tr>
     <td align="center"><img src="public/assets/cron-center.png" width="400" alt="定时任务"><br><sub>Cron 定时任务</sub></td>
   </tr>
   <tr>
@@ -72,21 +80,21 @@ OpenClaw Desktop 是一款基于 Electron 的桌面应用，为 [OpenClaw](https
   </tr>
 </table>
 
-## 功能特性
+## 功能特性 / Features
 
 
-| 模块 | 说明 |
-|------|------|
-| 🤖 智能体管理 | 创建、配置、监控 AI 智能体，支持性能分析、配置加密导入/导出、克隆 |
-| 💬 会话管理 | 实时查看和管理智能体会话，支持异步消息发送和对话记录回放 |
-| ⏰ Cron 定时任务 | 可视化创建和管理定时任务调度 |
-| 📊 仪表板 | 系统状态总览，健康检查、CPU/内存/运行时长监控 |
-| 🔧 配置中心 | 图形化编辑 OpenClaw 核心配置，渠道路由、广播群组、配对管理 |
-| 🧩 技能管理 | 安装、卸载和管理智能体技能包，支持插件状态监控和诊断 |
-| 🌐 远程连接 | 支持通过 SSH / Tailscale 连接远程 OpenClaw 实例，自签名证书检测 |
-| 🎨 主题切换 | 亮色 / 暗色 / 跟随系统，基于 CSS 自定义属性的主题系统 |
-| 🌍 国际化 | 中文和英文界面完整覆盖 |
-| 🖥️ 原生体验 | macOS 隐藏式标题栏、无边框窗口、Dock 圆角图标适配 |
+| 模块 | Module | 说明 |
+|------|--------|------|
+| 🤖 智能体管理 | Agent Management | 创建、配置、监控 AI 智能体，支持性能分析、配置加密导入/导出、克隆 |
+| 💬 会话管理 | Session Management | 实时查看和管理智能体会话，支持异步消息发送和对话记录回放 |
+| ⏰ 定时任务 | Scheduled Tasks | 可视化创建和管理定时任务调度（Cron / Interval / One-time） |
+| 📊 仪表板 | Dashboard | 系统状态总览，健康检查、CPU/内存/运行时长监控 |
+| 🔧 配置中心 | Config Center | 图形化编辑 OpenClaw 核心配置，渠道路由、广播群组、配对管理 |
+| 🧩 技能管理 | Skills Management | 安装、卸载和管理智能体技能包，支持 ClawHub 市场搜索 |
+| 🌐 远程连接 | Remote Connection | 支持通过 SSH / Tailscale 连接远程 OpenClaw 实例 |
+| 🎨 主题切换 | Theme | 亮色 / 暗色 / 跟随系统 |
+| 🌍 国际化 | i18n | 中文和英文界面完整覆盖 |
+| 🖥️ 原生体验 | Native UX | macOS 隐藏式标题栏、无边框窗口 |
 
 ## 安装
 

@@ -53,7 +53,7 @@ const Logs: React.FC = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [autoRefresh]);
+  }, [autoRefresh, lines]);
 
   const filteredLogs = useMemo(() => logs.filter(log => 
     !search || log.raw.toLowerCase().includes(search.toLowerCase())
@@ -131,19 +131,21 @@ const Logs: React.FC = () => {
 
             {/* 右侧控制区 */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-              {/* 行数输入 */}
+              {/* 行数选择 */}
               <div className="flex items-center gap-1.5">
                 <label htmlFor="log-lines" className="text-xs" style={{ color: 'var(--app-text-muted)' }}>行数</label>
-                <input
+                <select
                   id="log-lines"
-                  type="number"
                   value={lines}
-                  onChange={(e) => setLines(Math.max(1, Math.min(1000, parseInt(e.target.value) || 100)))}
-                  className="w-16 px-2 py-1.5 rounded-lg text-xs focus:outline-none"
+                  onChange={(e) => setLines(Number(e.target.value))}
+                  className="px-2 py-1.5 rounded-lg text-xs focus:outline-none"
                   style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text)' }}
-                  min="1"
-                  max="1000"
-                />
+                >
+                  <option value={100}>100</option>
+                  <option value={300}>300</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1000</option>
+                </select>
               </div>
               {/* 搜索框 */}
               <div className="relative">
