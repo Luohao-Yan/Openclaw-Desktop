@@ -16,6 +16,8 @@ interface HistoryStatsPanelProps {
   /** 独立会话总数（从 sessions.json 获取，不重复计数） */
   totalSessions: number;
   loading: boolean;
+  /** 自定义标题，默认为"历史统计" */
+  title?: string;
 }
 
 // ── 纯函数：按时间范围过滤统计数据 ──────────────────────────────────────────
@@ -107,7 +109,7 @@ const CHART_CONFIGS = [
 
 // ── 组件 ────────────────────────────────────────────────────────────────────
 
-const HistoryStatsPanel: React.FC<HistoryStatsPanelProps> = ({ stats, totalSessions, loading }) => {
+const HistoryStatsPanel: React.FC<HistoryStatsPanelProps> = ({ stats, totalSessions, loading, title = '历史统计' }) => {
   const [range, setRange] = useState<TimeRange>('30d');
   const filteredStats = useMemo(() => filterStatsByRange(stats, range), [stats, range]);
   const summary = useMemo(() => computeSummary(filteredStats), [filteredStats]);
@@ -161,7 +163,7 @@ const HistoryStatsPanel: React.FC<HistoryStatsPanelProps> = ({ stats, totalSessi
       {/* 标题行 */}
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
-          历史统计
+          {title}
         </h3>
         {/* 时间范围切换：胶囊按钮组 */}
         <div className="flex gap-1 rounded-full p-1" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>

@@ -3,7 +3,6 @@ import {
   Play,
   StopCircle,
   RefreshCw,
-  FolderOpen,
   Cpu,
   HardDrive,
   Clock,
@@ -16,12 +15,14 @@ import {
 
 import GlassCard from '../components/GlassCard';
 import RuntimeUpdateNotice from '../components/RuntimeUpdateNotice';
+import HistoryStatsPanel from '../components/HistoryStatsPanel';
 import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useI18n } from '../i18n/I18nContext';
 import { createGatewayRepairLoadingState, runGatewayRepair } from '../services/gatewayRepair';
 import AppButton from '../components/AppButton';
 import AppBadge from '../components/AppBadge';
 import { useIpcCache } from '../hooks/useIpcCache';
+import type { DailyStats } from '../types/electron';
 // OpenClawRootDiagnostic type should be defined locally
 interface OpenClawRootDiagnostic {
   rootDir: string;
@@ -114,6 +115,11 @@ function Dashboard() {
   const [gatewayRepairTone, setGatewayRepairTone] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [dashboardMessage, setDashboardMessage] = useState('');
   const [dashboardMessageTone, setDashboardMessageTone] = useState<'idle' | 'success' | 'error' | 'info'>('idle');
+
+  // ── 全局历史统计数据（聚合所有 Agent）──────────────────────────────────
+  const [globalStats, setGlobalStats] = useState<DailyStats[]>([]);
+  const [globalTotalSessions, setGlobalTotalSessions] = useState(0);
+  const [globalStatsLoading, setGlobalStatsLoading] = useState(false);
 
   // 仅在确认存在问题时才显示诊断卡片：
   // 1. 诊断调用本身失败（rootDiagnosticError 有值）
@@ -305,6 +311,54 @@ function Dashboard() {
     return () => clearInterval(interval);
   }, [refreshSystemStats]);
 
+  // ── 加载全局历史统计：遍历所有 Agent 聚合 DailyStats ──────────────────
+  useEffect(() => {
+    const loadGlobalStats = async () => {
+      setGlobalStatsLoading(true);
+      try {
+        const agentsResult = await window.electronAPI.agentsGetAll();
+        if (!agentsResult.success || !agentsResult.agents) {
+          setGlobalStatsLoading(false);
+          return;
+        }
+        // 并行获取所有 Agent 的历史统计
+        const results = await Promise.all(
+          agentsResult.agents.map((a) => window.electronAPI.agentsGetHistoryStats(a.id)),
+        );
+        // 按日期合并所有 Agent 的 DailyStats
+        const dateMap = new Map<string, DailyStats>();
+        let totalSess = 0;
+        for (const r of results) {
+          if (!r.success || !r.stats) continue;
+          totalSess += r.totalSessions ?? 0;
+          for (const s of r.stats) {
+            const existing = dateMap.get(s.date);
+            if (existing) {
+              const totalCount = existing.sessionCount + s.sessionCount;
+              existing.tokenUsage += s.tokenUsage;
+              existing.avgResponseMs = totalCount > 0
+                ? (existing.avgResponseMs * existing.sessionCount + s.avgResponseMs * s.sessionCount) / totalCount
+                : 0;
+              existing.sessionCount = totalCount;
+              existing.errorRate = (existing.errorRate + s.errorRate) / 2;
+              existing.tokenEstimated = existing.tokenEstimated && s.tokenEstimated;
+            } else {
+              dateMap.set(s.date, { ...s });
+            }
+          }
+        }
+        const merged = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+        setGlobalStats(merged);
+        setGlobalTotalSessions(totalSess);
+      } catch {
+        // 静默处理
+      } finally {
+        setGlobalStatsLoading(false);
+      }
+    };
+    void loadGlobalStats();
+  }, []);
+
   const getStatusText = (status: GatewayStatus['status']) => {
     switch (status) {
       case 'running': return t('running');
@@ -436,33 +490,6 @@ function Dashboard() {
     },
   ];
 
-  const quickActions = [
-    {
-      key: 'logs',
-      title: '查看运行日志',
-      description: '打开日志页，快速查看最近运行记录与错误。',
-      icon: FolderOpen,
-      accent: '#60a5fa',   // 蓝色
-      onClick: () => navigate('/logs'),
-    },
-    {
-      key: 'agents',
-      title: '配置 Agent',
-      description: '进入 Agent 管理页，查看、编辑或新建 Agent 配置。',
-      icon: Settings2,
-      accent: '#a78bfa',   // 紫色
-      onClick: () => navigate('/agents'),
-    },
-    {
-      key: 'channels',
-      title: '配置模型渠道',
-      description: '前往渠道设置，管理 AI 模型接入与 API 配置。',
-      icon: Cpu,
-      accent: '#2dd4bf',   // 青色
-      onClick: () => navigate('/settings?section=channels'),
-    },
-  ];
-
   return (
     /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
     <div className="page-content space-y-6">
@@ -543,17 +570,17 @@ function Dashboard() {
             <div className="mt-3 flex flex-wrap gap-3">
               <AppButton
                 variant="secondary"
-                onClick={() => navigate('/sessions')}
-                icon={<FolderOpen size={16} />}
+                onClick={() => navigate('/agents')}
+                icon={<Settings2 size={16} />}
               >
-                进入会话中心
+                配置 Agent
               </AppButton>
               <AppButton
                 variant="secondary"
-                onClick={() => navigate('/settings?section=general')}
-                icon={<Settings2 size={16} />}
+                onClick={() => navigate('/settings?section=channels')}
+                icon={<Cpu size={16} />}
               >
-                查看高级设置
+                配置模型渠道
               </AppButton>
               <AppButton
                 variant="secondary"
@@ -740,125 +767,80 @@ function Dashboard() {
         ) : null}
       </GlassCard>
 
-      <div className="space-y-6">
+      {/* ── 全局历史统计面板 ─────────────────────────────────────────── */}
+      <HistoryStatsPanel
+        agentId="__global__"
+        stats={globalStats}
+        totalSessions={globalTotalSessions}
+        loading={globalStatsLoading}
+        title="运行概览"
+      />
+
+      {shouldShowRootDiagnostic ? (
         <GlassCard className="p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>快捷操作</h3>
-              <p className="mt-1 text-sm" style={{ color: 'var(--app-text-muted)' }}>
-                快速跳转到常用功能，或刷新当前状态。
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                OpenClaw 目录需要确认
+              </h3>
+              <p className="text-sm mt-1" style={{ color: 'var(--app-text-muted)' }}>
+                当前未完整识别 OpenClaw 根目录或关键文件。你可以前往配置页手动设置真实目录。
+              </p>
+              <p className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
+                current root: {rootDiagnostic?.rootDir || 'unknown'}
               </p>
             </div>
-          </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            {quickActions.map((item) => {
-              const Icon = item.icon;
-              return (
-                /* 玻璃液态快捷操作按钮：半透明背景 + backdrop-blur + accent 图标圆圈 */
-                <button
-                  key={item.key}
-                  onClick={item.onClick}
-                  className="relative w-full overflow-hidden rounded-xl px-4 py-3 text-left backdrop-blur-xl transition-token-normal cursor-pointer hover:-translate-y-0.5"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-                    border: '1px solid var(--app-border)',
-                    color: 'var(--app-text)',
-                  }}
-                >
-                  {/* 右上角装饰光晕 */}
-                  <div
-                    className="pointer-events-none absolute -right-4 -top-4 h-14 w-14 rounded-full blur-2xl"
-                    style={{ backgroundColor: `${item.accent}28` }}
-                  />
-                  <div className="relative z-10 flex items-start gap-3">
-                    <div
-                      className="flex h-9 w-9 items-center justify-center rounded-xl"
-                      style={{
-                        background: `linear-gradient(135deg, ${item.accent}28 0%, ${item.accent}14 100%)`,
-                        color: item.accent,
-                      }}
-                    >
-                      <Icon size={18} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">{item.title}</div>
-                      <div className="mt-1 text-xs leading-5" style={{ color: 'var(--app-text-muted)' }}>
-                        {item.description}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </GlassCard>
 
-        {shouldShowRootDiagnostic ? (
-          <GlassCard className="p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-                  OpenClaw 目录需要确认
-                </h3>
-                <p className="text-sm mt-1" style={{ color: 'var(--app-text-muted)' }}>
-                  当前未完整识别 OpenClaw 根目录或关键文件。你可以前往配置页手动设置真实目录。
-                </p>
-                <p className="text-xs mt-2" style={{ color: 'var(--app-text-muted)' }}>
-                  current root: {rootDiagnostic?.rootDir || 'unknown'}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <AppButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowRootDiagnosticDetails((value) => !value)}
-                >
-                  {showRootDiagnosticDetails ? '隐藏详情' : '查看详情'}
-                </AppButton>
-                <AppButton
-                  variant="primary"
-                  size="sm"
-                  onClick={() => navigate('/settings?section=config')}
-                >
-                  前往配置
-                </AppButton>
-              </div>
+            <div className="flex items-center gap-2">
+              <AppButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowRootDiagnosticDetails((value) => !value)}
+              >
+                {showRootDiagnosticDetails ? '隐藏详情' : '查看详情'}
+              </AppButton>
+              <AppButton
+                variant="primary"
+                size="sm"
+                onClick={() => navigate('/settings?section=config')}
+              >
+                前往配置
+              </AppButton>
             </div>
+          </div>
 
-            {showRootDiagnosticDetails && (
-              <div className="space-y-2 text-sm mt-4" style={{ color: 'var(--app-text-muted)' }}>
-                {rootDiagnosticError && (
-                  <p className="text-sm text-red-400">{rootDiagnosticError}</p>
-                )}
-                <p>
-                  root: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic?.rootDir || 'unknown'}</span>
-                </p>
-                <p>
-                  exists: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic ? String(rootDiagnostic.exists) : 'unknown'}</span>
-                </p>
-                <p>
-                  openclaw.json: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic ? String(rootDiagnostic.hasOpenClawJson) : 'unknown'}</span>
-                </p>
-                <p>
-                  node.json: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic ? String(rootDiagnostic.hasNodeJson) : 'unknown'}</span>
-                </p>
-                <p>
-                  configured command: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic?.openclawPath || 'openclaw (PATH)'}</span>
-                </p>
-                <div>
-                  <p className="mb-1">entries:</p>
-                  <div className="rounded-lg p-3 max-h-40 overflow-auto" style={{ backgroundColor: 'var(--app-bg-elevated)', color: 'var(--app-text)' }}>
-                    {rootDiagnostic?.entries?.length
-                      ? rootDiagnostic.entries.join(', ')
-                      : 'no entries'}
-                  </div>
+          {showRootDiagnosticDetails && (
+            <div className="space-y-2 text-sm mt-4" style={{ color: 'var(--app-text-muted)' }}>
+              {rootDiagnosticError && (
+                <p className="text-sm text-red-400">{rootDiagnosticError}</p>
+              )}
+              <p>
+                root: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic?.rootDir || 'unknown'}</span>
+              </p>
+              <p>
+                exists: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic ? String(rootDiagnostic.exists) : 'unknown'}</span>
+              </p>
+              <p>
+                openclaw.json: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic ? String(rootDiagnostic.hasOpenClawJson) : 'unknown'}</span>
+              </p>
+              <p>
+                node.json: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic ? String(rootDiagnostic.hasNodeJson) : 'unknown'}</span>
+              </p>
+              <p>
+                configured command: <span style={{ color: 'var(--app-text)' }}>{rootDiagnostic?.openclawPath || 'openclaw (PATH)'}</span>
+              </p>
+              <div>
+                <p className="mb-1">entries:</p>
+                <div className="rounded-lg p-3 max-h-40 overflow-auto" style={{ backgroundColor: 'var(--app-bg-elevated)', color: 'var(--app-text)' }}>
+                  {rootDiagnostic?.entries?.length
+                    ? rootDiagnostic.entries.join(', ')
+                    : 'no entries'}
                 </div>
               </div>
-            )}
-          </GlassCard>
-        ) : null}
-      </div>
+            </div>
+          )}
+        </GlassCard>
+      ) : null}
     </div>
   );
 }

@@ -358,12 +358,13 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({ agentId, agentName }) => 
         </GlassCard>
       )}
 
-      {/* 下部：历史统计面板 */}
+      {/* 下部：运行统计面板 */}
       <HistoryStatsPanel
         agentId={agentId}
         stats={stats}
         totalSessions={totalSessions}
         loading={statsLoading}
+        title="运行统计"
       />
     </div>
   );
