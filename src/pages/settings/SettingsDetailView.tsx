@@ -23,7 +23,7 @@ const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-4 flex items-center gap-3 shrink-0">
+      <div className="mb-4 flex items-center gap-3 shrink-0 relative z-10">
         <AppButton
           variant="secondary"
           onClick={onBack}
@@ -42,7 +42,6 @@ const SettingsDetailView: React.FC<SettingsDetailViewProps> = ({
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.02)',
           borderColor: 'var(--app-border)',
-          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.05)',
         }}
       >
         <div className="h-full px-5 py-5 lg:px-6">

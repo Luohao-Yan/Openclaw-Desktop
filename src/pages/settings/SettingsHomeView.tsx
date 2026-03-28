@@ -163,17 +163,19 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
           const Icon = section.icon;
           const accent = sectionAccentMap[section.id] || sectionAccentMap.general;
           const isHighlighted = highlightedSections.some((item) => item.id === section.id);
+          /* 没有 component 的 section 视为未实现，禁用交互 */
+          const isDisabled = !section.component;
 
           return (
             <GlassCard
               key={section.id}
-              onClick={() => onOpenSection(section.id)}
-              className="rounded-[20px] p-3.5 text-left"
+              onClick={isDisabled ? undefined : () => onOpenSection(section.id)}
+              className={`rounded-[20px] p-3.5 text-left ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}
               variant="default"
               style={{
                 background: `linear-gradient(180deg, var(--app-bg-elevated) 0%, ${accent.bg} 100%)`,
-                border: `1px solid ${isHighlighted ? accent.glow : 'var(--app-border)'}`,
-                boxShadow: isHighlighted
+                border: `1px solid ${isHighlighted && !isDisabled ? accent.glow : 'var(--app-border)'}`,
+                boxShadow: isHighlighted && !isDisabled
                   ? `0 12px 26px ${accent.glow}`
                   : '0 8px 18px rgba(15, 23, 42, 0.06)',
               }}
@@ -210,10 +212,10 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
                     style={{
                       backgroundColor: 'rgba(255,255,255,0.06)',
                       borderColor: 'transparent',
-                      color: isHighlighted ? accent.icon : 'var(--app-text-muted)',
+                      color: isDisabled ? 'var(--app-text-muted)' : isHighlighted ? accent.icon : 'var(--app-text-muted)',
                     }}
                   >
-                    {isHighlighted ? '热门入口' : '设置分类'}
+                    {isDisabled ? '即将上线' : isHighlighted ? '热门入口' : '设置分类'}
                   </AppBadge>
 
                   <div
@@ -237,8 +239,8 @@ const SettingsHomeView: React.FC<SettingsHomeViewProps> = ({
                   >
                     Settings
                   </div>
-                  <div className="text-xs font-semibold" style={{ color: accent.icon }}>
-                    进入
+                  <div className="text-xs font-semibold" style={{ color: isDisabled ? 'var(--app-text-muted)' : accent.icon }}>
+                    {isDisabled ? '即将上线' : '进入'}
                   </div>
                 </div>
               </div>

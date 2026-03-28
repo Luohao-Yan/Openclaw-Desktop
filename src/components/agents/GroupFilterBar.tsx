@@ -16,21 +16,14 @@ import type { AgentGroup } from '../../types/electron';
 import { useI18n } from '../../i18n/I18nContext';
 
 interface GroupFilterBarProps {
-  /** 所有分组列表 */
   groups: AgentGroup[];
-  /** Agent-分组映射（agentId → groupId） */
   mappings: Record<string, string>;
-  /** 当前选中的筛选项（null = 全部，'ungrouped' = 未分组，groupId = 指定分组） */
   activeFilter: string | null;
-  /** 筛选项变更回调 */
   onFilterChange: (filter: string | null) => void;
-  /** 新建分组回调 */
   onCreateGroup: () => void;
-  /** 右键菜单操作回调 */
   onGroupAction: (groupId: string, action: 'edit' | 'export' | 'delete') => void;
 }
 
-/** 计算每个分组的 Agent 数量 */
 function countAgentsInGroup(mappings: Record<string, string>, groupId: string): number {
   return Object.values(mappings).filter((gid) => gid === groupId).length;
 }
@@ -45,6 +38,23 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
 }) => {
   const { t } = useI18n();
 
+  // hover tooltip 状态（延迟显示"右键管理分组"提示）
+  const [tooltip, setTooltip] = useState<{ groupId: string; x: number; y: number } | null>(null);
+  const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTooltip = useCallback((e: React.MouseEvent, groupId: string) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    tooltipTimer.current = setTimeout(() => {
+      setTooltip({ groupId, x: rect.left + rect.width / 2, y: rect.top - 6 });
+    }, 500);
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
+    tooltipTimer.current = null;
+    setTooltip(null);
+  }, []);
+
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState<{
     groupId: string;
@@ -53,9 +63,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 注：实际筛选逻辑和未分组计数由父组件处理
-
-  /** 处理右键菜单 */
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, groupId: string) => {
       e.preventDefault();
@@ -65,7 +72,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     [],
   );
 
-  /** 处理菜单项点击 */
   const handleMenuAction = useCallback(
     (action: 'edit' | 'export' | 'delete') => {
       if (contextMenu) {
@@ -76,7 +82,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     [contextMenu, onGroupAction],
   );
 
-  /** 点击外部关闭菜单 */
   useEffect(() => {
     if (!contextMenu) return;
     const handleClick = (e: MouseEvent) => {
@@ -88,10 +93,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     return () => window.removeEventListener('mousedown', handleClick);
   }, [contextMenu]);
 
-  /**
-   * 根据分组颜色生成带透明度的背景色
-   * 激活态使用较高透明度，非激活态使用低透明度
-   */
   const colorWithAlpha = (hex: string | undefined, alpha: number): string => {
     if (!hex) return 'transparent';
     const r = parseInt(hex.slice(1, 3), 16);
@@ -100,10 +101,8 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  /** 默认分组颜色（无自定义颜色时使用） */
   const DEFAULT_TAG_COLOR = '#6366F1';
 
-  /** 构建分组标签的动态样式 */
   const getGroupTagStyle = (group: AgentGroup, isActive: boolean): React.CSSProperties => {
     const tagColor = group.color || DEFAULT_TAG_COLOR;
     if (isActive) {
@@ -127,7 +126,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     };
   };
 
-  /** 通用标签样式（全部 / 未分组） */
   const tabBaseStyle: React.CSSProperties = {
     border: '1px solid var(--app-border)',
     color: 'var(--app-text-muted)',
@@ -137,7 +135,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
     whiteSpace: 'nowrap',
   };
 
-  /** 激活标签样式（全部 / 未分组） */
   const tabActiveStyle: React.CSSProperties = {
     border: '1px solid var(--app-active-border, var(--app-border))',
     color: 'var(--app-text)',
@@ -167,94 +164,47 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
         {t('agentGroups.ungrouped' as any)}
       </button>
 
-      {/* 分组标签：带颜色标识的 tag 风格，hover 显示操作按钮 */}
+      {/* 分组标签 */}
       {groups.map((group) => {
         const count = countAgentsInGroup(mappings, group.id);
         const isActive = activeFilter === group.id;
         const tagColor = group.color || DEFAULT_TAG_COLOR;
 
         return (
-          <div
+          <button
             key={group.id}
-            className="relative flex-shrink-0 group"
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium flex-shrink-0 hover:opacity-85"
+            style={getGroupTagStyle(group, isActive)}
+            onClick={() => onFilterChange(group.id)}
+            onContextMenu={(e) => { hideTooltip(); handleContextMenu(e, group.id); }}
+            onMouseEnter={(e) => showTooltip(e, group.id)}
+            onMouseLeave={hideTooltip}
           >
-            {/* 分组标签按钮 */}
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium hover:opacity-85"
-              style={getGroupTagStyle(group, isActive)}
-              onClick={() => onFilterChange(group.id)}
-              onContextMenu={(e) => handleContextMenu(e, group.id)}
-            >
-              {/* Emoji 或颜色圆点指示器 */}
-              {group.emoji ? (
-                <span className="text-sm leading-none">{group.emoji}</span>
-              ) : (
-                <span
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{
-                    backgroundColor: tagColor,
-                    boxShadow: isActive ? `0 0 4px ${colorWithAlpha(tagColor, 0.5)}` : 'none',
-                  }}
-                />
-              )}
-              {/* 分组名称 */}
-              <span style={{ color: isActive ? tagColor : undefined }}>
-                {group.name}
-              </span>
-              {/* Agent 计数 badge */}
+            {group.emoji ? (
+              <span className="text-sm leading-none">{group.emoji}</span>
+            ) : (
               <span
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                 style={{
-                  backgroundColor: isActive
-                    ? colorWithAlpha(tagColor, 0.18)
-                    : 'var(--app-bg-subtle)',
-                  color: isActive ? tagColor : 'var(--app-text-muted)',
+                  backgroundColor: tagColor,
+                  boxShadow: isActive ? `0 0 4px ${colorWithAlpha(tagColor, 0.5)}` : 'none',
                 }}
-              >
-                {count}
-              </span>
-            </button>
-            {/* hover 时显示的操作按钮组 */}
-            <div
-              className="absolute -top-1 -right-1 hidden group-hover:flex items-center gap-0.5 rounded-full px-1 py-0.5 shadow-sm z-10"
+              />
+            )}
+            <span style={{ color: isActive ? tagColor : undefined }}>
+              {group.name}
+            </span>
+            <span
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
               style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
+                backgroundColor: isActive ? colorWithAlpha(tagColor, 0.18) : 'var(--app-bg-subtle)',
+                color: isActive ? tagColor : 'var(--app-text-muted)',
               }}
             >
-              {/* 编辑 */}
-              <button
-                type="button"
-                className="p-0.5 rounded-full transition-colors hover:opacity-70"
-                style={{ color: 'var(--app-text-muted)', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); onGroupAction(group.id, 'edit'); }}
-                title={t('agentGroups.edit' as any)}
-              >
-                <Pencil size={11} />
-              </button>
-              {/* 导出 */}
-              <button
-                type="button"
-                className="p-0.5 rounded-full transition-colors hover:opacity-70"
-                style={{ color: 'var(--app-text-muted)', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); onGroupAction(group.id, 'export'); }}
-                title={t('agentGroups.exportTitle' as any)}
-              >
-                <Download size={11} />
-              </button>
-              {/* 删除 */}
-              <button
-                type="button"
-                className="p-0.5 rounded-full transition-colors hover:opacity-70"
-                style={{ color: '#F87171', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); onGroupAction(group.id, 'delete'); }}
-                title={t('agentGroups.delete' as any)}
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
-          </div>
+              {count}
+            </span>
+          </button>
         );
       })}
 
@@ -266,7 +216,6 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
           border: '1px dashed var(--app-border)',
           color: 'var(--app-text-muted)',
           backgroundColor: 'transparent',
-          cursor: 'pointer',
           transition: 'all 200ms',
         }}
         onClick={onCreateGroup}
@@ -274,6 +223,24 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
         <Plus size={14} />
         {t('agentGroups.create' as any)}
       </button>
+
+      {/* 自定义 tooltip：hover 分组标签时提示右键操作 */}
+      {tooltip && (
+        <div
+          className="fixed z-[110] px-2.5 py-1.5 rounded-lg text-[11px] font-medium shadow-lg pointer-events-none"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: 'translate(-50%, -100%)',
+            backgroundColor: 'var(--app-bg-elevated)',
+            border: '1px solid var(--app-border)',
+            color: 'var(--app-text-muted)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          右键管理分组
+        </div>
+      )}
 
       {/* 右键上下文菜单 */}
       {contextMenu && (
@@ -288,32 +255,28 @@ const GroupFilterBar: React.FC<GroupFilterBarProps> = ({
             minWidth: 140,
           }}
         >
-          {/* 编辑分组 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
             style={{ color: 'var(--app-text)' }}
             onClick={() => handleMenuAction('edit')}
           >
             <Pencil size={14} style={{ color: 'var(--app-text-muted)' }} />
             {t('agentGroups.edit' as any)}
           </button>
-          {/* 批量导出 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs rounded-lg hover:bg-black/5 dark:hover:bg-white/5"
             style={{ color: 'var(--app-text)' }}
             onClick={() => handleMenuAction('export')}
           >
             <Download size={14} style={{ color: 'var(--app-text-muted)' }} />
             {t('agentGroups.exportTitle' as any)}
           </button>
-          {/* 分隔线 */}
           <div className="my-1 border-t" style={{ borderColor: 'var(--app-border)' }} />
-          {/* 删除分组 */}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs cursor-pointer rounded-lg hover:bg-red-500/8"
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs rounded-lg hover:bg-red-500/8"
             style={{ color: '#F87171' }}
             onClick={() => handleMenuAction('delete')}
           >

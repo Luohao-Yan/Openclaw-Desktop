@@ -78,7 +78,7 @@ const Settings: React.FC = () => {
         />
       ) : (
         // detail view 撑满剩余高度，内部自行滚动
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0">
           <SettingsDetailView
             activeSection={activeSectionData}
             onBack={backToSettingsHome}
