@@ -716,66 +716,66 @@ const Skills: React.FC = () => {
               {/* local / market tab：诊断、刷新、创建技能 */}
               {activeTab !== 'plugins' && (
                 <>
-                  <button
+                  <AppButton
                     onClick={() => setShowDiagnostics(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    variant="secondary"
+                    size="sm"
+                    icon={<Stethoscope className="w-4 h-4" />}
                     title="运行诊断"
                   >
-                    <Stethoscope className="w-4 h-4" />
                     <span className="hidden sm:inline">诊断</span>
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     onClick={() => void loadSkills()}
                     disabled={loading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    variant="secondary"
+                    size="sm"
+                    icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
                     title="刷新"
                   >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">刷新</span>
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}
+                    variant="primary"
+                    size="sm"
+                    icon={<Plus className="w-4 h-4" />}
                   >
-                    <Plus className="w-4 h-4" />
                     创建技能
-                  </button>
+                  </AppButton>
                 </>
               )}
               {/* plugins tab：插件诊断、刷新、安装插件 */}
               {activeTab === 'plugins' && (
                 <>
-                  <button
+                  <AppButton
                     onClick={() => setPluginDoctorTrigger(v => v + 1)}
                     disabled={pluginDoctorLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    variant="secondary"
+                    size="sm"
+                    icon={<Stethoscope className={`w-4 h-4 ${pluginDoctorLoading ? 'animate-spin' : ''}`} />}
                     title="插件诊断"
                   >
-                    <Stethoscope className={`w-4 h-4 ${pluginDoctorLoading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">插件诊断</span>
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     onClick={() => setPluginRefreshTrigger(v => v + 1)}
                     disabled={pluginLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-80 disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', color: 'var(--app-text-muted)' }}
+                    variant="secondary"
+                    size="sm"
+                    icon={<RefreshCw className={`w-4 h-4 ${pluginLoading ? 'animate-spin' : ''}`} />}
                     title="刷新"
                   >
-                    <RefreshCw className={`w-4 h-4 ${pluginLoading ? 'animate-spin' : ''}`} />
                     <span className="hidden sm:inline">刷新</span>
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     onClick={() => setPluginInstallTrigger(v => v + 1)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
-                    style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)', color: '#fff' }}
+                    variant="primary"
+                    size="sm"
+                    icon={<Plus className="w-4 h-4" />}
                   >
-                    <Plus className="w-4 h-4" />
                     安装插件
-                  </button>
+                  </AppButton>
                 </>
               )}
             </div>
@@ -956,7 +956,7 @@ const Skills: React.FC = () => {
 
         {/* ── 插件标签页 ─────────────────────────────────────────────── */}
         {activeTab === 'plugins' && (
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden" style={{ padding: '0 var(--space-6) var(--space-6)' }}>
             {/* 传入外部控制信号和状态回调，顶部按钮由父组件统一管理 */}
             <PluginsTab
               installTrigger={pluginInstallTrigger}
