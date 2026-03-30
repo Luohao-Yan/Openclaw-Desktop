@@ -12,11 +12,16 @@
     "chatbot",
     "llm",
     "agent-management",
+    "dashboard",
+    "monitoring",
     "feishu-bot",
     "telegram-bot",
     "cron-scheduler",
     "react",
-    "typescript"
+    "typescript",
+    "tailwindcss",
+    "macos",
+    "windows"
   ],
   "homepage": "https://github.com/Luohao-Yan/Openclaw-Desktop",
   "repository": {
@@ -51,22 +56,6 @@
     "watch": "tsc --watch",
     "prebuild:electron": "tsx scripts/download-runtime.ts"
   },
-  "keywords": [
-    "openclaw",
-    "openclaw-desktop",
-    "electron",
-    "desktop",
-    "ai-agent",
-    "multi-agent",
-    "agent-management",
-    "dashboard",
-    "monitoring",
-    "react",
-    "typescript",
-    "tailwindcss",
-    "macos",
-    "windows"
-  ],
   "author": "OpenClaw Team",
   "license": "AGPL-3.0-only",
   "type": "module",

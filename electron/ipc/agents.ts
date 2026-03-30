@@ -1716,7 +1716,7 @@ export function setupAgentsIPC() {
    * 获取智能体历史统计数据
    * 从 sessions 目录读取 JSONL transcript 文件，按日期聚合 Token 消耗、会话量、响应时间、错误率
    */
-  ipcMain.handle('agents:getHistoryStats', async (_, agentId: string): Promise<{ success: boolean; stats?: import('./statsAggregator.js').DailyStats[]; error?: string }> => {
+  ipcMain.handle('agents:getHistoryStats', async (_, agentId: string): Promise<{ success: boolean; stats?: import('./statsAggregator.js').DailyStats[]; totalSessions?: number; error?: string }> => {
     try {
       const { info } = getAgentRecord(agentId);
       const sessionsRoot = resolveSessionsRoot(info);
