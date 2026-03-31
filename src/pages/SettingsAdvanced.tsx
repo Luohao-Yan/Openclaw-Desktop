@@ -4,6 +4,7 @@ import AppButton from '../components/AppButton';
 import GlassCard from '../components/GlassCard';
 import { useI18n } from '../i18n/I18nContext';
 import UninstallOpenclawCard from './settings/UninstallOpenclawCard';
+import OpenClawVersionPanel from './settings/OpenClawVersionPanel';
 
 const SettingsAdvanced: React.FC = () => {
   const { t } = useI18n();
@@ -94,6 +95,9 @@ const SettingsAdvanced: React.FC = () => {
 
   return (
     <div className="space-y-6 p-1">
+      {/* OpenClaw 版本管理 */}
+      <OpenClawVersionPanel />
+
       {/* 危险操作区域标题 */}
       <div className="flex items-center gap-2">
         <AlertTriangle size={16} style={{ color: '#FB7185' }} />

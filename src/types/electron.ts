@@ -690,6 +690,14 @@ export interface GroupImportSummary {
   group: { id: string; name: string; merged: boolean };
 }
 
+/** 版本切换历史记录 */
+export interface VersionHistoryRecord {
+  timestamp: string;
+  fromVersion: string;
+  toVersion: string;
+  type: 'upgrade' | 'switch';
+}
+
 export interface ElectronAPI {
   runtimeInfo: () => Promise<DesktopRuntimeInfo | null>;
   getCapabilities: () => Promise<DesktopRuntimeCapabilities | null>;
@@ -1053,4 +1061,16 @@ export interface ElectronAPI {
   onAgentGroupsExportProgress: (callback: (event: GroupExportProgressEvent) => void) => () => void;
   /** 监听分组导入进度事件 */
   onAgentGroupsImportProgress: (callback: (event: GroupImportProgressEvent) => void) => () => void;
+
+  // ── OpenClaw 版本管理 API ──────────────────────────────────────────────────
+  /** 获取当前安装的 OpenClaw 版本 */
+  openclawVersionGetCurrent: () => Promise<{ success: boolean; version?: string; error?: string }>;
+  /** 获取可用版本列表 */
+  openclawVersionListAvailable: () => Promise<{ success: boolean; versions?: string[]; latest?: string; error?: string }>;
+  /** 安装指定版本 */
+  openclawVersionInstall: (version: string) => Promise<{ success: boolean; version?: string; error?: string }>;
+  /** 获取版本切换历史记录 */
+  openclawVersionGetHistory: () => Promise<{ success: boolean; history?: VersionHistoryRecord[]; error?: string }>;
+  /** 监听版本安装输出事件，返回取消订阅函数 */
+  onOpenclawVersionInstallOutput: (callback: (data: string) => void) => () => void;
 }

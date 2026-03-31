@@ -25,6 +25,7 @@ import { setupEnvironmentFixerIPC } from './ipc/environmentFixer.js';
 import { setupRemoteConnectionIPC } from './ipc/remoteConnection.js';
 import { setupAgentExchangeIPC } from './ipc/agentExchange.js';
 import { setupAgentGroupsIPC } from './ipc/agentGroups.js';
+import { setupOpenclawVersionIPC } from './ipc/openclawVersion.js';
 import { getShellPath } from './ipc/settings.js';
 import { asyncSendManager } from './ipc/asyncSendManager.js';
 
@@ -150,6 +151,7 @@ app.whenReady().then(() => {
   setupRemoteConnectionIPC();
   setupAgentExchangeIPC();
   setupAgentGroupsIPC();
+  setupOpenclawVersionIPC();
   getShellPath().catch(error => {
     console.error('Failed to get shell path:', error);
   });

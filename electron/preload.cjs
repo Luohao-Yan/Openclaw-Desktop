@@ -313,4 +313,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('agentGroups:importProgress', handler);
     return () => ipcRenderer.removeListener('agentGroups:importProgress', handler);
   },
+
+  // OpenClaw 版本管理
+  openclawVersionGetCurrent: () => ipcRenderer.invoke('openclaw-version:get-current'),
+  openclawVersionListAvailable: () => ipcRenderer.invoke('openclaw-version:list-available'),
+  openclawVersionInstall: (version) => ipcRenderer.invoke('openclaw-version:install', version),
+  openclawVersionGetHistory: () => ipcRenderer.invoke('openclaw-version:get-history'),
+  onOpenclawVersionInstallOutput: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('openclaw-version:install-output', handler);
+    return () => ipcRenderer.removeListener('openclaw-version:install-output', handler);
+  },
 });

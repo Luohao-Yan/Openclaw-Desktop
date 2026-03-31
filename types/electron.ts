@@ -1261,6 +1261,14 @@ export interface AgentGroupsActions {
   onAgentGroupsImportProgress(callback: (event: GroupImportProgressEvent) => void): () => void;
 }
 
+/** 版本切换历史记录 */
+export interface VersionHistoryRecord {
+  timestamp: string;
+  fromVersion: string;
+  toVersion: string;
+  type: 'upgrade' | 'switch';
+}
+
 /** Agent 配置加密导入/导出操作接口 */
 export interface AgentExchangeActions {
   /** 导出 Agent 配置为加密 .ocagent 文件 */
@@ -1320,7 +1328,19 @@ export interface ElectronAPI extends
   ChannelsActions,
   AgentEnhancementActions,
   AgentExchangeActions,
-  AgentGroupsActions {}
+  AgentGroupsActions {
+  // ── OpenClaw 版本管理 API ──────────────────────────────────────────────────
+  /** 获取当前安装的 OpenClaw 版本 */
+  openclawVersionGetCurrent(): Promise<{ success: boolean; version?: string; error?: string }>;
+  /** 获取可用版本列表 */
+  openclawVersionListAvailable(): Promise<{ success: boolean; versions?: string[]; latest?: string; error?: string }>;
+  /** 安装指定版本 */
+  openclawVersionInstall(version: string): Promise<{ success: boolean; version?: string; error?: string }>;
+  /** 获取版本切换历史记录 */
+  openclawVersionGetHistory(): Promise<{ success: boolean; history?: VersionHistoryRecord[]; error?: string }>;
+  /** 监听版本安装输出事件，返回取消订阅函数 */
+  onOpenclawVersionInstallOutput(callback: (data: string) => void): () => void;
+}
 
 declare global {
   interface Window {
