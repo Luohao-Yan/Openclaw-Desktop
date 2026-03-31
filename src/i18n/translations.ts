@@ -1056,6 +1056,10 @@ export const translations = {
     'pleaseWait': 'Please wait',
     'failedToLoadDocument': 'Failed to load document',
     'imagePlaceholder': 'Image placeholder',
+    'docs': 'Help Docs',
+    'docs.onThisPage': 'On This Page',
+    'docs.loadError': 'Failed to load document',
+    'docs.noHeadings': 'No headings',
 
     // Agent Groups
     'agentGroups.title': 'Agent Groups',
@@ -2059,6 +2063,10 @@ export const translations = {
     'pleaseWait': '请稍候',
     'failedToLoadDocument': '加载文档失败',
     'imagePlaceholder': '图片占位符',
+    'docs': '帮助文档',
+    'docs.onThisPage': '本页目录',
+    'docs.loadError': '文档加载失败',
+    'docs.noHeadings': '暂无目录',
 
     // 任务页面（与 en 区域 tasks.* 键一一对应）
     'tasks.newCron': '新建定时任务',
