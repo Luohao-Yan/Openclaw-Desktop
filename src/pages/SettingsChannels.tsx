@@ -10,6 +10,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Code,
+  Eye,
+  EyeOff,
   Loader2,
   MessageSquare,
   Play,
@@ -1196,6 +1198,7 @@ const FeishuAccountForm: React.FC<{
   account: FeishuAccountConfig;
   onUpdate: (updates: Partial<FeishuAccountConfig>) => void;
 }> = ({ accountId: _accountId, account, onUpdate }) => {
+  const [showSecret, setShowSecret] = useState(false);
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {/* 启用 */}
@@ -1222,11 +1225,23 @@ const FeishuAccountForm: React.FC<{
       <label className="space-y-1 block">
         <span className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>App Secret</span>
         <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>飞书开放平台的应用密钥</div>
-        <input
-          value={account.appSecret || ''} onChange={(e) => onUpdate({ appSecret: e.target.value })}
-          className="w-full rounded-2xl border px-4 py-3 text-sm outline-none"
-          style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-        />
+        <div className="relative">
+          <input
+            type={showSecret ? 'text' : 'password'}
+            value={account.appSecret || ''} onChange={(e) => onUpdate({ appSecret: e.target.value })}
+            className="w-full rounded-2xl border px-4 py-3 pr-10 text-sm outline-none"
+            style={{ backgroundColor: 'var(--app-bg)', borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+          />
+          <button
+            type="button"
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
+            style={{ color: 'var(--app-text-muted)' }}
+            onClick={() => setShowSecret(!showSecret)}
+            tabIndex={-1}
+          >
+            {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
       </label>
       {/* botName */}
       <label className="space-y-1 block">
