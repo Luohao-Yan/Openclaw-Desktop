@@ -100,18 +100,55 @@ const markdownComponents = {
       </code>
     );
   },
-  a: ({ href, children, ...props }: any) => (
-    <a
-      href={href}
-      target={href?.startsWith('http') ? '_blank' : undefined}
-      rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
-      className="underline transition-colors"
-      style={{ color: 'var(--app-active-text)' }}
-      {...props}
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children, ...props }: any) => {
+    // 锚点链接 — 页内滚动，不触发路由跳转
+    if (href?.startsWith('#')) {
+      const handleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const id = href.slice(1);
+        const el = document.getElementById(id);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+      return (
+        <a
+          href={href}
+          onClick={handleClick}
+          className="underline transition-colors cursor-pointer"
+          style={{ color: 'var(--app-active-text)' }}
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    }
+    // 外部链接 — 新窗口打开
+    if (href?.startsWith('http')) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline transition-colors"
+          style={{ color: 'var(--app-active-text)' }}
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    }
+    // 其他链接 — 阻止默认行为，避免路由跳转
+    return (
+      <span
+        className="underline cursor-default"
+        style={{ color: 'var(--app-active-text)' }}
+        {...props}
+      >
+        {children}
+      </span>
+    );
+  },
   img: ({ src, alt, ...props }: any) => (
     <img src={src} alt={alt} className="max-w-full h-auto my-4 rounded-lg" {...props} />
   ),
