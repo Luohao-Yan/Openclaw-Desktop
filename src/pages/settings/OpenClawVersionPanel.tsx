@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Download,
   RefreshCw,
@@ -42,6 +43,8 @@ const OpenClawVersionPanel: React.FC = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   // 安装弹窗状态
   const [showModal, setShowModal] = useState(false);
@@ -123,16 +126,28 @@ const OpenClawVersionPanel: React.FC = () => {
     return unsub;
   }, [installing]);
 
-  // 点击外部关闭下拉
+  // 点击外部关闭下拉（需要同时检查触发按钮和 Portal 下拉列表）
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
         setDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // 打开下拉时计算位置
+  useEffect(() => {
+    if (dropdownOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+  }, [dropdownOpen]);
 
   // ── 操作 ────────────────────────────────────────────────────────────────────
 
@@ -191,7 +206,7 @@ const OpenClawVersionPanel: React.FC = () => {
       </div>
 
       <GlassCard
-        className="rounded-2xl p-5 space-y-5 !overflow-visible"
+        className="rounded-2xl p-5 space-y-5"
         style={{
           border: '1px solid rgba(99, 102, 241, 0.25)',
           background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, var(--app-bg-elevated) 100%)',
@@ -249,8 +264,9 @@ const OpenClawVersionPanel: React.FC = () => {
                 ) : (
                   <>
                     {/* 下拉选择器 */}
-                    <div className="relative" ref={dropdownRef} style={{ zIndex: dropdownOpen ? 50 : 'auto' }}>
+                    <div className="relative">
                       <button
+                        ref={triggerRef}
                         type="button"
                         disabled={installing}
                         className="w-full max-w-sm flex items-center justify-between rounded-lg px-3 py-2 text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -268,10 +284,21 @@ const OpenClawVersionPanel: React.FC = () => {
                         <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} style={{ color: 'var(--app-text-muted)' }} />
                       </button>
 
-                      {dropdownOpen && (
+                      {/* Portal 下拉列表：渲染到 body，不受父级 overflow 限制 */}
+                      {dropdownOpen && createPortal(
                         <div
-                          className="absolute left-0 mt-1 w-full max-w-sm overflow-y-auto rounded-lg shadow-lg"
-                          style={{ background: 'var(--app-bg-elevated)', border: '1px solid var(--app-border)', maxHeight: '200px', zIndex: 50 }}
+                          ref={dropdownRef}
+                          className="overflow-y-auto rounded-lg shadow-lg"
+                          style={{
+                            position: 'fixed',
+                            top: dropdownPos.top,
+                            left: dropdownPos.left,
+                            width: dropdownPos.width,
+                            maxHeight: '200px',
+                            zIndex: 9999,
+                            background: 'var(--app-bg-elevated)',
+                            border: '1px solid var(--app-border)',
+                          }}
                         >
                           {versions.map((v) => (
                             <button
@@ -294,7 +321,8 @@ const OpenClawVersionPanel: React.FC = () => {
                               )}
                             </button>
                           ))}
-                        </div>
+                        </div>,
+                        document.body,
                       )}
                     </div>
 
