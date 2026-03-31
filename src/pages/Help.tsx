@@ -39,12 +39,14 @@ const Help: React.FC = () => {
       setMarkdownContent(content);
       setError(null);
     } else {
-      // 无效 slug，回退到第一个文档
-      if (firstSlug && activeDocSlug !== firstSlug) {
-        setActiveDocSlug(firstSlug);
+      // slug 无对应内容（可能是分组节点），回退到第一个叶子文档
+      const fallback = firstSlug;
+      if (fallback && activeDocSlug !== fallback) {
+        setActiveDocSlug(fallback);
       } else {
+        // 真的没有任何文档
         setMarkdownContent('');
-        setError(null);
+        setError(lang === 'zh' ? '未找到该文档内容' : 'Document not found');
       }
     }
   }, [activeDocSlug, lang, firstSlug]);

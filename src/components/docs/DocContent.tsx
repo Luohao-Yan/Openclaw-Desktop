@@ -139,14 +139,24 @@ const DocContent: React.FC<DocContentProps> = ({ content, onHeadingsExtracted, s
     }
   }, [content, onHeadingsExtracted]);
 
-  // 错误状态
+  // 错误或空内容状态 — 显示友好提示
   if (error || !content) {
     return (
       <div
         className="flex-1 flex items-center justify-center"
         style={{ color: 'var(--app-text-muted)' }}
       >
-        <p>{error || t('docs.loadError' as any)}</p>
+        <div className="text-center space-y-3">
+          <div className="text-4xl opacity-40">📄</div>
+          <p className="text-base font-medium" style={{ color: 'var(--app-text)' }}>
+            {error || t('docs.loadError' as any)}
+          </p>
+          <p className="text-sm">
+            {t('docs.loadError' as any) !== error
+              ? (t as any)('docs.noHeadings') || '请从左侧目录选择一篇文档'
+              : '请从左侧目录选择一篇文档'}
+          </p>
+        </div>
       </div>
     );
   }
