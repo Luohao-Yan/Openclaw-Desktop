@@ -116,8 +116,8 @@ const GroupImportDialog: React.FC<GroupImportDialogProps> = ({
     setPreviewError(null);
 
     try {
-      // 调用系统文件选择对话框
-      const fileResult = await window.electronAPI.agentsSelectImportFile();
+      // 调用系统文件选择对话框（过滤 .ocgroup 文件）
+      const fileResult = await window.electronAPI.agentGroupsSelectImportFile();
       if (!fileResult.success || !fileResult.filePath) {
         setPreviewLoading(false);
         return;

@@ -1254,6 +1254,7 @@ export interface AgentGroupsActions {
   agentGroupsRemoveAgent(agentId: string): Promise<{ success: boolean; error?: string }>;
   agentGroupsGetMappings(): Promise<{ success: boolean; mappings?: Record<string, string>; error?: string }>;
   agentGroupsExportGroup(data: { groupId: string; passphrase: string; filePath?: string }): Promise<{ success: boolean; filePath?: string; failedAgents?: Array<{ name: string; error: string }>; error?: string }>;
+  agentGroupsSelectImportFile(): Promise<{ success: boolean; filePath?: string; error?: string }>;
   agentGroupsPreviewImport(filePath: string): Promise<{ success: boolean; groupMeta?: GroupMetadata; agentCount?: number; error?: string }>;
   agentGroupsImportGroup(data: { filePath: string; passphrase: string }): Promise<{ success: boolean; summary?: GroupImportSummary; error?: string }>;
   onAgentGroupsExportProgress(callback: (event: GroupExportProgressEvent) => void): () => void;

@@ -300,6 +300,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentGroupsRemoveAgent: (agentId) => ipcRenderer.invoke('agentGroups:removeAgent', agentId),
   agentGroupsGetMappings: () => ipcRenderer.invoke('agentGroups:getMappings'),
   agentGroupsExportGroup: (data) => ipcRenderer.invoke('agentGroups:exportGroup', data),
+  agentGroupsSelectImportFile: () => ipcRenderer.invoke('agentGroups:selectImportFile'),
   agentGroupsPreviewImport: (filePath) => ipcRenderer.invoke('agentGroups:previewImport', filePath),
   agentGroupsImportGroup: (data) => ipcRenderer.invoke('agentGroups:importGroup', data),
   onAgentGroupsExportProgress: (callback) => {

@@ -1043,6 +1043,8 @@ export interface ElectronAPI {
   agentGroupsGetMappings: () => Promise<{ success: boolean; mappings?: Record<string, string>; error?: string }>;
   /** 按分组批量导出 Agent 配置 */
   agentGroupsExportGroup: (data: { groupId: string; passphrase: string; filePath?: string }) => Promise<{ success: boolean; filePath?: string; failedAgents?: Array<{ name: string; error: string }>; error?: string }>;
+  /** 选择 .ocgroup 导入文件（系统文件对话框） */
+  agentGroupsSelectImportFile: () => Promise<{ success: boolean; filePath?: string; error?: string }>;
   /** 预览 .ocgroup 导入文件信息 */
   agentGroupsPreviewImport: (filePath: string) => Promise<{ success: boolean; groupMeta?: GroupMetadata; agentCount?: number; error?: string }>;
   /** 按分组批量导入 Agent 配置 */
