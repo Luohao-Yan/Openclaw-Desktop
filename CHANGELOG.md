@@ -6,6 +6,14 @@
 
 ---
 
+## [0.3.24-preview-2.1] - 2026-03-31
+
+### 🐛 修复 (Fixes)
+
+- **分组导入无法识别 .ocgroup 文件**：`GroupImportDialog` 文件选择器错误调用了 `agentsSelectImportFile()`（仅过滤 `.ocagent`），导致无法选择 `.ocgroup` 文件。修复为调用 `agentGroupsSelectImportFile()`，同时在 `preload.cjs` 和类型定义中补全该 API 暴露
+
+---
+
 ## [0.3.24-preview-2] - 2026-03-28
 
 ### ✨ 新增 (Features)
