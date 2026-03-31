@@ -202,13 +202,13 @@ describe('Feature: openclaw-version-management, Property 4: 安装命令构建�
           expect(command).toContain(version);
 
           if (platform === 'win32') {
-            // Windows：使用 PowerShell 和 install.ps1
+            // Windows：使用 PowerShell 和 openclaw.ai/install.ps1
             expect(shell).toBe('powershell');
-            expect(command).toContain('install.ps1');
+            expect(command).toContain('openclaw.ai/install.ps1');
           } else {
-            // macOS / Linux：使用 bash 和 install.sh
+            // macOS / Linux：使用 bash 和 openclaw.ai/install.sh
             expect(shell).toBe('bash');
-            expect(command).toContain('install.sh');
+            expect(command).toContain('openclaw.ai/install.sh');
           }
         },
       ),

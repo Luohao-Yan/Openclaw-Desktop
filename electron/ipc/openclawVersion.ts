@@ -8,7 +8,6 @@
  * 本模块负责 IPC 注册、命令执行、网络请求和持久化存储。
  */
 
-import https from 'node:https';
 import pkg from 'electron';
 const { ipcMain } = pkg;
 import type { IpcMainInvokeEvent, WebContents } from 'electron';
@@ -17,37 +16,29 @@ import Store from 'electron-store';
 import { spawnWithShellPath } from './spawnHelper.js';
 import {
   sortVersionsDescending,
-  isCacheValid,
   addHistoryRecord,
   buildInstallCommand,
   buildSuccessResponse,
   buildErrorResponse,
+  hasNewerVersion,
+  compareSemver,
 } from './openclawVersionLogic.js';
 import type {
-  VersionCache,
   VersionHistoryRecord,
   GetCurrentVersionResponse,
   ListAvailableVersionsResponse,
   InstallVersionResponse,
   GetVersionHistoryResponse,
 } from './openclawVersionLogic.js';
+import { CURRENT_MANIFEST_VERSION, SUPPORTED_MANIFEST_VERSIONS } from '../config/manifest-version.js';
 
 // ─── 常量 ────────────────────────────────────────────────────────────────────
-
-/** 缓存有效期：10 分钟 */
-const CACHE_TTL_MS = 600_000;
 
 /** 安装超时：5 分钟 */
 const INSTALL_TIMEOUT_MS = 300_000;
 
-/** electron-store 缓存键 */
-const STORE_KEY_CACHE = 'openclawVersionCache';
-
 /** electron-store 历史记录键 */
 const STORE_KEY_HISTORY = 'openclawVersionHistory';
-
-/** npm registry API 地址 */
-const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@nicepkg/openclaw';
 
 // ─── 模块状态 ────────────────────────────────────────────────────────────────
 
@@ -88,95 +79,25 @@ async function getCurrentVersion(): Promise<GetCurrentVersionResponse> {
   }
 }
 
-// ─── 内部函数：HTTPS GET 请求 ────────────────────────────────────────────────
-
-/**
- * 使用 Node.js 内置 https 模块发起 GET 请求
- *
- * @param url 请求地址
- * @returns 响应体字符串
- */
-function httpsGet(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { Accept: 'application/json' } }, (res) => {
-      let data = '';
-      res.on('data', (chunk: Buffer) => {
-        data += chunk.toString();
-      });
-      res.on('end', () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(data);
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}: ${data.slice(0, 200)}`));
-        }
-      });
-      res.on('error', reject);
-    });
-    req.on('error', reject);
-    // 请求超时 30 秒
-    req.setTimeout(30_000, () => {
-      req.destroy(new Error('npm registry 请求超时'));
-    });
-  });
-}
-
 // ─── 内部函数：获取可用版本列表 ──────────────────────────────────────────────
 
 /**
- * 从 npm registry 获取可用版本列表
+ * 从 SUPPORTED_MANIFEST_VERSIONS 获取可用版本列表
  *
- * 优先使用缓存（TTL 10 分钟），缓存失效时请求 registry。
- * 网络请求失败时降级使用过期缓存。
+ * 版本号格式为 "2026.{manifestVersion}"，如 "2026.3.24"。
+ * 直接从本地配置读取，无需网络请求。
  */
 async function listAvailableVersions(): Promise<ListAvailableVersionsResponse> {
   try {
-    // 检查缓存是否有效
-    const cached = store.get(STORE_KEY_CACHE) as VersionCache | undefined;
-    if (cached && isCacheValid(cached.cachedAt, CACHE_TTL_MS, Date.now())) {
-      const sorted = sortVersionsDescending(cached.versions);
-      return buildSuccessResponse({
-        versions: sorted,
-        latest: sorted[0] || undefined,
-      });
-    }
+    // 从 SUPPORTED_MANIFEST_VERSIONS 派生版本列表（与 system.ts 一致）
+    const versions = [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v}`);
+    const sorted = sortVersionsDescending(versions);
+    const latest = `2026.${CURRENT_MANIFEST_VERSION}`;
 
-    // 缓存失效，请求 npm registry
-    try {
-      const body = await httpsGet(NPM_REGISTRY_URL);
-      const json = JSON.parse(body);
-
-      // 从 registry 响应中提取版本列表
-      const versions = json.versions ? Object.keys(json.versions) : [];
-      const sorted = sortVersionsDescending(versions);
-
-      // 更新缓存
-      const newCache: VersionCache = {
-        versions: sorted,
-        cachedAt: Date.now(),
-      };
-      store.set(STORE_KEY_CACHE, newCache);
-
-      return buildSuccessResponse({
-        versions: sorted,
-        latest: sorted[0] || undefined,
-      });
-    } catch (networkError) {
-      // 网络请求失败，降级使用过期缓存
-      if (cached && cached.versions.length > 0) {
-        const sorted = sortVersionsDescending(cached.versions);
-        return buildSuccessResponse({
-          versions: sorted,
-          latest: sorted[0] || undefined,
-        });
-      }
-
-      // 无缓存可用，返回错误
-      return buildErrorResponse(
-        networkError instanceof Error
-          ? networkError.message
-          : '获取可用版本列表失败',
-      );
-    }
+    return buildSuccessResponse({
+      versions: sorted,
+      latest,
+    });
   } catch (error) {
     return buildErrorResponse(
       error instanceof Error ? error.message : '获取可用版本列表时发生未知错误',
@@ -248,7 +169,7 @@ async function installVersion(
         timestamp: new Date().toISOString(),
         fromVersion,
         toVersion: installedVersion,
-        type: fromVersion !== 'unknown' && installedVersion > fromVersion ? 'upgrade' : 'switch',
+        type: fromVersion !== 'unknown' && compareSemver(installedVersion, fromVersion) > 0 ? 'upgrade' : 'switch',
       };
       const updatedHistory = addHistoryRecord(history, record);
       store.set(STORE_KEY_HISTORY, updatedHistory);

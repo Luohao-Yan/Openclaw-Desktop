@@ -187,14 +187,14 @@ export function buildInstallCommand(
   if (platform === 'win32') {
     // Windows：PowerShell 设置环境变量并执行 install.ps1
     return {
-      command: `$env:OPENCLAW_VERSION="${targetVersion}"; irm https://raw.githubusercontent.com/nicepkg/openclaw/main/install.ps1 | iex`,
+      command: `$env:OPENCLAW_VERSION="${targetVersion}"; iwr -useb https://openclaw.ai/install.ps1 | iex`,
       shell: 'powershell',
     };
   }
 
   // macOS / Linux：bash 设置环境变量并执行 install.sh
   return {
-    command: `OPENCLAW_VERSION="${targetVersion}" bash -c "$(curl -fsSL https://raw.githubusercontent.com/nicepkg/openclaw/main/install.sh)"`,
+    command: `OPENCLAW_VERSION=${targetVersion} curl -fsSL https://openclaw.ai/install.sh | bash`,
     shell: 'bash',
   };
 }
