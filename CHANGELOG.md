@@ -6,6 +6,31 @@
 
 ---
 
+## [0.3.24-preview-3] - 2026-03-31
+
+### ✨ 新增 (Features)
+
+- **帮助文档浏览器三栏布局**：重构 Help 页面为三栏布局（DocSidebar 240px + DocContent 自适应 + TocNav 200px），支持可折叠目录树、Markdown 渲染、页内锚点导航
+- **文档注册表模块**：新增 `src/config/docRegistry.ts`，通过 Vite `?raw` 静态导入 Markdown 文件，支持中英文双语文档切换
+- **页内锚点导航（On This Page）**：使用 IntersectionObserver 监听标题可见性，自动高亮当前阅读位置，点击标题平滑滚动
+- **OpenClaw 版本管理**：设置页新增版本管理面板，支持查看当前版本、浏览可用版本列表、一键升级/切换版本、安装进度弹窗
+
+### 🐛 修复 (Fixes)
+
+- **版本管理获取版本列表失败**：修复版本列表 API 请求异常处理
+- **版本管理面板下拉框被截断**：下拉框改用 React Portal 渲染，移除 overflow-visible hack
+- **Feishu App Secret 明文显示**：输入框改为密码模式，支持眼睛图标切换明文/密文
+
+### 🧪 测试 (Tests)
+
+- 新增 `src/utils/__tests__/docUtils.pbt.test.ts`：5 个属性测试（slugify 幂等性、标题提取完整性、文档查找正确性、首文档选取正确性、多语言注册表一致性）
+- 新增 `src/utils/__tests__/docUtils.unit.test.ts`：17 个单元测试覆盖边界条件
+- 新增 `src/components/docs/__tests__/docs.unit.test.ts`：组件逻辑验证测试
+- 新增 `electron/ipc/__tests__/openclawVersionLogic.pbt.test.ts`：版本管理纯逻辑属性测试
+- 新增 `electron/ipc/__tests__/openclawVersionLogic.unit.test.ts`：版本管理单元测试
+
+---
+
 ## [0.3.24-preview-2.1] - 2026-03-31
 
 ### 🐛 修复 (Fixes)
