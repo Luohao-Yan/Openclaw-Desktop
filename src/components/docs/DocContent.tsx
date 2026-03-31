@@ -105,8 +105,19 @@ const markdownComponents = {
     if (href?.startsWith('#')) {
       const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        const id = href.slice(1);
-        const el = document.getElementById(id);
+        const rawId = decodeURIComponent(href.slice(1));
+        // 尝试多种匹配策略找到目标标题元素
+        const el =
+          document.getElementById(rawId) ||
+          document.getElementById(slugify(rawId)) ||
+          // 模糊匹配：遍历所有带 id 的标题，找包含关系
+          Array.from(document.querySelectorAll('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]'))
+            .find((h) => {
+              const hid = h.id;
+              const normalized = rawId.replace(/[^a-z0-9\u4e00-\u9fff]/gi, '');
+              const hnormalized = hid.replace(/[^a-z0-9\u4e00-\u9fff]/gi, '');
+              return hnormalized === normalized || hid.includes(rawId) || rawId.includes(hid);
+            }) as HTMLElement | undefined;
         if (el) {
           el.scrollIntoView({ behavior: 'smooth' });
         }
