@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import { Settings, ClipboardList, FileText, Sun, Moon, Monitor, ChevronLeft, ChevronRight, MessageSquare, Server, BookOpen } from 'lucide-react';
+import { Settings, ListChecks, ScrollText, Sun, Moon, Monitor, ChevronLeft, ChevronRight, MessageSquare, Server, Puzzle, BookOpen } from 'lucide-react';
 import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useI18n } from '../i18n/I18nContext';
@@ -83,10 +83,11 @@ const Sidebar: React.FC = () => {
     { path: '/instances', label: t('instances'), icon: Server },
     { path: '/sessions', label: t('sessions'), icon: MessageSquare },
     { path: '/agents', label: t('agents'), iconData: aiUserIcon },
-    { path: '/skills', label: t('skills'), icon: BookOpen },
+    { path: '/skills', label: t('skills'), icon: Puzzle },
     { path: '/settings', label: t('config'), icon: Settings },
-    { path: '/tasks', label: t('tasks'), icon: ClipboardList },
-    { path: '/logs', label: t('logs'), icon: FileText },
+    { path: '/tasks', label: t('tasks'), icon: ListChecks },
+    { path: '/logs', label: t('logs'), icon: ScrollText },
+    { path: '/help', label: t('help'), icon: BookOpen },
   ];
 
   const isMenuItemActive = (path: string) => {

@@ -19,6 +19,7 @@ const AgentWorkspace = React.lazy(() => import('./pages/AgentWorkspace'));
 const Sessions = React.lazy(() => import('./pages/sessions'));
 const Instances = React.lazy(() => import('./pages/Instances'));
 const Skills = React.lazy(() => import('./pages/Skills'));
+const Help = React.lazy(() => import('./pages/Help'));
 import {
   SetupCompletePage,
   SetupLocalCheckPage,
@@ -99,6 +100,7 @@ const MainAppLayout: React.FC = () => {
               <Route path="/sessions" element={<Sessions />} />
               <Route path="/instances" element={<Instances />} />
               <Route path="/skills" element={<Skills />} />
+              <Route path="/help" element={<Help />} />
             </Routes>
           </Suspense>
         </main>

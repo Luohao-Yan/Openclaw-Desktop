@@ -187,6 +187,7 @@ src/                       # React 渲染进程
   components/              # 共享 UI 组件（Sidebar, TitleBar, GlassCard 等）
   contexts/                # React Context（DesktopRuntime, SetupFlow, Theme）
   i18n/                    # 国际化（I18nContext + translations.ts）
+  help-docs/               # 帮助文档（USER_GUIDE.md, FEATURE_LIST.md）
   pages/                   # 页面组件（与路由 1:1 对应）
     setup/                 # 引导流程页面
     settings/              # 设置子页面

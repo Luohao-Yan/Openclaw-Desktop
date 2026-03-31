@@ -1044,6 +1044,19 @@ export const translations = {
     'setup.env.clawhub.installFailed': 'ClawHub CLI installation failed',
     'skills.market.clawhubNotInstalled': 'ClawHub CLI is not installed. Go to Settings → Environment Check to install, or run: npm install -g @nicepkg/clawhub',
 
+    // Help page
+    'help': 'Help',
+    'helpCenter': 'Help Center',
+    'helpCenterDescription': 'Explore guides and documentation for OpenClaw Desktop',
+    'userGuide': 'User Guide',
+    'featureList': 'Feature List',
+    'documentation': 'Documentation',
+    'tableOfContents': 'Table of Contents',
+    'loadingDocument': 'Loading document...',
+    'pleaseWait': 'Please wait',
+    'failedToLoadDocument': 'Failed to load document',
+    'imagePlaceholder': 'Image placeholder',
+
     // Agent Groups
     'agentGroups.title': 'Agent Groups',
     'agentGroups.create': 'New Group',
@@ -2033,6 +2046,19 @@ export const translations = {
     'setup.env.clawhub.installSuccess': 'ClawHub CLI 安装成功',
     'setup.env.clawhub.installFailed': 'ClawHub CLI 安装失败',
     'skills.market.clawhubNotInstalled': 'ClawHub CLI 未安装。请前往「设置 → 环境自检」页面安装，或手动执行 npm install -g @nicepkg/clawhub',
+
+    // 帮助页面
+    'help': '帮助',
+    'helpCenter': '帮助中心',
+    'helpCenterDescription': '探索 OpenClaw Desktop 的指南和文档',
+    'userGuide': '用户指南',
+    'featureList': '功能列表',
+    'documentation': '文档',
+    'tableOfContents': '目录',
+    'loadingDocument': '加载文档中...',
+    'pleaseWait': '请稍候',
+    'failedToLoadDocument': '加载文档失败',
+    'imagePlaceholder': '图片占位符',
 
     // 任务页面（与 en 区域 tasks.* 键一一对应）
     'tasks.newCron': '新建定时任务',
