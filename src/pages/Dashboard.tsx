@@ -11,14 +11,15 @@ import {
   Settings2,
   Wrench,
   ExternalLink,
+  Stethoscope,
 } from 'lucide-react';
 
 import GlassCard from '../components/GlassCard';
 import RuntimeUpdateNotice from '../components/RuntimeUpdateNotice';
 import HistoryStatsPanel from '../components/HistoryStatsPanel';
+import DoctorDialog from '../components/DoctorDialog';
 import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useI18n } from '../i18n/I18nContext';
-import { createGatewayRepairLoadingState, runGatewayRepair } from '../services/gatewayRepair';
 import AppButton from '../components/AppButton';
 import AppBadge from '../components/AppBadge';
 import { useIpcCache } from '../hooks/useIpcCache';
@@ -108,13 +109,12 @@ function Dashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   // 综合加载状态：操作中或缓存首次加载中
   const loading = actionLoading || gatewayLoading;
-  const [isRepairingGateway, setIsRepairingGateway] = useState(false);
-  const [gatewayRepairSteps, setGatewayRepairSteps] = useState<string[]>([]);
   const [showGatewayErrorDetails, setShowGatewayErrorDetails] = useState(false);
-  const [gatewayRepairMessage, setGatewayRepairMessage] = useState('');
-  const [gatewayRepairTone, setGatewayRepairTone] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [dashboardMessage, setDashboardMessage] = useState('');
   const [dashboardMessageTone, setDashboardMessageTone] = useState<'idle' | 'success' | 'error' | 'info'>('idle');
+
+  // ── DoctorDialog 弹窗控制状态 ──
+  const [isDoctorOpen, setIsDoctorOpen] = useState(false);
 
   // ── 全局历史统计数据（聚合所有 Agent）──────────────────────────────────
   const [globalStats, setGlobalStats] = useState<DailyStats[]>([]);
@@ -164,39 +164,6 @@ function Dashboard() {
     }
   };
 
-  const handleGatewayRepairCompatibility = async () => {
-    setIsRepairingGateway(true);
-    try {
-      const loadingState = createGatewayRepairLoadingState();
-      setGatewayRepairTone(loadingState.tone);
-      setGatewayRepairMessage(loadingState.message);
-      setGatewayRepairSteps(loadingState.steps);
-      setShowGatewayErrorDetails(loadingState.shouldShowDetails);
-
-      const result = await runGatewayRepair({
-        issueHint: gatewayStatus.error,
-        repairCapabilityAvailable,
-        runtimeInfo,
-      });
-
-      setGatewayRepairTone(result.tone);
-      setGatewayRepairMessage(result.message);
-      setGatewayRepairSteps(result.steps);
-      setShowGatewayErrorDetails(result.shouldShowDetails);
-      await Promise.all([fetchGatewayStatus(), fetchSystemStats(), fetchRootDiagnostic()]);
-    } catch (error) {
-      console.error('Error repairing gateway compatibility:', error);
-      setGatewayRepairTone('error');
-      setGatewayRepairMessage('修复没有完成，请查看详情后重试。');
-      setShowGatewayErrorDetails(true);
-      setGatewayRepairSteps([
-        error instanceof Error ? error.message : String(error),
-      ]);
-    } finally {
-      setIsRepairingGateway(false);
-    }
-  };
-
   const handleGatewayStop = async () => {
     setActionLoading(true);
     try {
@@ -240,10 +207,19 @@ function Dashboard() {
     }
   };
 
+  // ── DoctorDialog 修复完成回调：刷新网关状态/系统信息/根目录诊断 ──
+  const handleDoctorComplete = async () => {
+    await Promise.all([
+      fetchGatewayStatus(),
+      fetchSystemStats(),
+      fetchRootDiagnostic(),
+    ]);
+  };
+
   const handlePrimaryAssistAction = async () => {
     if (gatewayStatus.status === 'error') {
-      setActionMessage('info', '正在执行一键修复，请稍候。');
-      await handleGatewayRepairCompatibility();
+      // 统一通过 DoctorDialog 执行修复
+      setIsDoctorOpen(true);
       return;
     }
 
@@ -560,10 +536,19 @@ function Dashboard() {
               <AppButton
                 variant={gatewayStatus.status === 'error' ? 'danger' : 'primary'}
                 onClick={() => void handlePrimaryAssistAction()}
-                disabled={loading || isRepairingGateway}
+                disabled={loading}
                 icon={gatewayStatus.status === 'error' ? <Wrench size={16} /> : <RefreshCw size={16} />}
               >
                 {primaryActionLabel}
+              </AppButton>
+              {/* 一键修复按钮：始终可见，打开 DoctorDialog */}
+              <AppButton
+                variant="secondary"
+                onClick={() => setIsDoctorOpen(true)}
+                disabled={isDoctorOpen}
+                icon={<Stethoscope size={16} />}
+              >
+                {t('doctor.buttonLabel')}
               </AppButton>
             </div>
             {/* 导航跳转 */}
@@ -650,37 +635,11 @@ function Dashboard() {
               />
             )}
 
-            {gatewayRepairTone !== 'idle' && gatewayRepairMessage && (
-              <div
-                className="mt-3 rounded-lg px-3 py-2 text-sm"
-                style={{
-                  backgroundColor: gatewayRepairTone === 'success'
-                    ? 'rgba(16, 185, 129, 0.14)'
-                    : gatewayRepairTone === 'error'
-                      ? 'rgba(239, 68, 68, 0.14)'
-                      : 'rgba(59, 130, 246, 0.14)',
-                  border: `1px solid ${gatewayRepairTone === 'success'
-                    ? 'rgba(16, 185, 129, 0.24)'
-                    : gatewayRepairTone === 'error'
-                      ? 'rgba(239, 68, 68, 0.24)'
-                      : 'rgba(59, 130, 246, 0.24)'}`,
-                  color: gatewayRepairTone === 'success'
-                    ? '#A7F3D0'
-                    : gatewayRepairTone === 'error'
-                      ? '#FCA5A5'
-                      : '#BFDBFE',
-                }}
-              >
-                {gatewayRepairMessage}
-              </div>
-            )}
-
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <AppButton
                 variant="danger"
-                onClick={() => void handleGatewayRepairCompatibility()}
-                loading={isRepairingGateway}
-                disabled={isRepairingGateway || !repairCapabilityAvailable}
+                onClick={() => setIsDoctorOpen(true)}
+                disabled={!repairCapabilityAvailable || isDoctorOpen}
                 icon={<RefreshCw size={16} />}
               >
                 {repairCapabilityAvailable ? '立即修复' : '重启后可用'}
@@ -697,12 +656,6 @@ function Dashboard() {
               <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.04)' }}>
                 <p className="text-xs font-medium" style={{ color: 'var(--app-text)' }}>技术详情</p>
                 <div className="mt-2 space-y-2 text-xs" style={{ color: 'var(--app-text-muted)' }}>
-                  {isRepairingGateway && (
-                    <div>
-                      <div style={{ color: 'var(--app-text)' }}>当前状态</div>
-                      <div className="mt-1">正在执行官方修复流程，请不要关闭窗口。</div>
-                    </div>
-                  )}
                   {runtimeInfo && (
                     <div>
                       <div style={{ color: 'var(--app-text)' }}>运行时版本</div>
@@ -717,16 +670,6 @@ function Dashboard() {
                     <div>
                       <div style={{ color: 'var(--app-text)' }}>连接目标</div>
                       <div className="mt-1">{gatewayStatus.host || 'unknown'}:{gatewayStatus.port || 'unknown'}</div>
-                    </div>
-                  )}
-                  {gatewayRepairSteps.length > 0 && (
-                    <div>
-                      <div style={{ color: 'var(--app-text)' }}>修复进度</div>
-                      <div className="mt-1 space-y-1">
-                        {gatewayRepairSteps.map((step, index) => (
-                          <div key={`${index}-${step}`}>{index + 1}. {step}</div>
-                        ))}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -841,6 +784,13 @@ function Dashboard() {
           )}
         </GlassCard>
       ) : null}
+
+      {/* ── DoctorDialog 一键修复弹窗 ─────────────────────────────────── */}
+      <DoctorDialog
+        open={isDoctorOpen}
+        onClose={() => setIsDoctorOpen(false)}
+        onComplete={handleDoctorComplete}
+      />
     </div>
   );
 }

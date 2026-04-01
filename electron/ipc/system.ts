@@ -1,5 +1,6 @@
 import pkg from 'electron';
 const { app, ipcMain, shell } = pkg;
+import type { IpcMainInvokeEvent } from 'electron';
 import os from 'os';
 import fs from 'fs/promises';
 import path from 'path';
@@ -19,6 +20,19 @@ import { resolveClawHubStatus, buildClawHubFixableIssue } from './clawhubInstall
 import { CURRENT_MANIFEST_VERSION, SUPPORTED_MANIFEST_VERSIONS } from '../config/manifest-version.js';
 // 统一命令执行入口（供后续迁移使用）
 import { spawnWithShellPath } from './spawnHelper.js';
+
+/** Doctor 流式执行并发锁，防止重复执行 */
+let isDoctorRunning = false;
+
+/** 导出并发锁状态，供测试使用 */
+export function _getIsDoctorRunning(): boolean {
+  return isDoctorRunning;
+}
+
+/** 重置并发锁状态，供测试使用 */
+export function _resetDoctorRunning(): void {
+  isDoctorRunning = false;
+}
 
 /** 可自动修复的环境问题 */
 interface FixableIssue {
@@ -1279,6 +1293,40 @@ export function setupSystemIPC() {
       };
     } catch (err: any) {
       return { success: false, error: err.message || 'doctor --fix 执行失败' };
+    }
+  });
+
+  /**
+   * system:doctorStream — 流式执行 openclaw doctor --fix
+   * 通过 doctor:output 事件推送实时输出到渲染进程，
+   * 使用模块级 isDoctorRunning 布尔锁防止并发执行，超时 60 秒。
+   */
+  ipcMain.handle('system:doctorStream', async (event: IpcMainInvokeEvent) => {
+    // 并发锁检查
+    if (isDoctorRunning) {
+      return { success: false, error: '修复正在进行中，请等待完成' };
+    }
+    isDoctorRunning = true;
+
+    try {
+      const result = await spawnWithShellPath('openclaw', ['doctor', '--fix'], {
+        timeoutMs: 60_000,
+        onOutput: (data: string, isError: boolean) => {
+          try {
+            event.sender.send('doctor:output', { data, isError });
+          } catch {
+            // sender 可能已销毁，忽略
+          }
+        },
+      });
+
+      return {
+        success: result.success,
+        output: result.output,
+        error: result.error,
+      };
+    } finally {
+      isDoctorRunning = false;
     }
   });
 }

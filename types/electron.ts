@@ -10,6 +10,14 @@ export type GatewayStatus = {
   port?: number;
 };
 
+/** Doctor 流式输出事件 */
+export interface DoctorOutputEvent {
+  /** 输出文本内容 */
+  data: string;
+  /** 是否为 stderr 输出 */
+  isError: boolean;
+}
+
 export type TailscaleExposureMode = 'off' | 'tailnet' | 'public';
 
 export interface DesktopRuntimeInfo {
@@ -1305,6 +1313,11 @@ export interface MainActions {
   appConfigQuit(): Promise<{ success: boolean }>;
   /** 执行 openclaw doctor --fix 自动修复配置文件 */
   doctorFix(): Promise<{ success: boolean; output?: string; error?: string }>;
+
+  /** 流式执行 openclaw doctor --fix */
+  doctorStream(): Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 监听 doctor 流式输出事件 */
+  onDoctorOutput(callback: (event: DoctorOutputEvent) => void): () => void;
 }
 
 export interface ElectronAPI extends 

@@ -47,6 +47,14 @@ export interface InstallOutputEvent {
   isError: boolean;
 }
 
+/** Doctor 流式输出事件 */
+export interface DoctorOutputEvent {
+  /** 输出文本内容 */
+  data: string;
+  /** 是否为 stderr 输出 */
+  isError: boolean;
+}
+
 export interface RemoteOpenClawConnectionPayload {
   host: string;
   port?: number;
@@ -944,6 +952,11 @@ export interface ElectronAPI {
 
   /** 执行 openclaw doctor --fix 自动修复配置文件 */
   doctorFix: () => Promise<{ success: boolean; output?: string; error?: string }>;
+
+  /** 流式执行 openclaw doctor --fix */
+  doctorStream: () => Promise<{ success: boolean; output?: string; error?: string }>;
+  /** 监听 doctor 流式输出事件 */
+  onDoctorOutput: (callback: (event: DoctorOutputEvent) => void) => () => void;
 
   // ── 模型配置管理 ──────────────────────────────────────────────────────────
   /** 获取所有提供商的认证状态 */

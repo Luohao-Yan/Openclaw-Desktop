@@ -160,6 +160,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 执行 openclaw doctor --fix 自动修复配置
   doctorFix: () => ipcRenderer.invoke('system:doctorFix'),
 
+  // Doctor 流式修复（流式输出 + 最终结果）
+  doctorStream: () => ipcRenderer.invoke('system:doctorStream'),
+  // 监听 doctor 流式输出事件，返回取消订阅函数
+  onDoctorOutput: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('doctor:output', handler);
+    return () => ipcRenderer.removeListener('doctor:output', handler);
+  },
+
   // Instances
   instancesGetAll: () => ipcRenderer.invoke('instances:getAll'),
   instancesStart: (instanceId) => ipcRenderer.invoke('instances:start', instanceId),

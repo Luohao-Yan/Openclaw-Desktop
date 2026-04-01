@@ -1098,6 +1098,18 @@ export const translations = {
     'agentGroups.cancel': 'Cancel',
     'agentGroups.confirm': 'Confirm',
     'agentGroups.close': 'Close',
+
+    // Doctor 一键修复
+    'doctor.buttonLabel': 'Doctor Fix',
+    'doctor.dialogTitle': 'OpenClaw Repair',
+    'doctor.running': 'Running repair...',
+    'doctor.success': 'Repair completed successfully',
+    'doctor.failed': 'Repair completed with issues',
+    'doctor.close': 'Close',
+    'doctor.fixedIssues': 'Fixed Issues',
+    'doctor.remainingIssues': 'Remaining Issues',
+    'doctor.needsRepairHint': 'Some issues require deeper repair. Try running openclaw doctor --repair manually.',
+    'doctor.alreadyRunning': 'Repair is already in progress',
   },
   zh: {
     dashboard: '仪表板',
@@ -2221,5 +2233,17 @@ export const translations = {
     'agentGroups.cancel': '取消',
     'agentGroups.confirm': '确认',
     'agentGroups.close': '关闭',
+
+    // Doctor 一键修复
+    'doctor.buttonLabel': '一键修复',
+    'doctor.dialogTitle': 'OpenClaw 修复',
+    'doctor.running': '正在修复...',
+    'doctor.success': '修复已完成',
+    'doctor.failed': '修复完成，仍有问题',
+    'doctor.close': '关闭',
+    'doctor.fixedIssues': '已修复问题',
+    'doctor.remainingIssues': '未修复问题',
+    'doctor.needsRepairHint': '部分问题需要深度修复，建议手动运行 openclaw doctor --repair。',
+    'doctor.alreadyRunning': '修复正在进行中',
   },
 };
