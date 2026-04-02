@@ -162,7 +162,9 @@ npm run type-check           # 类型检查
 npm run build                # 生产构建（Vite + tsc + electron-builder）
 npm run pack:mac:dmg:arm64   # 打包 macOS DMG (Apple Silicon)
 npm run pack:mac:dmg:x64     # 打包 macOS DMG (Intel)
-npm run pack:win:nsis        # 打包 Windows 安装包
+npm run pack:win:nsis        # 打包 Windows 安装包（当前架构）
+npm run pack:win:nsis:x64    # 打包 Windows 安装包 (x64)
+npm run pack:win:nsis:arm64  # 打包 Windows 安装包 (ARM64)
 ```
 
 ### 构建产物

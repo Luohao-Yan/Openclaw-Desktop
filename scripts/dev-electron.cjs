@@ -91,6 +91,7 @@ const startElectron = async () => {
   electronProcess = spawn(electronBinary, ['.'], {
     cwd: projectRoot,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
       NODE_ENV: 'development',
