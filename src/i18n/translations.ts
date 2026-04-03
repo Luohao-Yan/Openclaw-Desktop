@@ -1133,6 +1133,7 @@ export const translations = {
     // 桌面应用更新横幅
     'desktopUpdate.message': 'New desktop version available: v{latest} (running v{current}).',
     'desktopUpdate.download': 'Download now',
+    'desktopUpdate.badge': 'UPDATE',
   },
   zh: {
     dashboard: '仪表板',
@@ -2291,5 +2292,6 @@ export const translations = {
     // 桌面应用更新横幅
     'desktopUpdate.message': '桌面端有新版本: v{latest}（当前 v{current}）。',
     'desktopUpdate.download': '立即下载',
+    'desktopUpdate.badge': '可更新',
   },
 };

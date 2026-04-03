@@ -231,9 +231,17 @@ resources/                 # 应用图标（png, svg, ico, icns）
 
 ## 贡献者
 
+感谢所有为本项目做出贡献的开发者 🎉
+
+<!-- 贡献者头像由 contrib.rocks 自动生成 -->
 <a href="https://github.com/Luohao-Yan/Openclaw-Desktop/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Luohao-Yan/Openclaw-Desktop" alt="Contributors" />
+  <img src="https://contrib.rocks/image?repo=Luohao-Yan/Openclaw-Desktop&max=100&columns=12" alt="Contributors" />
 </a>
+
+| 贡献者 | GitHub | 贡献内容 |
+|--------|--------|----------|
+| Leon(Louis) Yan | [@Luohao-Yan](https://github.com/Luohao-Yan) | 项目创建者与核心开发 |
+| sevico | [@sevico](https://github.com/sevico) | 修复 Windows/Linux 默认菜单栏隐藏 ([#4](https://github.com/Luohao-Yan/Openclaw-Desktop/pull/4)) |
 
 ## 许可证
 

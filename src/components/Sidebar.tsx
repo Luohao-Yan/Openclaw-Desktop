@@ -6,6 +6,7 @@ import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useI18n } from '../i18n/I18nContext';
 import UserAvatar from './UserAvatar';
+import type { DesktopUpdateState } from '../services/useDesktopUpdateChecker';
 
  const dashboardIcon = {
    body: '<g fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M2.5 12c0-4.478 0-6.717 1.391-8.109C5.282 2.5 7.521 2.5 12 2.5c4.478 0 6.718 0 8.109 1.391S21.5 7.521 21.5 12c0 4.478 0 6.718-1.391 8.109S16.479 21.5 12 21.5c-4.478 0-6.718 0-8.109-1.391S2.5 16.479 2.5 12Z"/><path stroke-linejoin="round" stroke-width="1.5" d="M2.5 9h19"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 6h.009M11 6h.009"/><path stroke-linecap="round" stroke-width="1.5" d="M17 17a5 5 0 0 0-10 0"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m12.707 15.293l-1.414 1.414"/></g>',
@@ -25,9 +26,11 @@ interface SidebarProps {
   currentVersion: string | null;
   latestVersion: string | null;
   onUpdateClick: () => void;
+  /** 桌面应用更新状态 */
+  desktopUpdate?: DesktopUpdateState;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVersion, latestVersion: _latestVersion, onUpdateClick }) => {
+const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVersion, latestVersion: _latestVersion, onUpdateClick, desktopUpdate }) => {
   const location = useLocation();
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
@@ -359,22 +362,33 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
           <div
             className="relative rounded-xl border overflow-hidden"
             style={{
-              backgroundColor: versionCardHovered && hasUpdate
+              backgroundColor: versionCardHovered && (hasUpdate || desktopUpdate?.hasUpdate)
                 ? 'rgba(255,255,255,0.06)'
                 : 'rgba(255,255,255,0.02)',
               borderColor: 'var(--app-border)',
-              cursor: hasUpdate ? 'pointer' : 'default',
+              cursor: (hasUpdate || desktopUpdate?.hasUpdate) ? 'pointer' : 'default',
               transition: 'background-color 0.2s ease',
             }}
-            {...(hasUpdate
+            {...((hasUpdate || desktopUpdate?.hasUpdate)
               ? {
                   role: 'button' as const,
                   tabIndex: 0,
-                  onClick: () => onUpdateClick(),
+                  onClick: () => {
+                    // 桌面应用更新优先打开下载页，否则打开 OpenClaw 升级弹窗
+                    if (desktopUpdate?.hasUpdate && desktopUpdate.downloadUrl) {
+                      window.open(desktopUpdate.downloadUrl, '_blank');
+                    } else if (hasUpdate) {
+                      onUpdateClick();
+                    }
+                  },
                   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      onUpdateClick();
+                      if (desktopUpdate?.hasUpdate && desktopUpdate.downloadUrl) {
+                        window.open(desktopUpdate.downloadUrl, '_blank');
+                      } else if (hasUpdate) {
+                        onUpdateClick();
+                      }
                     }
                   },
                   onMouseEnter: () => setVersionCardHovered(true),
@@ -383,9 +397,22 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
               : {})}
           >
             {/* 徽章容器 - 右上角 */}
-            {(isPreviewVersion || hasUpdate) && (
+            {(isPreviewVersion || hasUpdate || desktopUpdate?.hasUpdate) && (
               <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-                {/* 新版本 NEW 徽章（绿色） */}
+                {/* 桌面应用新版本 UPDATE 徽章（橙色） */}
+                {desktopUpdate?.hasUpdate && (
+                  <span
+                    className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
+                    style={{
+                      backgroundColor: 'rgba(249, 115, 22, 0.12)',
+                      borderColor: 'rgba(249, 115, 22, 0.28)',
+                      color: '#F97316',
+                    }}
+                  >
+                    {t('desktopUpdate.badge')}
+                  </span>
+                )}
+                {/* OpenClaw 新版本 NEW 徽章（绿色） */}
                 {hasUpdate && (
                   <span
                     className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
@@ -421,11 +448,16 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
               </div>
             </div>
 
-            {/* 下栏：版本号 */}
+            {/* 下栏：版本号 + 桌面更新提示 */}
             <div className="px-3 py-2">
               <div className="text-[11px] font-mono font-medium" style={{ color: 'var(--app-text)' }}>
                 {appVersionLabel}
               </div>
+              {desktopUpdate?.hasUpdate && desktopUpdate.latestVersion && (
+                <div className="text-[10px] mt-0.5" style={{ color: '#F97316' }}>
+                  → v{desktopUpdate.latestVersion}
+                </div>
+              )}
             </div>
           </div>
         )}
