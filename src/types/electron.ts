@@ -1086,4 +1086,16 @@ export interface ElectronAPI {
   openclawVersionGetHistory: () => Promise<{ success: boolean; history?: VersionHistoryRecord[]; error?: string }>;
   /** 监听版本安装输出事件，返回取消订阅函数 */
   onOpenclawVersionInstallOutput: (callback: (data: string) => void) => () => void;
+
+  // ── 桌面应用更新检查 API ──────────────────────────────────────────────────
+  /** 检查桌面应用是否有新版本（从 GitHub Releases） */
+  desktopVersionCheckUpdate: () => Promise<{
+    success: boolean;
+    hasUpdate?: boolean;
+    currentVersion?: string;
+    latestVersion?: string;
+    releaseUrl?: string;
+    downloadUrl?: string;
+    error?: string;
+  }>;
 }

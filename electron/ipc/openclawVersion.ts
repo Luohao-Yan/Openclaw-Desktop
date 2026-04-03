@@ -289,6 +289,84 @@ async function getVersionHistory(): Promise<GetVersionHistoryResponse> {
   }
 }
 
+// ─── 内部函数：桌面应用更新检查 ──────────────────────────────────────────────
+
+/** GitHub Releases API URL */
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Luohao-Yan/Openclaw-Desktop/releases/latest';
+
+/** GitHub API 请求超时：10 秒 */
+const GITHUB_FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * 从 GitHub Releases API 获取桌面应用最新版本
+ *
+ * 调用 GitHub API 获取 latest release 的 tag_name，
+ * 与当前应用版本比较，返回是否有更新及下载链接。
+ */
+async function checkDesktopUpdate(): Promise<{
+  success: boolean;
+  hasUpdate?: boolean;
+  currentVersion?: string;
+  latestVersion?: string;
+  releaseUrl?: string;
+  downloadUrl?: string;
+  error?: string;
+}> {
+  try {
+    // 获取当前桌面应用版本
+    const { app } = await import('electron');
+    const currentVersion = app.getVersion?.() || '0.0.0';
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
+
+    const response = await fetch(GITHUB_RELEASES_URL, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'OpenClaw-Desktop',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return { success: false, error: `GitHub API 返回 ${response.status}` };
+    }
+
+    const data = await response.json() as {
+      tag_name?: string;
+      html_url?: string;
+      assets?: Array<{ name?: string; browser_download_url?: string }>;
+    };
+
+    if (!data.tag_name) {
+      return { success: false, error: '无法解析 GitHub Release 版本号' };
+    }
+
+    // tag_name 格式为 "v0.3.24-preview-4"，去掉前缀 "v"
+    const latestVersion = data.tag_name.replace(/^v/, '');
+
+    // 比较版本号：使用字符串比较（preview 版本号格式一致）
+    const hasUpdate = latestVersion !== currentVersion && latestVersion > currentVersion;
+
+    // 查找 macOS arm64 DMG 下载链接
+    const dmgAsset = data.assets?.find((a) =>
+      a.name?.endsWith('.dmg') && a.name?.includes('arm64'),
+    );
+
+    return {
+      success: true,
+      hasUpdate,
+      currentVersion,
+      latestVersion,
+      releaseUrl: data.html_url,
+      downloadUrl: dmgAsset?.browser_download_url || data.html_url,
+    };
+  } catch {
+    return { success: false, error: '检查桌面应用更新失败' };
+  }
+}
+
 // ─── IPC 注册 ────────────────────────────────────────────────────────────────
 
 /**
@@ -322,5 +400,10 @@ export function setupOpenclawVersionIPC(): void {
   // 获取版本切换历史记录
   ipcMain.handle('openclaw-version:get-history', async () => {
     return getVersionHistory();
+  });
+
+  // 检查桌面应用自身是否有新版本（从 GitHub Releases）
+  ipcMain.handle('desktop-version:check-update', async () => {
+    return checkDesktopUpdate();
   });
 }

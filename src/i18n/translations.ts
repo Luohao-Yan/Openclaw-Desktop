@@ -1130,6 +1130,9 @@ export const translations = {
     'updateBanner.message': 'Update available: v{latest} (running v{current}).',
     'updateBanner.updateNow': 'Update now',
     'updateBanner.close': 'Close update banner',
+    // 桌面应用更新横幅
+    'desktopUpdate.message': 'New desktop version available: v{latest} (running v{current}).',
+    'desktopUpdate.download': 'Download now',
   },
   zh: {
     dashboard: '仪表板',
@@ -2285,5 +2288,8 @@ export const translations = {
     'updateBanner.message': '有新版本可用: v{latest}（当前 v{current}）。',
     'updateBanner.updateNow': '立即更新',
     'updateBanner.close': '关闭更新横幅',
+    // 桌面应用更新横幅
+    'desktopUpdate.message': '桌面端有新版本: v{latest}（当前 v{current}）。',
+    'desktopUpdate.download': '立即下载',
   },
 };

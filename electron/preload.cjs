@@ -328,6 +328,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openclawVersionListAvailable: () => ipcRenderer.invoke('openclaw-version:list-available'),
   openclawVersionInstall: (version) => ipcRenderer.invoke('openclaw-version:install', version),
   openclawVersionGetHistory: () => ipcRenderer.invoke('openclaw-version:get-history'),
+
+  // 桌面应用更新检查
+  desktopVersionCheckUpdate: () => ipcRenderer.invoke('desktop-version:check-update'),
   onOpenclawVersionInstallOutput: (callback) => {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('openclaw-version:install-output', handler);

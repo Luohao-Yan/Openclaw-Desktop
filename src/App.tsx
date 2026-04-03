@@ -10,7 +10,9 @@ import GlobalLoading from './components/GlobalLoading';
 import PageSkeleton from './components/PageSkeleton';
 import UpdateBanner from './components/UpdateBanner';
 import UpdateDialog from './components/UpdateDialog';
+import DesktopUpdateBanner from './components/DesktopUpdateBanner';
 import { useVersionChecker } from './services/useVersionChecker';
+import { useDesktopUpdateChecker } from './services/useDesktopUpdateChecker';
 
 // 页面级组件使用 React.lazy 懒加载，仅在用户导航到对应路由时加载
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -75,6 +77,9 @@ const MainAppLayout: React.FC = () => {
   // 版本检查 Hook：从 Sidebar 提升到 MainAppLayout，避免重复轮询
   const { hasUpdate, currentVersion, latestVersion } = useVersionChecker();
 
+  // 桌面应用更新检查 Hook：从 GitHub Releases 获取最新版本
+  const desktopUpdate = useDesktopUpdateChecker();
+
   // 升级弹窗显示状态
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
 
@@ -108,6 +113,13 @@ const MainAppLayout: React.FC = () => {
             currentVersion={currentVersion}
             latestVersion={latestVersion}
             onUpdateClick={() => setShowUpdateDialog(true)}
+          />
+          {/* 桌面应用更新横幅 */}
+          <DesktopUpdateBanner
+            hasUpdate={desktopUpdate.hasUpdate}
+            currentVersion={desktopUpdate.currentVersion}
+            latestVersion={desktopUpdate.latestVersion}
+            downloadUrl={desktopUpdate.downloadUrl}
           />
           {/* 懒加载页面使用 Suspense 包裹，加载期间显示骨架屏占位 */}
           <Suspense fallback={<PageSkeleton />}>
