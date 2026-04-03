@@ -458,20 +458,25 @@ async function probeGatewayPort(host: string, port: number, timeoutMs = 1500): P
 }
 
 async function resolveGatewayVersion(): Promise<string | undefined> {
+  // 优先使用 openclaw --version 获取实时版本，确保升级后立即反映
+  const result = await runCommand(resolveOpenClawCommand(), ['--version']);
+  if (result.success) {
+    const versionText = result.output.trim();
+    // 提取版本号（如 "OpenClaw 2026.4.2 (d74a122)" → "2026.4.2"）
+    const match = /(\d+\.\d+\.\d+)/.exec(versionText);
+    if (match) {
+      return match[1];
+    }
+    if (versionText) {
+      return versionText;
+    }
+  }
+
+  // CLI 不可用时降级到配置文件中的缓存版本
   const rootDir = getOpenClawRootDir();
   const config = await readJsonFile<OpenClawConfigShape>(path.join(rootDir, 'openclaw.json'));
   const version = config?.meta?.lastTouchedVersion?.trim();
-  if (version) {
-    return version;
-  }
-
-  const result = await runCommand(resolveOpenClawCommand(), ['--version']);
-  if (!result.success) {
-    return undefined;
-  }
-
-  const versionText = result.output.trim();
-  return versionText || undefined;
+  return version || undefined;
 }
 
 async function resolveGatewayPid(): Promise<number | undefined> {

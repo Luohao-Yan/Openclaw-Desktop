@@ -1,4 +1,4 @@
-import React, { Suspense, useRef, useEffect } from 'react';
+import React, { Suspense, useRef, useEffect, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import DesktopRuntimeProvider from './contexts/DesktopRuntimeContext';
 import { SetupFlowProvider, useSetupFlow } from './contexts/SetupFlowContext';
@@ -8,6 +8,9 @@ import Sidebar from './components/Sidebar';
 import TitleBar from './components/TitleBar';
 import GlobalLoading from './components/GlobalLoading';
 import PageSkeleton from './components/PageSkeleton';
+import UpdateBanner from './components/UpdateBanner';
+import UpdateDialog from './components/UpdateDialog';
+import { useVersionChecker } from './services/useVersionChecker';
 
 // 页面级组件使用 React.lazy 懒加载，仅在用户导航到对应路由时加载
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -69,6 +72,12 @@ const MainAppLayout: React.FC = () => {
   // 创建 ref 引用 <main> 滚动容器，供 ScrollToTop 组件使用
   const mainRef = useRef<HTMLElement>(null);
 
+  // 版本检查 Hook：从 Sidebar 提升到 MainAppLayout，避免重复轮询
+  const { hasUpdate, currentVersion, latestVersion } = useVersionChecker();
+
+  // 升级弹窗显示状态
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+
   return (
     <div
       className="flex flex-col h-screen"
@@ -80,7 +89,12 @@ const MainAppLayout: React.FC = () => {
       {/* macOS hiddenInset 标题栏：为红绿灯按钮留出拖拽区域 */}
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        <Sidebar
+          hasUpdate={hasUpdate}
+          currentVersion={currentVersion}
+          latestVersion={latestVersion}
+          onUpdateClick={() => setShowUpdateDialog(true)}
+        />
         <main
           ref={mainRef}
           className="flex-1 overflow-auto min-h-full relative"
@@ -88,6 +102,13 @@ const MainAppLayout: React.FC = () => {
         >
           {/* 路由切换时自动重置滚动位置到顶部 */}
           <ScrollToTop mainRef={mainRef} />
+          {/* 版本更新顶部横幅：位于 ScrollToTop 之后、Suspense 之前 */}
+          <UpdateBanner
+            hasUpdate={hasUpdate}
+            currentVersion={currentVersion}
+            latestVersion={latestVersion}
+            onUpdateClick={() => setShowUpdateDialog(true)}
+          />
           {/* 懒加载页面使用 Suspense 包裹，加载期间显示骨架屏占位 */}
           <Suspense fallback={<PageSkeleton />}>
             <Routes>
@@ -105,6 +126,13 @@ const MainAppLayout: React.FC = () => {
           </Suspense>
         </main>
       </div>
+      {/* 版本升级弹窗 */}
+      <UpdateDialog
+        open={showUpdateDialog}
+        onClose={() => setShowUpdateDialog(false)}
+        currentVersion={currentVersion || ''}
+        latestVersion={latestVersion || ''}
+      />
     </div>
   );
 };

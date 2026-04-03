@@ -19,7 +19,15 @@ import UserAvatar from './UserAvatar';
    height: 24,
  };
 
-const Sidebar: React.FC = () => {
+/** Sidebar 组件 Props：版本状态由 MainAppLayout 传入 */
+interface SidebarProps {
+  hasUpdate: boolean;
+  currentVersion: string | null;
+  latestVersion: string | null;
+  onUpdateClick: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVersion, latestVersion: _latestVersion, onUpdateClick }) => {
   const location = useLocation();
   const { theme, setTheme } = useTheme();
   const { t } = useI18n();
@@ -31,6 +39,9 @@ const Sidebar: React.FC = () => {
     || `v${runtimeInfo?.appVersion || '0.0.0'}`;
   const isPreviewVersion = runtimeInfo?.channel === 'preview'
     || /preview/i.test(runtimeInfo?.appVersion || '');
+  // 版本卡片 hover 状态
+  const [versionCardHovered, setVersionCardHovered] = useState(false);
+
   const accountName = runtimeInfo?.userName?.trim() || t('openclawDesktop');
   const accountSubtitle = runtimeInfo?.userName?.trim()
     ? t('desktopClient')
@@ -348,22 +359,59 @@ const Sidebar: React.FC = () => {
           <div
             className="relative rounded-xl border overflow-hidden"
             style={{
-              backgroundColor: 'rgba(255,255,255,0.02)',
+              backgroundColor: versionCardHovered && hasUpdate
+                ? 'rgba(255,255,255,0.06)'
+                : 'rgba(255,255,255,0.02)',
               borderColor: 'var(--app-border)',
+              cursor: hasUpdate ? 'pointer' : 'default',
+              transition: 'background-color 0.2s ease',
             }}
+            {...(hasUpdate
+              ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  onClick: () => onUpdateClick(),
+                  onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onUpdateClick();
+                    }
+                  },
+                  onMouseEnter: () => setVersionCardHovered(true),
+                  onMouseLeave: () => setVersionCardHovered(false),
+                }
+              : {})}
           >
-            {/* 预览版徽章 - 右上角角标 */}
-            {isPreviewVersion && (
-              <span
-                className="absolute top-1.5 right-1.5 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
-                style={{
-                  backgroundColor: 'rgba(0, 180, 255, 0.12)',
-                  borderColor: 'rgba(0, 180, 255, 0.28)',
-                  color: '#00B4FF',
-                }}
-              >
-                {t('previewBadge')}
-              </span>
+            {/* 徽章容器 - 右上角 */}
+            {(isPreviewVersion || hasUpdate) && (
+              <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                {/* 新版本 NEW 徽章（绿色） */}
+                {hasUpdate && (
+                  <span
+                    className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
+                    style={{
+                      backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                      borderColor: 'rgba(34, 197, 94, 0.28)',
+                      color: '#22C55E',
+                    }}
+                  >
+                    {t('versionUpdate.newBadge')}
+                  </span>
+                )}
+                {/* 预览版徽章（蓝色） */}
+                {isPreviewVersion && (
+                  <span
+                    className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em]"
+                    style={{
+                      backgroundColor: 'rgba(0, 180, 255, 0.12)',
+                      borderColor: 'rgba(0, 180, 255, 0.28)',
+                      color: '#00B4FF',
+                    }}
+                  >
+                    {t('previewBadge')}
+                  </span>
+                )}
+              </div>
             )}
 
             {/* 上栏：VERSION 标签 */}
@@ -411,6 +459,7 @@ const Sidebar: React.FC = () => {
           )}
         </button>
       </div>
+
     </aside>
   );
 };

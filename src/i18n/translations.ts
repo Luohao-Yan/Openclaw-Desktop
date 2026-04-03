@@ -1110,6 +1110,26 @@ export const translations = {
     'doctor.remainingIssues': 'Remaining Issues',
     'doctor.needsRepairHint': 'Some issues require deeper repair. Try running openclaw doctor --repair manually.',
     'doctor.alreadyRunning': 'Repair is already in progress',
+
+    // 版本更新提醒
+    'versionUpdate.newBadge': 'NEW',
+    'versionUpdate.title': 'Version Update Available',
+    'versionUpdate.currentVersion': 'Current Version',
+    'versionUpdate.latestVersion': 'Latest Version',
+    'versionUpdate.upgradeNow': 'Upgrade Now',
+    'versionUpdate.later': 'Later',
+    'versionUpdate.installing': 'Installing...',
+    'versionUpdate.installSuccess': 'Installation successful',
+    'versionUpdate.installFailed': 'Installation failed',
+    'versionUpdate.restartApp': 'Restart App',
+    'versionUpdate.retry': 'Retry',
+    'versionUpdate.close': 'Close',
+    'versionUpdate.installLog': 'Install Log',
+
+    // 版本更新横幅
+    'updateBanner.message': 'Update available: v{latest} (running v{current}).',
+    'updateBanner.updateNow': 'Update now',
+    'updateBanner.close': 'Close update banner',
   },
   zh: {
     dashboard: '仪表板',
@@ -2245,5 +2265,25 @@ export const translations = {
     'doctor.remainingIssues': '未修复问题',
     'doctor.needsRepairHint': '部分问题需要深度修复，建议手动运行 openclaw doctor --repair。',
     'doctor.alreadyRunning': '修复正在进行中',
+
+    // 版本更新提醒
+    'versionUpdate.newBadge': 'NEW',
+    'versionUpdate.title': '版本更新可用',
+    'versionUpdate.currentVersion': '当前版本',
+    'versionUpdate.latestVersion': '最新版本',
+    'versionUpdate.upgradeNow': '立即升级',
+    'versionUpdate.later': '稍后再说',
+    'versionUpdate.installing': '安装中...',
+    'versionUpdate.installSuccess': '安装成功',
+    'versionUpdate.installFailed': '安装失败',
+    'versionUpdate.restartApp': '重启应用',
+    'versionUpdate.retry': '重试',
+    'versionUpdate.close': '关闭',
+    'versionUpdate.installLog': '安装日志',
+
+    // 版本更新横幅
+    'updateBanner.message': '有新版本可用: v{latest}（当前 v{current}）。',
+    'updateBanner.updateNow': '立即更新',
+    'updateBanner.close': '关闭更新横幅',
   },
 };

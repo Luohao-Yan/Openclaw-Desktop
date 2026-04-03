@@ -22,15 +22,17 @@ import {
   buildErrorResponse,
   hasNewerVersion,
   compareSemver,
+  isCacheValid,
 } from './openclawVersionLogic.js';
 import type {
   VersionHistoryRecord,
+  VersionCache,
   GetCurrentVersionResponse,
   ListAvailableVersionsResponse,
   InstallVersionResponse,
   GetVersionHistoryResponse,
 } from './openclawVersionLogic.js';
-import { CURRENT_MANIFEST_VERSION, SUPPORTED_MANIFEST_VERSIONS } from '../config/manifest-version.js';
+import { SUPPORTED_MANIFEST_VERSIONS } from '../config/manifest-version.js';
 
 // ─── 常量 ────────────────────────────────────────────────────────────────────
 
@@ -40,10 +42,22 @@ const INSTALL_TIMEOUT_MS = 300_000;
 /** electron-store 历史记录键 */
 const STORE_KEY_HISTORY = 'openclawVersionHistory';
 
+/** npm registry 查询 URL */
+const NPM_REGISTRY_URL = 'https://registry.npmjs.org/openclaw';
+
+/** npm registry 请求超时：10 秒 */
+const NPM_FETCH_TIMEOUT_MS = 10_000;
+
+/** 版本列表缓存 TTL：30 分钟 */
+const VERSION_CACHE_TTL_MS = 30 * 60 * 1000;
+
 // ─── 模块状态 ────────────────────────────────────────────────────────────────
 
 /** 安装锁，防止并发安装 */
 let isInstalling = false;
+
+/** 版本列表内存缓存 */
+let versionCache: VersionCache | null = null;
 
 /** electron-store 实例 */
 const store = new Store();
@@ -79,24 +93,96 @@ async function getCurrentVersion(): Promise<GetCurrentVersionResponse> {
   }
 }
 
-// ─── 内部函数：获取可用版本列表 ──────────────────────────────────────────────
+// ─── 内部函数：从 npm registry 获取可用版本列表 ─────────────────────────────
 
 /**
- * 从 SUPPORTED_MANIFEST_VERSIONS 获取可用版本列表
+ * 从 npm registry 获取 openclaw 包的所有已发布版本
  *
- * 版本号格式为 "2026.{manifestVersion}"，如 "2026.3.24"。
- * 直接从本地配置读取，无需网络请求。
+ * 仅提取正式版本号（排除 alpha/beta/rc 等预发布标签），
+ * 请求失败时返回 null，由调用方降级到本地配置。
+ */
+async function fetchVersionsFromNpm(): Promise<string[] | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), NPM_FETCH_TIMEOUT_MS);
+
+    const response = await fetch(NPM_REGISTRY_URL, {
+      headers: { Accept: 'application/vnd.npm.install-v1+json' },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json() as { versions?: Record<string, unknown> };
+    if (!data.versions) {
+      return null;
+    }
+
+    // 提取所有版本号，过滤掉预发布版本（含 - 的如 1.0.0-beta.1）
+    const allVersions = Object.keys(data.versions)
+      .filter((v) => /^\d+\.\d+\.\d+$/.test(v));
+
+    return allVersions.length > 0 ? allVersions : null;
+  } catch {
+    // 网络错误、超时等，静默返回 null
+    return null;
+  }
+}
+
+/**
+ * 获取可用版本列表
+ *
+ * 优先从 npm registry 动态获取最新版本列表（带内存缓存），
+ * 网络不可用时降级到本地 SUPPORTED_MANIFEST_VERSIONS 配置。
+ *
+ * 缓存策略：
+ * - 内存缓存 30 分钟，避免频繁请求 npm registry
+ * - 缓存过期后重新请求，请求失败则继续使用过期缓存
  */
 async function listAvailableVersions(): Promise<ListAvailableVersionsResponse> {
   try {
-    // 从 SUPPORTED_MANIFEST_VERSIONS 派生版本列表（与 system.ts 一致）
-    const versions = [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v}`);
-    const sorted = sortVersionsDescending(versions);
-    const latest = `2026.${CURRENT_MANIFEST_VERSION}`;
+    const now = Date.now();
 
+    // 检查内存缓存是否有效
+    if (versionCache && isCacheValid(versionCache.cachedAt, VERSION_CACHE_TTL_MS, now)) {
+      const sorted = sortVersionsDescending(versionCache.versions);
+      return buildSuccessResponse({
+        versions: sorted,
+        latest: sorted[0],
+      });
+    }
+
+    // 缓存过期或不存在，从 npm registry 获取
+    const npmVersions = await fetchVersionsFromNpm();
+
+    if (npmVersions && npmVersions.length > 0) {
+      // npm 获取成功，更新缓存
+      versionCache = { versions: npmVersions, cachedAt: now };
+      const sorted = sortVersionsDescending(npmVersions);
+      return buildSuccessResponse({
+        versions: sorted,
+        latest: sorted[0],
+      });
+    }
+
+    // npm 获取失败，尝试使用过期缓存
+    if (versionCache && versionCache.versions.length > 0) {
+      const sorted = sortVersionsDescending(versionCache.versions);
+      return buildSuccessResponse({
+        versions: sorted,
+        latest: sorted[0],
+      });
+    }
+
+    // 完全无缓存且网络不可用，降级到本地配置
+    const localVersions = [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v}`);
+    const sorted = sortVersionsDescending(localVersions);
     return buildSuccessResponse({
       versions: sorted,
-      latest,
+      latest: sorted[0],
     });
   } catch (error) {
     return buildErrorResponse(
