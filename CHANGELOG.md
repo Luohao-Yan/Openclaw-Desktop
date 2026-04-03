@@ -6,6 +6,26 @@
 
 ---
 
+## [0.3.24-preview-4] - 2026-04-03
+
+### ✨ 新增 (Features)
+
+- **版本更新顶部横幅提醒**：新增 `UpdateBanner` 组件，当检测到新版本时在主内容区域顶部显示红色横幅，提供"立即更新"快捷入口和关闭按钮，支持键盘无障碍操作
+- **动态版本列表获取**：`listAvailableVersions` 改为从 npm registry 动态获取最新版本列表，本地配置作为离线 fallback，30 分钟内存缓存
+- **版本检查 Hook 提升**：将 `useVersionChecker` 从 Sidebar 提升到 MainAppLayout，通过 props 传递给 Sidebar 和 UpdateBanner，避免重复轮询
+
+### 🐛 修复 (Fixes)
+
+- **Dashboard 版本号不更新**：`resolveGatewayVersion` 优先使用 `openclaw --version` 实时版本，修复升级 OpenClaw 后 Dashboard 仍显示旧版本的问题
+- **版本列表硬编码**：移除对 `SUPPORTED_MANIFEST_VERSIONS` 的硬依赖，改为动态获取，新版本发布后无需手动更新配置
+
+### 🧪 测试 (Tests)
+
+- 新增 `src/components/__tests__/updateBannerLogic.pbt.test.ts`：3 个属性测试（横幅可见性、版本号内容、无障碍属性）
+- 新增 `src/components/__tests__/updateBannerLogic.unit.test.ts`：22 个单元测试覆盖初始化、关闭、回调、键盘交互、国际化、样式和边界情况
+
+---
+
 ## [0.3.24-preview-3] - 2026-03-31
 
 ### ✨ 新增 (Features)
