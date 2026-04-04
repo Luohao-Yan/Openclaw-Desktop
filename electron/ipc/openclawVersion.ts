@@ -291,19 +291,17 @@ async function getVersionHistory(): Promise<GetVersionHistoryResponse> {
 
 // ─── 内部函数：桌面应用更新检查 ──────────────────────────────────────────────
 
-/** GitHub Releases API URL */
+/** 版本文件 URL（raw.githubusercontent.com，国内访问相对稳定） */
+const VERSION_FILE_URL = 'https://raw.githubusercontent.com/Luohao-Yan/Openclaw-Desktop/main/latest-version.json';
+
+/** GitHub Releases API URL（备用源） */
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Luohao-Yan/Openclaw-Desktop/releases/latest';
 
-/** GitHub API 请求超时：10 秒 */
-const GITHUB_FETCH_TIMEOUT_MS = 10_000;
+/** 请求超时：8 秒 */
+const GITHUB_FETCH_TIMEOUT_MS = 8_000;
 
-/**
- * 从 GitHub Releases API 获取桌面应用最新版本
- *
- * 调用 GitHub API 获取 latest release 的 tag_name，
- * 与当前应用版本比较，返回是否有更新及下载链接。
- */
-async function checkDesktopUpdate(): Promise<{
+/** 桌面更新检查响应类型 */
+interface DesktopUpdateResult {
   success: boolean;
   hasUpdate?: boolean;
   currentVersion?: string;
@@ -311,12 +309,56 @@ async function checkDesktopUpdate(): Promise<{
   releaseUrl?: string;
   downloadUrl?: string;
   error?: string;
-}> {
-  try {
-    // 获取当前桌面应用版本
-    const { app } = await import('electron');
-    const currentVersion = app.getVersion?.() || '0.0.0';
+}
 
+/**
+ * 从 latest-version.json 文件获取最新版本（主源）
+ * 通过 raw.githubusercontent.com 读取，国内可达性较好
+ */
+async function fetchFromVersionFile(): Promise<{
+  version: string;
+  releaseUrl: string;
+  downloadUrl: string;
+} | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
+
+    const response = await fetch(VERSION_FILE_URL, {
+      headers: { 'User-Agent': 'OpenClaw-Desktop' },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) return null;
+
+    const data = await response.json() as {
+      version?: string;
+      releaseUrl?: string;
+      downloadUrl?: string;
+    };
+
+    if (!data.version) return null;
+
+    return {
+      version: data.version,
+      releaseUrl: data.releaseUrl || GITHUB_RELEASES_URL,
+      downloadUrl: data.downloadUrl || data.releaseUrl || GITHUB_RELEASES_URL,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 从 GitHub Releases API 获取最新版本（备用源）
+ */
+async function fetchFromGitHubAPI(): Promise<{
+  version: string;
+  releaseUrl: string;
+  downloadUrl: string;
+} | null> {
+  try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
 
@@ -329,9 +371,7 @@ async function checkDesktopUpdate(): Promise<{
     });
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      return { success: false, error: `GitHub API 返回 ${response.status}` };
-    }
+    if (!response.ok) return null;
 
     const data = await response.json() as {
       tag_name?: string;
@@ -339,15 +379,10 @@ async function checkDesktopUpdate(): Promise<{
       assets?: Array<{ name?: string; browser_download_url?: string }>;
     };
 
-    if (!data.tag_name) {
-      return { success: false, error: '无法解析 GitHub Release 版本号' };
-    }
+    if (!data.tag_name) return null;
 
     // tag_name 格式为 "v0.3.24-preview-4"，去掉前缀 "v"
-    const latestVersion = data.tag_name.replace(/^v/, '');
-
-    // 比较版本号：使用字符串比较（preview 版本号格式一致）
-    const hasUpdate = latestVersion !== currentVersion && latestVersion > currentVersion;
+    const version = data.tag_name.replace(/^v/, '');
 
     // 查找 macOS arm64 DMG 下载链接
     const dmgAsset = data.assets?.find((a) =>
@@ -355,12 +390,44 @@ async function checkDesktopUpdate(): Promise<{
     );
 
     return {
+      version,
+      releaseUrl: data.html_url || GITHUB_RELEASES_URL,
+      downloadUrl: dmgAsset?.browser_download_url || data.html_url || GITHUB_RELEASES_URL,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 检查桌面应用是否有新版本（双源策略）
+ *
+ * 1. 优先从 raw.githubusercontent.com 读取 latest-version.json（国内可达性好）
+ * 2. 失败后 fallback 到 GitHub Releases API
+ * 3. 两个源都失败则静默返回
+ */
+async function checkDesktopUpdate(): Promise<DesktopUpdateResult> {
+  try {
+    const { app } = await import('electron');
+    const currentVersion = app.getVersion?.() || '0.0.0';
+
+    // 双源策略：先尝试版本文件，失败后尝试 GitHub API
+    const result = await fetchFromVersionFile() || await fetchFromGitHubAPI();
+
+    if (!result) {
+      return { success: false, error: '无法获取最新版本信息' };
+    }
+
+    // 比较版本号
+    const hasUpdate = result.version !== currentVersion && result.version > currentVersion;
+
+    return {
       success: true,
       hasUpdate,
       currentVersion,
-      latestVersion,
-      releaseUrl: data.html_url,
-      downloadUrl: dmgAsset?.browser_download_url || data.html_url,
+      latestVersion: result.version,
+      releaseUrl: result.releaseUrl,
+      downloadUrl: result.downloadUrl,
     };
   } catch {
     return { success: false, error: '检查桌面应用更新失败' };
