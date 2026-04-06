@@ -1,4 +1,11 @@
 import type { DesktopRuntimeCapabilities, DesktopRuntimeInfo } from './desktopRuntime';
+import type {
+  RemoteCapabilities,
+  ConnectionStatusEvent,
+  RemoteInstanceConfig,
+  InstanceStatus,
+  WsEventType,
+} from '../../types/remote';
 
 export interface SetupEnvironmentCheckResult {
   platform: string;
@@ -1098,4 +1105,26 @@ export interface ElectronAPI {
     downloadUrl?: string;
     error?: string;
   }>;
+
+  // ── 远程管理 API ──────────────────────────────────────────────────────────
+  /** 获取远程模式功能可用性 */
+  remoteGetCapabilities: () => Promise<RemoteCapabilities>;
+  /** 获取当前连接状态 */
+  remoteGetConnectionStatus: () => Promise<ConnectionStatusEvent>;
+  /** 切换远程实例 */
+  remoteSwitchInstance: (instanceId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 获取所有远程实例 */
+  remoteInstancesGetAll: () => Promise<{ success: boolean; instances: RemoteInstanceConfig[] }>;
+  /** 添加远程实例 */
+  remoteInstancesAdd: (config: Omit<RemoteInstanceConfig, 'id' | 'createdAt'>) => Promise<{ success: boolean; id?: string; error?: string }>;
+  /** 删除远程实例 */
+  remoteInstancesRemove: (instanceId: string) => Promise<{ success: boolean; error?: string }>;
+  /** 更新远程实例 */
+  remoteInstancesUpdate: (instanceId: string, patch: Partial<RemoteInstanceConfig>) => Promise<{ success: boolean; error?: string }>;
+  /** 刷新所有实例状态 */
+  remoteInstancesRefreshAll: () => Promise<{ success: boolean; statuses: InstanceStatus[] }>;
+  /** 监听 WebSocket 事件 */
+  onRemoteWsEvent: (callback: (event: { type: WsEventType; data: unknown }) => void) => () => void;
+  /** 监听连接状态变更 */
+  onRemoteConnectionStatus: (callback: (event: ConnectionStatusEvent) => void) => () => void;
 }

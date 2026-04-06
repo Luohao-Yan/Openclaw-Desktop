@@ -3,6 +3,8 @@ const { ipcMain, shell } = pkg;
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { getShellPath, resolveOpenClawCommand } from './settings.js';
+import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { mapLogs } from './remoteResponseMapper.js';
 
 const LOG_PATH = `${homedir()}/.openclaw/logs/gateway.log`;
 
@@ -254,9 +256,42 @@ export async function logsFilter(filter: string): Promise<{ success: boolean; lo
 
 // IPC 设置函数
 export function setupLogsIPC() {
-  ipcMain.handle('logs:get', (_, lines) => logsGet(lines));
-  ipcMain.handle('logs:search', (_, searchTerm) => logsSearch(searchTerm));
-  ipcMain.handle('logs:openGatewayLog', openGatewayLog);
+  ipcMain.handle('logs:get', async (_, lines) => {
+    // 远程模式：通过 HTTP API 获取日志
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/api/v1/logs' });
+      if (!result.success) return { success: false, logs: [], error: result.error };
+      return mapLogs(result.data);
+    }
+    return logsGet(lines);
+  });
+
+  ipcMain.handle('logs:search', async (_, searchTerm) => {
+    // 远程模式：通过 HTTP API 搜索日志（附加过滤参数）
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: `/api/v1/logs?search=${encodeURIComponent(searchTerm)}` });
+      if (!result.success) return { success: false, logs: [], error: result.error };
+      return mapLogs(result.data);
+    }
+    return logsSearch(searchTerm);
+  });
+
+  ipcMain.handle('logs:openGatewayLog', async () => {
+    // 远程模式不支持打开本地日志文件
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持打开本地日志文件' };
+    }
+    return openGatewayLog();
+  });
+
   // 按过滤条件查询日志（用于渠道故障排查）
-  ipcMain.handle('logs:filter', (_, filter) => logsFilter(filter));
+  ipcMain.handle('logs:filter', async (_, filter) => {
+    // 远程模式：通过 HTTP API 过滤日志
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: `/api/v1/logs?filter=${encodeURIComponent(filter)}` });
+      if (!result.success) return { success: false, logs: [], error: result.error };
+      return mapLogs(result.data);
+    }
+    return logsFilter(filter);
+  });
 }

@@ -1341,7 +1341,8 @@ export interface ElectronAPI extends
   ChannelsActions,
   AgentEnhancementActions,
   AgentExchangeActions,
-  AgentGroupsActions {
+  AgentGroupsActions,
+  RemoteManagementActions {
   // ── OpenClaw 版本管理 API ──────────────────────────────────────────────────
   /** 获取当前安装的 OpenClaw 版本 */
   openclawVersionGetCurrent(): Promise<{ success: boolean; version?: string; error?: string }>;
@@ -1365,6 +1366,42 @@ export interface ElectronAPI extends
     downloadUrl?: string;
     error?: string;
   }>;
+}
+
+// ─── 远程管理类型（从 types/remote.ts 导入）────────────────────────────────
+
+import type {
+  RemoteCapabilities,
+  ConnectionStatusEvent,
+  RemoteInstanceConfig,
+  InstanceStatus,
+  WsEventType,
+} from './remote';
+
+export type { RemoteCapabilities, ConnectionStatusEvent, RemoteInstanceConfig, InstanceStatus, WsEventType };
+
+/** 远程管理操作接口 */
+export interface RemoteManagementActions {
+  /** 获取远程模式功能可用性 */
+  remoteGetCapabilities(): Promise<RemoteCapabilities>;
+  /** 获取当前连接状态 */
+  remoteGetConnectionStatus(): Promise<ConnectionStatusEvent>;
+  /** 切换远程实例 */
+  remoteSwitchInstance(instanceId: string): Promise<{ success: boolean; error?: string }>;
+  /** 获取所有远程实例 */
+  remoteInstancesGetAll(): Promise<{ success: boolean; instances: RemoteInstanceConfig[] }>;
+  /** 添加远程实例 */
+  remoteInstancesAdd(config: Omit<RemoteInstanceConfig, 'id' | 'createdAt'>): Promise<{ success: boolean; id?: string; error?: string }>;
+  /** 删除远程实例 */
+  remoteInstancesRemove(instanceId: string): Promise<{ success: boolean; error?: string }>;
+  /** 更新远程实例 */
+  remoteInstancesUpdate(instanceId: string, patch: Partial<RemoteInstanceConfig>): Promise<{ success: boolean; error?: string }>;
+  /** 刷新所有实例状态 */
+  remoteInstancesRefreshAll(): Promise<{ success: boolean; statuses: InstanceStatus[] }>;
+  /** 监听 WebSocket 事件 */
+  onRemoteWsEvent(callback: (event: { type: WsEventType; data: unknown }) => void): () => void;
+  /** 监听连接状态变更 */
+  onRemoteConnectionStatus(callback: (event: ConnectionStatusEvent) => void): () => void;
 }
 
 declare global {

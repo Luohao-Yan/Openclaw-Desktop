@@ -21,6 +21,8 @@ import {
   checkSkillPermission,
   getAllBindings,
 } from './skillAgentBinding.js';
+import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { mapSkillsList } from './remoteResponseMapper.js';
 
 // 磁盘缓存实例（TTL 30 秒）
 const diskCache = new SkillsDiskCache();
@@ -165,6 +167,12 @@ async function fetchEligibleSkillsFromCLI(): Promise<SkillInfo[]> {
 export function setupSkillsIPC() {
   // 获取所有技能（已安装 + 可用）
   ipcMain.handle('skills:getAll', async (): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }> => {
+    // 远程模式：通过 HTTP API 获取技能列表
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/api/v1/skills' });
+      if (!result.success) return { success: false, error: result.error };
+      return mapSkillsList(result.data);
+    }
     try {
       const [allSkills, eligibleSkills] = await Promise.all([fetchSkillsFromCLI(), fetchEligibleSkillsFromCLI()]);
       const skillMap = new Map<string, SkillInfo>();
@@ -183,6 +191,12 @@ export function setupSkillsIPC() {
 
   // 安装技能
   ipcMain.handle('skills:install', async (_, skillId: string) => {
+    // 远程模式：通过 HTTP API 安装技能
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'POST', path: '/api/v1/skills/install', body: { name: skillId } });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
     const r = await runCommand(['clawbot', 'install', skillId]);
     if (!r.success) return { success: false, error: r.error || '安装技能失败' };
     diskCache.invalidate(); return { success: true };
@@ -190,6 +204,12 @@ export function setupSkillsIPC() {
 
   // 卸载技能
   ipcMain.handle('skills:uninstall', async (_, skillId: string) => {
+    // 远程模式：通过 HTTP API 卸载技能
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'DELETE', path: `/api/v1/skills/${skillId}` });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
     const r = await runCommand(['clawbot', 'uninstall', skillId]);
     if (!r.success) return { success: false, error: r.error || '卸载技能失败' };
     diskCache.invalidate(); return { success: true };
@@ -269,6 +289,10 @@ export function setupSkillsIPC() {
 
   // 创建自定义技能
   ipcMain.handle('skills:create', async (_, payload: { name: string; description: string; emoji?: string; content?: string }) => {
+    // 远程模式不支持自定义技能 CRUD
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       const { name, description, emoji, content } = payload;
       if (!name || !name.trim()) return { success: false, error: '技能名称不能为空' };
@@ -294,6 +318,10 @@ export function setupSkillsIPC() {
 
   // 读取技能 SKILL.md 原始内容
   ipcMain.handle('skills:read', async (_, skillId: string) => {
+    // 远程模式不支持读取本地技能文件
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       if (!skillId) return { success: false, error: '技能 ID 不能为空' };
       const candidates = [
@@ -312,6 +340,10 @@ export function setupSkillsIPC() {
 
   // 保存技能 SKILL.md 内容（仅自定义技能）
   ipcMain.handle('skills:save', async (_, skillId: string, content: string) => {
+    // 远程模式不支持保存本地技能文件
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       if (!skillId) return { success: false, error: '技能 ID 不能为空' };
       const installed = readInstalledSkillsFromDisk();
@@ -327,6 +359,10 @@ export function setupSkillsIPC() {
 
   // 删除自定义技能
   ipcMain.handle('skills:deleteCustom', async (_, skillId: string) => {
+    // 远程模式不支持删除自定义技能
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       if (!skillId) return { success: false, error: '技能 ID 不能为空' };
       const installed = readInstalledSkillsFromDisk();
@@ -505,6 +541,10 @@ export function setupSkillsIPC() {
 
   // 启动文件监听
   ipcMain.handle('skills:startWatcher', async () => {
+    // 远程模式不支持文件监听
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       if (skillsWatcher) { skillsWatcher.close(); skillsWatcher = null; }
       if (debouncedNotifier) { debouncedNotifier.cancel(); debouncedNotifier = null; }
@@ -682,6 +722,10 @@ export function setupSkillsIPC() {
    * 支持格式：.zip 文件或包含 SKILL.md 的文件夹
    */
   ipcMain.handle('skills:installFromLocal', async () => {
+    // 远程模式不支持本地文件安装
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       // 获取当前窗口引用
       const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -713,6 +757,10 @@ export function setupSkillsIPC() {
    * 支持格式：.zip 文件解压或文件夹复制到 skills 目录
    */
   ipcMain.handle('skills:installLocalFile', async (_, filePath: string) => {
+    // 远程模式不支持本地文件安装
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       if (!filePath || !filePath.trim()) {
         return { success: false, error: '文件路径不能为空' };

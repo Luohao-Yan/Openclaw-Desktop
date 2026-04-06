@@ -336,4 +336,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('openclaw-version:install-output', handler);
     return () => ipcRenderer.removeListener('openclaw-version:install-output', handler);
   },
+
+  // 远程管理 API
+  remoteGetCapabilities: () => ipcRenderer.invoke('remote:getCapabilities'),
+  remoteGetConnectionStatus: () => ipcRenderer.invoke('remote:getConnectionStatus'),
+  remoteSwitchInstance: (instanceId) => ipcRenderer.invoke('remote:switchInstance', instanceId),
+  remoteInstancesGetAll: () => ipcRenderer.invoke('remote:instances:getAll'),
+  remoteInstancesAdd: (config) => ipcRenderer.invoke('remote:instances:add', config),
+  remoteInstancesRemove: (instanceId) => ipcRenderer.invoke('remote:instances:remove', instanceId),
+  remoteInstancesUpdate: (instanceId, patch) => ipcRenderer.invoke('remote:instances:update', instanceId, patch),
+  remoteInstancesRefreshAll: () => ipcRenderer.invoke('remote:instances:refreshAll'),
+  // 监听远程 WebSocket 事件
+  onRemoteWsEvent: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('remote:ws:event', handler);
+    return () => ipcRenderer.removeListener('remote:ws:event', handler);
+  },
+  // 监听远程连接状态变更
+  onRemoteConnectionStatus: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('remote:connectionStatus', handler);
+    return () => ipcRenderer.removeListener('remote:connectionStatus', handler);
+  },
 });

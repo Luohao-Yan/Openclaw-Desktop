@@ -8,6 +8,8 @@ import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand, runCommand } 
 import { spawnWithShellPath } from './spawnHelper.js';
 import { parseDoctorOutput, shouldEscalateToRepair, detectRegression } from './doctorLogic.js';
 import type { EnvironmentSnapshot } from './doctorLogic.js';
+import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { mapGatewayStatus } from './remoteResponseMapper.js';
 
 export interface GatewayStatus {
   status: 'running' | 'stopped' | 'error';
@@ -1182,10 +1184,40 @@ export async function gatewayStartWithAutoRepair(): Promise<GatewayAutoRepairRes
 
 // IPC 设置函数
 export function setupGatewayIPC() {
-  ipcMain.handle('gateway:status', gatewayStatus);
-  ipcMain.handle('gateway:start', gatewayStart);
-  ipcMain.handle('gateway:stop', gatewayStop);
-  ipcMain.handle('gateway:restart', gatewayRestart);
+  ipcMain.handle('gateway:status', async () => {
+    // 远程模式：通过 HTTP API 获取 Gateway 状态
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/status' });
+      if (!result.success) return { status: 'error', error: result.error };
+      return mapGatewayStatus(result.data);
+    }
+    return gatewayStatus();
+  });
+
+  ipcMain.handle('gateway:start', async () => {
+    // 远程模式不支持启动 Gateway
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
+    return gatewayStart();
+  });
+
+  ipcMain.handle('gateway:stop', async () => {
+    // 远程模式不支持停止 Gateway
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
+    return gatewayStop();
+  });
+
+  ipcMain.handle('gateway:restart', async () => {
+    // 远程模式不支持重启 Gateway
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
+    return gatewayRestart();
+  });
+
   ipcMain.handle('gateway:repairCompatibility', gatewayRepairCompatibility);
   ipcMain.handle('gateway:checkServiceInstallStatus', checkServiceInstallStatus);
   ipcMain.handle('gateway:startWithAutoRepair', gatewayStartWithAutoRepair);

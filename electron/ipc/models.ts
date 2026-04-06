@@ -14,6 +14,8 @@ import { spawn } from 'child_process';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
 import { getOpenClawRootDir, getShellPath } from './settings.js';
+import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { mapModelsList } from './remoteResponseMapper.js';
 
 /** 获取配置文件路径 */
 const getConfigPath = () => path.join(getOpenClawRootDir(), 'openclaw.json');
@@ -157,6 +159,12 @@ export function setupModelsIPC() {
    * 执行 `openclaw models status` 并解析 JSON 输出
    */
   ipcMain.handle('models:status', async () => {
+    // 远程模式：通过 HTTP API 获取模型列表
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/models' });
+      if (!result.success) return { success: false, providers: {}, error: result.error };
+      return mapModelsList(result.data);
+    }
     try {
       const result = await runOpenClawCommand(['models', 'status', '--json']);
       

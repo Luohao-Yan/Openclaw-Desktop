@@ -1134,6 +1134,20 @@ export const translations = {
     'desktopUpdate.message': 'New desktop version available: v{latest} (running v{current}).',
     'desktopUpdate.download': 'Download now',
     'desktopUpdate.badge': 'UPDATE',
+
+    // 远程管理相关
+    'remote.connected': 'Connected',
+    'remote.disconnected': 'Disconnected',
+    'remote.connecting': 'Connecting',
+    'remote.error': 'Connection Error',
+    'remote.indicator.label': 'Remote',
+    'remote.indicator.latency': '{ms}ms',
+    'remote.featureUnsupported': 'Not supported in remote mode',
+    'remote.reconnecting': 'Reconnecting...',
+    'remote.authFailed': 'Authentication failed, please reconfigure token',
+    'remote.timeout': 'Request timed out',
+    'remote.networkError': 'Network error, unable to reach remote host',
+    'remote.formatError': 'Response format error',
   },
   zh: {
     dashboard: '仪表板',
@@ -2293,5 +2307,19 @@ export const translations = {
     'desktopUpdate.message': '桌面端有新版本: v{latest}（当前 v{current}）。',
     'desktopUpdate.download': '立即下载',
     'desktopUpdate.badge': '可更新',
+
+    // 远程管理相关
+    'remote.connected': '已连接',
+    'remote.disconnected': '已断开',
+    'remote.connecting': '连接中',
+    'remote.error': '连接错误',
+    'remote.indicator.label': '远程',
+    'remote.indicator.latency': '{ms}ms',
+    'remote.featureUnsupported': '远程模式不支持此操作',
+    'remote.reconnecting': '正在重连...',
+    'remote.authFailed': '认证失败，请重新配置 Token',
+    'remote.timeout': '请求超时',
+    'remote.networkError': '网络错误，无法连接远程主机',
+    'remote.formatError': '响应格式错误',
   },
 };

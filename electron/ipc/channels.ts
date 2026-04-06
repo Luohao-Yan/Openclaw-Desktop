@@ -14,6 +14,8 @@ import { join } from 'path';
 import { homedir } from 'os';
 import Store from 'electron-store';
 import { resolveOpenClawCommand, getShellPath } from './settings.js';
+import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { mapChannelsList } from './remoteResponseMapper.js';
 
 /** 配对管理配置的本地存储键名 */
 const PAIRING_CONFIG_KEY = 'pairingConfig';
@@ -118,6 +120,12 @@ export function setupChannelsIPC() {
    * 执行 `openclaw channels status`，返回输出文本
    */
   ipcMain.handle('channels:status', async () => {
+    // 远程模式：通过 HTTP API 获取渠道状态
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/channels' });
+      if (!result.success) return { success: false, error: result.error };
+      return mapChannelsList(result.data);
+    }
     try {
       const result = await runOpenClawCommand(['channels', 'status']);
 
@@ -145,6 +153,12 @@ export function setupChannelsIPC() {
    * 执行 `openclaw channels list`，返回输出文本
    */
   ipcMain.handle('channels:list', async () => {
+    // 远程模式：通过 HTTP API 获取渠道列表
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/channels' });
+      if (!result.success) return { success: false, error: result.error };
+      return mapChannelsList(result.data);
+    }
     try {
       const result = await runOpenClawCommand(['channels', 'list']);
 
@@ -172,6 +186,12 @@ export function setupChannelsIPC() {
    * 执行 `openclaw channels status`，然后从输出中过滤指定渠道的信息
    */
   ipcMain.handle('channels:diagnose', async (_, channelType: string) => {
+    // 远程模式：通过 HTTP API 获取渠道状态
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/channels' });
+      if (!result.success) return { success: false, error: result.error };
+      return mapChannelsList(result.data);
+    }
     try {
       // openclaw channels status 不支持 --channel 过滤，执行全量查询后在输出中匹配
       const result = await runOpenClawCommand([
@@ -213,6 +233,10 @@ export function setupChannelsIPC() {
    * 返回结构化的待审批请求列表
    */
   ipcMain.handle('channels:pairingList', async (_, channel: string) => {
+    // 远程模式不支持配对操作（依赖本地 credentials 文件）
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作', requests: [] };
+    }
     try {
       const credDir = join(homedir(), '.openclaw', 'credentials');
       const requests: Array<{
@@ -285,6 +309,10 @@ export function setupChannelsIPC() {
    * 执行 `openclaw pairing approve <channel> <code>`，批准配对码
    */
   ipcMain.handle('channels:pairingApprove', async (_, channel: string, code: string) => {
+    // 远程模式不支持配对审批操作
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       const result = await runOpenClawCommand(['pairing', 'approve', channel, code]);
       if (!result.success) {
@@ -304,6 +332,10 @@ export function setupChannelsIPC() {
    * 从 electron-store 读取，不依赖 OpenClaw 配置文件 schema
    */
   ipcMain.handle('channels:pairingConfigGet', async () => {
+    // 远程模式不支持配对配置操作
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作', config: {} };
+    }
     try {
       const config = pairingStore.get(PAIRING_CONFIG_KEY, {}) as Record<string, unknown>;
       return { success: true, config };
@@ -317,6 +349,10 @@ export function setupChannelsIPC() {
    * 写入 electron-store，不写入 OpenClaw 配置文件，避免 schema 校验失败
    */
   ipcMain.handle('channels:pairingConfigSet', async (_, config: Record<string, unknown>) => {
+    // 远程模式不支持配对配置操作
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       pairingStore.set(PAIRING_CONFIG_KEY, config);
       return { success: true };
@@ -331,6 +367,12 @@ export function setupChannelsIPC() {
    * 注意：openclaw channels reconnect 不存在，使用 login 代替
    */
   ipcMain.handle('channels:reconnect', async (_, channelType: string) => {
+    // 远程模式：通过 HTTP API 启用渠道
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'POST', path: `/v1/channels/${channelType}/enable` });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true, output: '渠道已启用' };
+    }
     try {
       const result = await runOpenClawCommand([
         'channels',
@@ -367,6 +409,10 @@ export function setupChannelsIPC() {
     channelType: string,
     fieldValues: Record<string, string>
   ): Promise<{ success: boolean; output?: string; error?: string }> => {
+    // 远程模式不支持添加渠道操作
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式不支持此操作' };
+    }
     try {
       // 构建基础参数
       const args = ['channels', 'add', '--channel', channelType];

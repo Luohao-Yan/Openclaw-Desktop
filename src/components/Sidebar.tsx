@@ -6,6 +6,8 @@ import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useI18n } from '../i18n/I18nContext';
 import UserAvatar from './UserAvatar';
+import RemoteModeIndicator from './RemoteModeIndicator';
+import { useRemoteMode } from '../services/useRemoteMode';
 import type { DesktopUpdateState } from '../services/useDesktopUpdateChecker';
 
  const dashboardIcon = {
@@ -44,6 +46,9 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
     || /preview/i.test(runtimeInfo?.appVersion || '');
   // 版本卡片 hover 状态
   const [versionCardHovered, setVersionCardHovered] = useState(false);
+
+  // 远程模式状态
+  const { isRemote, connectionStatus, instanceLabel, latencyMs, capabilities } = useRemoteMode();
 
   const accountName = runtimeInfo?.userName?.trim() || t('openclawDesktop');
   const accountSubtitle = runtimeInfo?.userName?.trim()
@@ -104,6 +109,15 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
     { path: '/help', label: t('help'), icon: BookOpen },
   ];
 
+  /** 远程模式下仅限本地的菜单路径 */
+  const localOnlyPaths = new Set(['/tasks']);
+
+  /** 判断菜单项在远程模式下是否被禁用 */
+  const isMenuDisabledInRemote = (path: string): boolean => {
+    if (!isRemote || !capabilities) return false;
+    return localOnlyPaths.has(path);
+  };
+
   const isMenuItemActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/';
@@ -157,6 +171,52 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
         <div className="space-y-1 overflow-visible">
           {menuItems.map((item) => {
             const isActive = isMenuItemActive(item.path);
+            const isDisabled = isMenuDisabledInRemote(item.path);
+
+            // 远程模式下禁用的菜单项：渲染为不可点击的 div
+            if (isDisabled) {
+              return (
+                <div
+                  key={item.path}
+                  className={`
+                    group relative flex items-center gap-3 px-3 py-2.5 rounded-xl border
+                    transition-all duration-200 ease-out cursor-not-allowed opacity-40
+                    ${collapsed ? 'justify-center' : ''}
+                  `}
+                  style={{
+                    borderColor: 'transparent',
+                    color: 'var(--app-text-muted)',
+                  }}
+                  title={t('remote.featureUnsupported' as any)}
+                  aria-label={`${item.label} - ${t('remote.featureUnsupported' as any)}`}
+                  aria-disabled="true"
+                >
+                  {item.iconData ? (
+                    <Icon icon={item.iconData} width={20} height={20} className="flex-shrink-0" />
+                  ) : item.icon ? (
+                    <item.icon size={20} className="flex-shrink-0" />
+                  ) : null}
+                  {!collapsed && (
+                    <span className="font-medium text-sm truncate" style={{ color: 'var(--app-text-muted)' }}>
+                      {item.label}
+                    </span>
+                  )}
+                  {collapsed && hoveredMenuItem === item.path && (
+                    <div
+                      className="pointer-events-none absolute left-full top-1/2 z-[100] ml-3 -translate-y-1/2 rounded-lg border px-3 py-1.5 text-xs font-medium whitespace-nowrap shadow-lg"
+                      style={{
+                        backgroundColor: 'var(--app-bg-elevated)',
+                        borderColor: 'var(--app-border)',
+                        color: 'var(--app-text-muted)',
+                      }}
+                    >
+                      {t('remote.featureUnsupported' as any)}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
@@ -261,6 +321,16 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
         ${collapsed ? 'space-y-3' : 'space-y-4'}
       `}
       style={{ borderColor: 'var(--app-border)' }}>
+        {/* 远程模式指示器 - 在主题切换上方显示 */}
+        {isRemote && (
+          <RemoteModeIndicator
+            instanceLabel={instanceLabel}
+            status={connectionStatus}
+            latencyMs={latencyMs}
+            collapsed={collapsed}
+          />
+        )}
+
         {/* 主题切换 - 使用三个图标按钮并排 */}
         {!collapsed && (
           <div className="w-full">

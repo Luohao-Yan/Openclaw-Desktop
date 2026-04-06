@@ -4,11 +4,19 @@ import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from
 import path from 'path';
 import { getOpenClawRootDir } from './settings.js';
 import { migrateBindingsSchema } from './coreConfig.js';
+import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { mapConfig } from './remoteResponseMapper.js';
 
 const getConfigPath = () => path.join(getOpenClawRootDir(), 'openclaw.json');
 
 export function setupConfigIPC() {
   ipcMain.handle('config:get', async () => {
+    // 远程模式：通过 HTTP API 获取配置
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'GET', path: '/api/v1/config' });
+      if (!result.success) return { success: false, error: result.error };
+      return mapConfig(result.data);
+    }
     try {
       const configPath = getConfigPath();
       if (!existsSync(configPath)) {
@@ -23,6 +31,12 @@ export function setupConfigIPC() {
   });
 
   ipcMain.handle('config:set', async (_, config) => {
+    // 远程模式：通过 HTTP API 更新配置
+    if (isRemoteMode()) {
+      const result = await remoteRequest<unknown>({ method: 'PUT', path: '/api/v1/config', body: config });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
     try {
       const configPath = getConfigPath();
       const configDir = path.dirname(configPath);
