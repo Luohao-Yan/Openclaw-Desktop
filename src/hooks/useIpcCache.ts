@@ -281,6 +281,16 @@ export function clearCache(): void {
   pendingRequests.clear();
 }
 
+/**
+ * 预填充缓存：将数据直接写入全局缓存，供 useIpcCache 命中
+ * 用于应用启动时后台预加载页面数据
+ * @param key - 缓存键（需与页面组件中 useIpcCache 的 key 一致）
+ * @param data - 预加载的数据
+ */
+export function prefillCache<T>(key: string, data: T): void {
+  cacheStore.set(key, { data, timestamp: Date.now() });
+}
+
 /** 获取缓存条目（仅供测试使用） */
 export function getCacheEntry<T>(key: string): CacheEntry<T> | undefined {
   return cacheStore.get(key) as CacheEntry<T> | undefined;

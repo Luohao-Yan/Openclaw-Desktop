@@ -175,7 +175,7 @@ export function setupInstancesIPC() {
       // 并行执行 gateway status 和 node instances 查询，缩短总等待时间
       // gateway status 限制 5s 超时，避免命令挂起
       const [statusResult, nodeInstances] = await Promise.all([
-        runShellCommand(resolveOpenClawCommand(), ['--no-color', 'gateway', 'status'], { timeoutMs: 5_000 })
+        runShellCommand(resolveOpenClawCommand(), ['--no-color', 'gateway', 'status'], { timeoutMs: 15_000 })
           .then(r => ({ ...r, output: stripAnsiAndControlChars(r.output || '') })),
         getNodeInstances(),
       ]);
@@ -206,11 +206,12 @@ export function setupInstancesIPC() {
     try {
       if (instanceId === 'openclaw-gateway') {
         const result = await runOpenClawCommand(['gateway', 'start']);
-        if (result.success) {
-          return { success: true };
-        } else {
-          return { success: false, error: result.error };
-        }
+        return result.success ? { success: true } : { success: false, error: result.error };
+      }
+
+      if (instanceId === 'openclaw-launchagent') {
+        const result = await runOpenClawCommand(['gateway', 'install']);
+        return result.success ? { success: true } : { success: false, error: result.error };
       }
       
       return { success: false, error: `Unsupported instance type or ID: ${instanceId}` };
@@ -224,11 +225,12 @@ export function setupInstancesIPC() {
     try {
       if (instanceId === 'openclaw-gateway') {
         const result = await runOpenClawCommand(['gateway', 'stop']);
-        if (result.success) {
-          return { success: true };
-        } else {
-          return { success: false, error: result.error };
-        }
+        return result.success ? { success: true } : { success: false, error: result.error };
+      }
+
+      if (instanceId === 'openclaw-launchagent') {
+        const result = await runOpenClawCommand(['gateway', 'uninstall']);
+        return result.success ? { success: true } : { success: false, error: result.error };
       }
       
       return { success: false, error: `Unsupported instance type or ID: ${instanceId}` };
@@ -241,21 +243,21 @@ export function setupInstancesIPC() {
   ipcMain.handle('instances:restart', async (_, instanceId: string): Promise<{ success: boolean; error?: string }> => {
     try {
       if (instanceId === 'openclaw-gateway') {
-        // 停止并启动
         const stopResult = await runOpenClawCommand(['gateway', 'stop']);
         if (stopResult.success) {
-          // 等待 2 秒
           await new Promise(resolve => setTimeout(resolve, 2000));
-          
           const startResult = await runOpenClawCommand(['gateway', 'start']);
-          if (startResult.success) {
-            return { success: true };
-          } else {
-            return { success: false, error: `Failed to start: ${startResult.error}` };
-          }
-        } else {
-          return { success: false, error: `Failed to stop: ${stopResult.error}` };
+          return startResult.success ? { success: true } : { success: false, error: `Failed to start: ${startResult.error}` };
         }
+        return { success: false, error: `Failed to stop: ${stopResult.error}` };
+      }
+
+      if (instanceId === 'openclaw-launchagent') {
+        // LaunchAgent 重启：先卸载再安装
+        await runOpenClawCommand(['gateway', 'uninstall']);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const result = await runOpenClawCommand(['gateway', 'install']);
+        return result.success ? { success: true } : { success: false, error: result.error };
       }
       
       return { success: false, error: `Unsupported instance type or ID: ${instanceId}` };
@@ -300,7 +302,7 @@ export function setupInstancesIPC() {
     try {
       // 并行获取 gateway status 和 node instances
       const [statusResult, nodeInstances] = await Promise.all([
-        runShellCommand(resolveOpenClawCommand(), ['--no-color', 'gateway', 'status'], { timeoutMs: 5_000 })
+        runShellCommand(resolveOpenClawCommand(), ['--no-color', 'gateway', 'status'], { timeoutMs: 15_000 })
           .then(r => ({ ...r, output: stripAnsiAndControlChars(r.output || '') })),
         getNodeInstances(),
       ]);

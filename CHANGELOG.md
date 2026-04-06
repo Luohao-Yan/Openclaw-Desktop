@@ -6,6 +6,48 @@
 
 ---
 
+## [0.4.5-preview-1] - 2026-04-06
+
+### ✨ 新增 (Features)
+
+- **OpenClaw 4.5 Manifest 同步**：新增 `4.5.json` manifest 文件，支持 OpenClaw 4.5 全部新功能，包括 Task Flows、Memory Dreaming、QQ Bot 渠道等
+- **5 个新 AI Provider**：modelAuth 新增 Qwen API Key、Fireworks AI、StepFun、Amazon Bedrock Inference Profile、Gemini CLI Backend
+- **16 个新配置字段**：覆盖 gateway（WebChat/认证）、channels（Matrix/Telegram）、plugins（xAI/Firecrawl）、cron（工具白名单）、agents（压缩通知）、memory（Dreaming）等
+- **配置文件实时监听**：主进程 `fs.watch` 监听 `openclaw.json` 变更，外部修改（CLI/TUI/手动编辑）500ms 内自动同步到桌面应用
+- **页面数据预加载**：新增 `usePrefetchPages` hook，应用启动时后台分 3 批预热所有页面 IPC 缓存，导航时数据已就绪
+- **LaunchAgent 实例管理**：实例页面支持 LaunchAgent 服务的启动（install）、停止（uninstall）和重启操作
+- **远程管理增强**：新增远程连接管理、WebSocket 管理、实例注册等模块
+- **桌面应用更新检测**：从 GitHub Releases 获取最新版本，双源策略（GitHub API + latest-version.json fallback）
+- **侧边栏版本卡片**：更新提示改为侧边栏底部版本卡片 badge 样式，支持 OpenClaw 和桌面应用双重更新提示
+- **仪表板消息数指标**：运行概览中"错误率"替换为"消息数"指标，显示每日 user+assistant 消息总量趋势
+
+### 🚀 性能优化 (Performance)
+
+- **全页面 IPC 缓存**：Agents、Sessions、Tasks、Logs、Instances、Skills 全部启用 `useIpcCache`（TTL 15-30s + stale-while-revalidate）
+- **Agents 页面并行化**：6 个 IPC 请求改为 `Promise.allSettled` 并行执行，大幅缩短加载时间
+- **Sessions 静默刷新**：30s 轮询刷新不再显示全屏 loading spinner，仅首次加载显示
+- **IPC 超时优化**：Gateway API 相关超时从 5s 提升到 15s，sessions CLI 从 10s 提升到 30s，gateway status 从 5s 提升到 15s
+
+### 🐛 修复 (Fixes)
+
+- **实例管理 Unsupported 错误**：修复点击 LaunchAgent 实例操作按钮时报 `Unsupported instance type or ID: openclaw-launchagent` 的问题
+- **版本安装超时提示**：优化版本安装超时错误提示信息
+- **MiniMax Provider 更新**：MiniMax 选项标签从 "MiniMax API" 更新为 "MiniMax M2.7 API"
+- **废弃配置移除**：4.5 manifest 移除 `legacyGatewayToken` 字段
+
+### 🔧 版本升级 (Version)
+
+- 版本号从 `v0.3.24-preview-4` 升级到 `v0.4.5-preview-1`
+- `CURRENT_MANIFEST_VERSION` 更新为 `4.5`
+- `SUPPORTED_MANIFEST_VERSIONS` 新增 `4.5`
+
+### 🧪 测试 (Tests)
+
+- 新增 `manifestVersionSync.pbt.test.ts`：4 个属性测试（Section 继承完整性、版本回退、结构完整性、ID 唯一性）
+- 新增 `manifestVersionSync.unit.test.ts`：44 个单元测试覆盖 manifest 结构、新增 section/field/command、废弃项移除、国际化
+
+---
+
 ## [0.3.24-preview-4] - 2026-04-03
 
 ### ✨ 新增 (Features)

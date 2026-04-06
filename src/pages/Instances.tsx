@@ -11,6 +11,7 @@ import GlobalLoading from '../components/GlobalLoading';
 import AppBadge from '../components/AppBadge';
 import AppButton from '../components/AppButton';
 import { useI18n } from '../i18n/I18nContext';
+import { useIpcCache } from '../hooks/useIpcCache';
 
 interface InstanceInfo {
   id: string;
@@ -29,28 +30,31 @@ interface InstanceInfo {
 
 const Instances: React.FC = () => {
   const { t } = useI18n();
-  const [instances, setInstances] = useState<InstanceInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
 
-  const loadInstances = async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  // 使用 useIpcCache 缓存实例列表，避免每次导航都重新加载
+  const {
+    data: cachedInstances,
+    loading,
+    error: cacheError,
+    refresh: refreshInstances,
+  } = useIpcCache<InstanceInfo[]>(
+    'instances:list',
+    async () => {
       const result = await window.electronAPI.instancesGetAll();
       if (result.success && result.instances) {
-        setInstances(result.instances);
-      } else {
-        setError(result.error || t('instances.loadFailed'));
+        return result.instances;
       }
-    } catch (error) {
-      console.error('Failed to load instances:', error);
-      setError(t('instances.connectionFailed'));
-    } finally {
-      setLoading(false);
-    }
-  };
+      throw new Error(result.error || t('instances.loadFailed'));
+    },
+    { ttl: 30000, staleWhileRevalidate: true, timeout: 15000 },
+  );
+
+  const instances = cachedInstances ?? [];
+  const error = cacheError?.message ?? null;
+
+  // 兼容旧的 loadInstances 调用（操作后刷新）
+  const loadInstances = refreshInstances;
 
   const startInstance = async (instanceId: string) => {
     setActionLoading({ ...actionLoading, [instanceId]: true });
@@ -122,9 +126,7 @@ const Instances: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadInstances();
-  }, []);
+  // 初始加载由 useIpcCache 自动处理
 
   /** 将实例状态映射到 AppBadge variant */
   const getStatusVariant = (status: InstanceInfo['status']): 'success' | 'neutral' | 'warning' | 'danger' => {

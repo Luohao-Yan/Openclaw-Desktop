@@ -995,6 +995,9 @@ export interface SkillsActions {
   skillsStopWatcher(): Promise<{ success: boolean }>;
   /** 监听技能文件变更事件，返回取消订阅函数 */
   onSkillsChanged(callback: () => void): () => void;
+
+  /** 监听配置文件变更事件（外部修改 openclaw.json 时触发），返回取消订阅函数 */
+  onConfigChanged(callback: () => void): () => void;
 }
 
 // ── 插件管理操作接口（需求 8.1-8.6）──────────────────────────────────────────

@@ -73,7 +73,7 @@ function Dashboard() {
         port: status.port,
       };
     },
-    { ttl: 15000, staleWhileRevalidate: true },
+    { ttl: 15000, staleWhileRevalidate: true, timeout: 15000 },
   );
 
   // ── 使用 useIpcCache 预加载并缓存系统信息（需求 3.6）──
@@ -93,7 +93,7 @@ function Dashboard() {
         uptime: stats.uptime,
       };
     },
-    { ttl: 5000, staleWhileRevalidate: true },
+    { ttl: 5000, staleWhileRevalidate: true, timeout: 15000 },
   );
 
   // 从缓存数据派生当前状态，未加载时使用默认值
@@ -317,6 +317,7 @@ function Dashboard() {
                 : 0;
               existing.sessionCount = totalCount;
               existing.errorRate = (existing.errorRate + s.errorRate) / 2;
+              existing.messageCount = (existing.messageCount ?? 0) + (s.messageCount ?? 0);
               existing.tokenEstimated = existing.tokenEstimated && s.tokenEstimated;
             } else {
               dateMap.set(s.date, { ...s });

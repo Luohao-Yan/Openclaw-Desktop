@@ -20,6 +20,7 @@ import AppButton from '../components/AppButton';
 import AppModal from '../components/AppModal';
 import AppBadge from '../components/AppBadge';
 import GlassCard from '../components/GlassCard';
+import { useIpcCache } from '../hooks/useIpcCache';
 import {
   cronDeliveryChannelOptions,
   cronPayloadKindOptions,
@@ -227,17 +228,11 @@ const buildInitialDraft = (): CronJobDraft => ({
 
 const Tasks: React.FC = () => {
   const { t } = useI18n();
-  const [overview, setOverview] = useState<CoreConfigOverview | null>(null);
-  const [jobs, setJobs] = useState<CronJobRecord[]>([]);
   const [selectedJobId, setSelectedJobId] = useState('');
   const [runs, setRuns] = useState<CronRunRecord[]>([]);
-  const [agents, setAgents] = useState<AgentOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [runsLoading, setRunsLoading] = useState(false);
-  const [overviewLoading, setOverviewLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [error, setError] = useState('');
   // 立即执行的 loading 状态和 toast 提示
   const [runningJobId, setRunningJobId] = useState('');
   // 复制 run ID 后的反馈状态
@@ -253,63 +248,71 @@ const Tasks: React.FC = () => {
   const [filter, setFilter] = useState<CronFilter>('all');
   const [draft, setDraft] = useState<CronJobDraft>(buildInitialDraft());
 
-  const loadOverview = async () => {
-    setOverviewLoading(true);
-    try {
+  // 使用 useIpcCache 缓存配置概览
+  const {
+    data: cachedOverview,
+    loading: overviewLoading,
+    refresh: refreshOverview,
+  } = useIpcCache<CoreConfigOverview | null>(
+    'tasks:overview',
+    async () => {
       const result = await electronAPI.coreConfigGetOverview();
-      if (result.success && result.overview) {
-        setOverview(result.overview);
-      }
-    } finally {
-      setOverviewLoading(false);
-    }
-  };
+      if (result.success && result.overview) return result.overview;
+      return null;
+    },
+    { ttl: 30000, staleWhileRevalidate: true },
+  );
+  const overview = cachedOverview;
 
-  const loadAgents = async () => {
-    try {
+  // 使用 useIpcCache 缓存 agent 列表
+  const {
+    data: cachedAgents,
+    refresh: refreshAgents,
+  } = useIpcCache<AgentOption[]>(
+    'tasks:agents',
+    async () => {
       const result = await electronAPI.agentsGetAll();
-      if (!result?.success || !Array.isArray(result.agents)) {
-        setAgents([]);
-        return;
-      }
-
-      setAgents(result.agents.map((item: any) => ({
+      if (!result?.success || !Array.isArray(result.agents)) return [];
+      return result.agents.map((item: any) => ({
         id: String(item.id || item.name || ''),
         name: String(item.name || item.id || t('tasks.unnamedAgent')),
-      })));
-    } catch {
-      setAgents([]);
-    }
-  };
+      }));
+    },
+    { ttl: 60000, staleWhileRevalidate: true },
+  );
+  const agents = cachedAgents ?? [];
 
-  const loadJobs = async () => {
-    setLoading(true);
-    setError('');
-    try {
+  // 使用 useIpcCache 缓存任务列表
+  const {
+    data: cachedJobs,
+    loading,
+    error: jobsError,
+    refresh: refreshJobs,
+  } = useIpcCache<CronJobRecord[]>(
+    'tasks:jobs',
+    async () => {
       const result = await electronAPI.cronList(true);
-      if (!result.success) {
-        throw new Error(result.error || t('tasks.error.loadFailed'));
-      }
+      if (!result.success) throw new Error(result.error || t('tasks.error.loadFailed'));
+      return result.jobs || [];
+    },
+    { ttl: 15000, staleWhileRevalidate: true, timeout: 15000 },
+  );
+  const jobs = cachedJobs ?? [];
+  const error = jobsError?.message ?? '';
 
-      const nextJobs = result.jobs || [];
-      setJobs(nextJobs);
-      setSelectedJobId((current) => {
-        if (!nextJobs.length) {
-          return '';
-        }
-        if (current && nextJobs.some((job) => job.id === current)) {
-          return current;
-        }
-        return nextJobs[0]?.id || '';
-      });
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-      setJobs([]);
-      setSelectedJobId('');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // 当 jobs 变化时更新 selectedJobId
+  useEffect(() => {
+    setSelectedJobId((current) => {
+      if (!jobs.length) return '';
+      if (current && jobs.some((job) => job.id === current)) return current;
+      return jobs[0]?.id || '';
+    });
+  }, [jobs]);
+
+  // 兼容旧的 loadXxx 调用
+  const loadOverview = refreshOverview;
+  const loadAgents = refreshAgents;
+  const loadJobs = refreshJobs;
 
   const loadRuns = async (jobId: string) => {
     if (!jobId) {
@@ -330,13 +333,7 @@ const Tasks: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    void Promise.all([
-      loadOverview(),
-      loadAgents(),
-      loadJobs(),
-    ]);
-  }, []);
+  // 初始加载由 useIpcCache 自动处理
 
   useEffect(() => {
     if (selectedJobId) {

@@ -76,10 +76,16 @@ const Sessions: React.FC = () => {
 
   // ── 数据加载 ──
 
+  /** 是否为首次加载（仅首次显示全屏 loading） */
+  const isFirstLoadRef = useRef(true);
+
   /** 加载会话列表和统计数据 */
   const loadSessions = useCallback(async () => {
     try {
-      setLoading(true);
+      // 仅首次加载时显示全屏 loading，后续刷新静默进行
+      if (isFirstLoadRef.current) {
+        setLoading(true);
+      }
       setError(null);
       const [listResult, statsResult] = await Promise.allSettled([
         window.electronAPI.sessionsList(),
@@ -153,6 +159,7 @@ const Sessions: React.FC = () => {
       setError(t('sessions.loadFailed'));
     } finally {
       setLoading(false);
+      isFirstLoadRef.current = false;
     }
   }, [t]);
 

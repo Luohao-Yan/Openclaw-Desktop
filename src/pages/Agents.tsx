@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AgentInfo } from '../../types/electron';
+import { useIpcCache } from '../hooks/useIpcCache';
 import {
   Users, Cpu, Hash,
   RefreshCw, AlertCircle, CheckCircle,
@@ -35,17 +36,11 @@ import GroupImportDialog from '../components/agents/GroupImportDialog';
 
 
 const Agents: React.FC = () => {
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'enhance'>('list');
   const [wizardOpen, setWizardOpen] = useState(false);
   // 创建后引导面板状态
   const [postGuideAgent, setPostGuideAgent] = useState<AgentInfo | null>(null);
-  // 全局绑定和渠道配置，用于检测 Agent 是否缺少绑定/账号
-  const [globalBindings, setGlobalBindings] = useState<any[]>([]);
-  const [globalChannels, setGlobalChannels] = useState<Record<string, any>>({});
   // 可用模型列表，从 modelsGetConfig 获取，用于创建智能体时的模型下拉选择
   const [availableModels, setAvailableModels] = useState<{ label: string; value: string; description?: string }[]>([]);
   // 导出/导入对话框状态
@@ -60,18 +55,7 @@ const Agents: React.FC = () => {
   const [deleteError, setDeleteError] = useState('');
   // 操作结果提示（自动消失）
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  // 每个 Agent 的统计数据（会话数、消息数、Token 估算、平均响应时间）
-  const [agentStats, setAgentStats] = useState<Record<string, {
-    sessionCount: number;
-    messageCount: number;
-    tokenUsage: number;
-    avgResponseMs: number;
-  }>>({});
-  // 每个 Agent 的专属技能绑定数量
-  const [agentBindingCounts, setAgentBindingCounts] = useState<Record<string, number>>({});
   // 分组管理状态
-  const [groups, setGroups] = useState<AgentGroup[]>([]);
-  const [groupMappings, setGroupMappings] = useState<Record<string, string>>({});
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<AgentGroup | undefined>(undefined);
@@ -81,66 +65,77 @@ const Agents: React.FC = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
 
+  // ── 使用 useIpcCache 缓存 Agent 页面核心数据 ──
+  interface AgentPageData {
+    agents: AgentInfo[];
+    globalBindings: any[];
+    globalChannels: Record<string, any>;
+    agentStats: Record<string, { sessionCount: number; messageCount: number; tokenUsage: number; avgResponseMs: number }>;
+    agentBindingCounts: Record<string, number>;
+    groups: AgentGroup[];
+    groupMappings: Record<string, string>;
+  }
 
+  const {
+    data: cachedData,
+    loading,
+    error: cacheError,
+    refresh: refreshAgentData,
+  } = useIpcCache<AgentPageData>(
+    'agents:page-data',
+    async () => {
+      // 并行加载所有数据，大幅减少总等待时间
+      const [agentsResult, configResult, statsResult, bindingsResult, groupsResult, mappingsResult] = await Promise.allSettled([
+        window.electronAPI.agentsGetAll(),
+        window.electronAPI.configGet(),
+        window.electronAPI.sessionsAgentDetailedStats(),
+        window.electronAPI.skillsGetAllBindings(),
+        window.electronAPI.agentGroupsList(),
+        window.electronAPI.agentGroupsGetMappings(),
+      ]);
 
-  const loadAgents = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await window.electronAPI.agentsGetAll();
-      if (result.success && result.agents) {
-        setAgents(result.agents);
-      } else {
-        setError(result.error || 'Failed to load agents');
+      const agents = agentsResult.status === 'fulfilled' && agentsResult.value.success
+        ? (agentsResult.value.agents ?? []) : [];
+      const config = configResult.status === 'fulfilled' && configResult.value.success
+        ? configResult.value.config : null;
+      const stats = statsResult.status === 'fulfilled' && statsResult.value.success
+        ? (statsResult.value.stats ?? {}) : {};
+      const bindings = bindingsResult.status === 'fulfilled' && bindingsResult.value.success
+        ? (bindingsResult.value.bindings ?? {}) : {};
+      const groups = groupsResult.status === 'fulfilled' && groupsResult.value.success
+        ? (groupsResult.value.groups ?? []) : [];
+      const mappings = mappingsResult.status === 'fulfilled' && mappingsResult.value.success
+        ? (mappingsResult.value.mappings ?? {}) : {};
+
+      if (agentsResult.status !== 'fulfilled' || !agentsResult.value.success) {
+        throw new Error(agentsResult.status === 'fulfilled' ? (agentsResult.value.error || 'Failed to load agents') : 'Failed to connect to OpenClaw API');
       }
-      // 加载全局配置，获取 bindings 和 channels 用于绑定状态检测
-      try {
-        const configResult = await window.electronAPI.configGet();
-        if (configResult.success && configResult.config) {
-          setGlobalBindings(Array.isArray(configResult.config.bindings) ? configResult.config.bindings : []);
-          setGlobalChannels(configResult.config.channels || {});
-        }
-      } catch {
-        setGlobalBindings([]);
-        setGlobalChannels({});
-      }
-      // 加载 agent 详细统计（会话数 + 消息数，从 session 文件中统计）
-      try {
-        const detailedResult = await window.electronAPI.sessionsAgentDetailedStats();
-        if (detailedResult.success && detailedResult.stats) {
-          setAgentStats(detailedResult.stats);
-        }
-      } catch {
-        setAgentStats({});
-      }
-      // 加载每个 Agent 的专属技能绑定数量
-      try {
-        const bindingsResult = await window.electronAPI.skillsGetAllBindings();
-        if (bindingsResult.success && bindingsResult.bindings) {
-          setAgentBindingCounts(computeBindingCounts(bindingsResult.bindings));
-        }
-      } catch {
-        setAgentBindingCounts({});
-      }
-      // 加载分组列表和映射关系
-      try {
-        const [groupsResult, mappingsResult] = await Promise.all([
-          window.electronAPI.agentGroupsList(),
-          window.electronAPI.agentGroupsGetMappings(),
-        ]);
-        if (groupsResult.success && groupsResult.groups) setGroups(groupsResult.groups);
-        if (mappingsResult.success && mappingsResult.mappings) setGroupMappings(mappingsResult.mappings);
-      } catch {
-        setGroups([]);
-        setGroupMappings({});
-      }
-    } catch (error) {
-      console.error('Failed to load agents:', error);
-      setError('Failed to connect to OpenClaw API');
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      return {
+        agents,
+        globalBindings: Array.isArray(config?.bindings) ? config.bindings : [],
+        globalChannels: config?.channels || {},
+        agentStats: stats,
+        agentBindingCounts: computeBindingCounts(bindings),
+        groups,
+        groupMappings: mappings,
+      };
+    },
+    { ttl: 30000, staleWhileRevalidate: true, timeout: 15000 },
+  );
+
+  // 从缓存数据中解构各状态
+  const agents = cachedData?.agents ?? [];
+  const globalBindings = cachedData?.globalBindings ?? [];
+  const globalChannels = cachedData?.globalChannels ?? {};
+  const agentStats = cachedData?.agentStats ?? {};
+  const agentBindingCounts = cachedData?.agentBindingCounts ?? {};
+  const groups = cachedData?.groups ?? [];
+  const groupMappings = cachedData?.groupMappings ?? {};
+  const error = cacheError?.message ?? null;
+
+  // 兼容旧的 loadAgents 调用
+  const loadAgents = refreshAgentData;
 
   const handleOpenCreateModal = () => {
     setWizardOpen(true);
@@ -356,9 +351,7 @@ const Agents: React.FC = () => {
     navigate(`/agent-workspace/${agentId}`);
   };
 
-  useEffect(() => {
-    loadAgents();
-  }, []);
+  // 初始加载由 useIpcCache 自动处理
 
   const AgentCard = ({ agent }: { agent: AgentInfo }) => {
     // 检查该 Agent 的绑定状态

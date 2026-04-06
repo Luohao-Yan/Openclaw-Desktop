@@ -12,6 +12,7 @@ import UpdateBanner from './components/UpdateBanner';
 import UpdateDialog from './components/UpdateDialog';
 import { useVersionChecker } from './services/useVersionChecker';
 import { useDesktopUpdateChecker } from './services/useDesktopUpdateChecker';
+import { usePrefetchPages } from './hooks/usePrefetchPages';
 
 // 页面级组件使用 React.lazy 懒加载，仅在用户导航到对应路由时加载
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -78,6 +79,9 @@ const MainAppLayout: React.FC = () => {
 
   // 桌面应用更新检查 Hook：从 GitHub Releases 获取最新版本
   const desktopUpdate = useDesktopUpdateChecker();
+
+  // 后台预加载所有页面数据，用户点击时缓存已就绪
+  usePrefetchPages();
 
   // 升级弹窗显示状态
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);

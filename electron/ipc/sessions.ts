@@ -258,7 +258,7 @@ async function getSessionsList(): Promise<{
   stores: { agentId: string; path: string }[];
   error?: string;
 }> {
-  const result = await runCommand(['sessions', '--all-agents', '--json']);
+  const result = await runCommand(['sessions', '--all-agents', '--json'], { timeoutMs: 30_000 });
 
   if (!result.success) {
     const errMsg = result.error || result.output || 'CLI 执行失败';

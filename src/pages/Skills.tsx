@@ -24,6 +24,7 @@ import AppBadge from '../components/AppBadge';
 import GlobalLoading from '../components/GlobalLoading';
 import type { SkillInfo, AgentInfo } from '../types/electron';
 import { useI18n } from '../i18n/I18nContext';
+import { useIpcCache } from '../hooks/useIpcCache';
 
 // ── 子组件导入 ──────────────────────────────────────────────────────────────
 import CreateSkillDialog from '../components/skills/CreateSkillDialog';
@@ -385,12 +386,6 @@ const Skills: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('local');
 
   // ── 本地技能状态 ────────────────────────────────────────────────────────
-  /** 技能列表 */
-  const [skills, setSkills] = useState<SkillInfo[]>([]);
-  /** 加载状态 */
-  const [loading, setLoading] = useState(false);
-  /** 错误信息 */
-  const [loadError, setLoadError] = useState('');
   /** 本地搜索关键词 */
   const [searchQuery, setSearchQuery] = useState('');
   /** 当前选中的技能（用于详情面板） */
@@ -454,23 +449,31 @@ const Skills: React.FC = () => {
   /** 监听器取消函数 */
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
-  // ── 加载技能列表 ─────────────────────────────────────────────────────────
-  const loadSkills = useCallback(async () => {
-    setLoading(true);
-    setLoadError('');
-    try {
+  // ── 使用 useIpcCache 缓存技能列表 ─────────────────────────────────────
+  const {
+    data: cachedSkills,
+    loading,
+    error: skillsError,
+    refresh: refreshSkills,
+  } = useIpcCache<SkillInfo[]>(
+    'skills:list',
+    async () => {
       const result = await window.electronAPI.skillsGetAll();
       if (result.success && 'skills' in result) {
-        setSkills(result.skills ?? []);
-      } else {
-        setLoadError('error' in result ? (result.error ?? '加载失败') : '加载失败');
+        return result.skills ?? [];
       }
-    } catch (err: unknown) {
-      setLoadError(err instanceof Error ? err.message : '加载技能失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      throw new Error('error' in result ? (result.error ?? '加载失败') : '加载失败');
+    },
+    { ttl: 30000, staleWhileRevalidate: true },
+  );
+
+  const skills = cachedSkills ?? [];
+  const loadError = skillsError?.message ?? '';
+
+  // 兼容旧的 loadSkills 调用
+  const loadSkills = useCallback(async () => {
+    await refreshSkills();
+  }, [refreshSkills]);
 
   // ── 文件监听生命周期 ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -479,19 +482,18 @@ const Skills: React.FC = () => {
 
     // 注册 skills:changed 事件监听，自动刷新列表
     const unsub = window.electronAPI.onSkillsChanged?.(() => {
-      void loadSkills();
+      void refreshSkills();
     });
     if (unsub) unsubscribeRef.current = unsub;
 
-    // 初始加载
-    void loadSkills();
+    // 初始加载由 useIpcCache 自动处理
 
     return () => {
       // 页面卸载时停止监听
       void window.electronAPI.skillsStopWatcher?.();
       unsubscribeRef.current?.();
     };
-  }, [loadSkills]);
+  }, [refreshSkills]);
 
   // ── 市场搜索 ─────────────────────────────────────────────────────────────
   const handleMarketSearch = useCallback(async () => {

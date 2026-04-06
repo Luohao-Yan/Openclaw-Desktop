@@ -1,6 +1,8 @@
 import pkg from 'electron';
-const { ipcMain } = pkg;
+const { ipcMain, BrowserWindow } = pkg;
 import fs from 'fs/promises';
+import { existsSync, watch as fsWatch } from 'fs';
+import type { FSWatcher } from 'fs';
 import path from 'path';
 import type { ChildProcessWithoutNullStreams } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -59,6 +61,7 @@ const manifestFileUrls: Record<string, URL> = {
   '3.8': new URL('../config/openclaw-manifests/3.8.json', import.meta.url),
   '3.13': new URL('../config/openclaw-manifests/3.13.json', import.meta.url),
   '3.24': new URL('../config/openclaw-manifests/3.24.json', import.meta.url),
+  '4.5': new URL('../config/openclaw-manifests/4.5.json', import.meta.url),
 };
 
 const OPENCLAW_VERSION_TIMEOUT_MS = 5000;
@@ -901,4 +904,50 @@ export function setupCoreConfigIPC() {
       return getAgentBindableInfo(agentId);
     },
   );
+
+  // ── 配置文件监听：外部变更时通知渲染进程刷新缓存 ──────────────────────
+  // 延迟启动，确保 settings 模块已初始化
+  setTimeout(() => startConfigFileWatcher(), 3000);
+}
+
+/** 配置文件监听器引用，用于清理 */
+let configWatcher: FSWatcher | null = null;
+
+/**
+ * 启动 openclaw.json 文件监听
+ * 当文件被外部修改（CLI、TUI、手动编辑等）时，通知所有渲染进程窗口刷新缓存
+ * 使用 500ms 防抖避免频繁触发
+ */
+function startConfigFileWatcher(): void {
+  try {
+    const configPath = getConfigPath();
+    // 确保文件存在再监听
+    if (!existsSync(configPath)) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    configWatcher = fsWatch(configPath, (eventType) => {
+      if (eventType !== 'change') return;
+
+      // 500ms 防抖：避免连续写入触发多次通知
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          try {
+            if (!win.isDestroyed()) {
+              win.webContents.send('config:changed');
+            }
+          } catch { /* 窗口可能已销毁 */ }
+        }
+      }, 500);
+    });
+
+    // 监听器错误时静默关闭，不影响应用运行
+    configWatcher.on('error', () => {
+      configWatcher?.close();
+      configWatcher = null;
+    });
+  } catch {
+    // 监听启动失败不影响应用运行
+  }
 }

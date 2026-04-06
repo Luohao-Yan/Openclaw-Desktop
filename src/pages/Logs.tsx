@@ -8,6 +8,7 @@ interface LogEntry {
 }
 import { CircleAlert, CircleAlert as CircleAlertIcon, CircleDot, Info, FileText, RefreshCw as RefreshCwIcon, Search as SearchIcon } from 'lucide-react';
 import AppBadge from '../components/AppBadge';
+import { useIpcCache } from '../hooks/useIpcCache';
 
 // XSS 防护：转义 HTML 特殊字符
 function escapeHtml(unsafe: string): string {
@@ -20,40 +21,47 @@ function escapeHtml(unsafe: string): string {
 }
 
 const Logs: React.FC = () => {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(false);
   const [lines, setLines] = useState(100);
   const [search, setSearch] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  const loadLogs = async () => {
-    setLoading(true);
-    try {
+  // 使用 useIpcCache 缓存日志数据，避免每次导航都重新加载
+  const {
+    data: cachedLogs,
+    loading,
+    refresh: refreshLogs,
+  } = useIpcCache<LogEntry[]>(
+    `logs:list:${lines}`,
+    async () => {
       const result = await window.electronAPI.logsGet(lines);
       if (result.success && Array.isArray(result.logs)) {
-        setLogs(result.logs as LogEntry[]);
-        setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return result.logs as LogEntry[];
       }
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return [];
+    },
+    { ttl: 15000, staleWhileRevalidate: true },
+  );
 
+  const logs = cachedLogs ?? [];
+
+  // 数据更新后自动滚动到底部
   useEffect(() => {
-    loadLogs();
-    
-    let interval: number;
-    if (autoRefresh) {
-      interval = setInterval(loadLogs, 5000) as unknown as number;
+    if (logs.length > 0) {
+      setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [autoRefresh, lines]);
+  }, [logs]);
+
+  // 自动刷新定时器
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => void refreshLogs(), 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, refreshLogs]);
+
+  // lines 变化时刷新（缓存 key 已包含 lines，useIpcCache 会自动重新加载）
+
+  const loadLogs = refreshLogs;
 
   const filteredLogs = useMemo(() => logs.filter(log => 
     !search || log.raw.toLowerCase().includes(search.toLowerCase())

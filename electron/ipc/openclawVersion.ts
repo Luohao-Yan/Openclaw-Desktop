@@ -387,7 +387,7 @@ async function fetchFromGitHubAPI(): Promise<{
 
     if (!data.tag_name) return null;
 
-    // tag_name 格式为 "v0.3.24-preview-4"，去掉前缀 "v"
+    // tag_name 格式为 "v0.4.5-preview-1"，去掉前缀 "v"
     const version = data.tag_name.replace(/^v/, '');
 
     // 查找 macOS arm64 DMG 下载链接

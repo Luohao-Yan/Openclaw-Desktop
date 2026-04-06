@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { BarChart3, TrendingUp, MessageSquare, Clock, AlertTriangle } from 'lucide-react';
+import { BarChart3, TrendingUp, MessageSquare, Clock, MessagesSquare } from 'lucide-react';
 import GlassCard from './GlassCard';
 import type { DailyStats } from '../types/electron';
 
@@ -51,31 +51,30 @@ export function computeSummary(stats: DailyStats[]): {
   totalTokens: number;
   totalSessions: number;
   avgResponseMs: number;
-  avgErrorRate: number;
+  totalMessages: number;
   tokenEstimated: boolean;
 } {
   if (stats.length === 0) {
-    return { totalTokens: 0, totalSessions: 0, avgResponseMs: 0, avgErrorRate: 0, tokenEstimated: true };
+    return { totalTokens: 0, totalSessions: 0, avgResponseMs: 0, totalMessages: 0, tokenEstimated: true };
   }
 
   let totalTokens = 0;
   let totalSessions = 0;
   let weightedResponseSum = 0;
-  let errorRateSum = 0;
+  let totalMessages = 0;
   let allEstimated = true;
 
   for (const s of stats) {
     totalTokens += s.tokenUsage;
     totalSessions += s.sessionCount;
     weightedResponseSum += s.avgResponseMs * s.sessionCount;
-    errorRateSum += s.errorRate;
+    totalMessages += s.messageCount ?? 0;
     if (!s.tokenEstimated) allEstimated = false;
   }
 
   const avgResponseMs = totalSessions > 0 ? weightedResponseSum / totalSessions : 0;
-  const avgErrorRate = errorRateSum / stats.length;
 
-  return { totalTokens, totalSessions, avgResponseMs, avgErrorRate, tokenEstimated: allEstimated };
+  return { totalTokens, totalSessions, avgResponseMs, totalMessages, tokenEstimated: allEstimated };
 }
 
 // ── 辅助：格式化数字显示 ────────────────────────────────────────────────────
@@ -104,7 +103,7 @@ const CHART_CONFIGS = [
   { key: 'tokenUsage' as const, title: 'Token 消耗', color: '#6366f1', icon: TrendingUp, formatter: formatNumber },
   { key: 'sessionCount' as const, title: '会话量', color: '#10b981', icon: MessageSquare, formatter: formatNumber, allowDecimals: false },
   { key: 'avgResponseMs' as const, title: '平均响应时间', color: '#f59e0b', icon: Clock, formatter: formatMs },
-  { key: 'errorRate' as const, title: '错误率', color: '#ef4444', icon: AlertTriangle, formatter: (v: number) => `${v.toFixed(1)}%` },
+  { key: 'messageCount' as const, title: '消息数', color: '#8b5cf6', icon: MessagesSquare, formatter: formatNumber, allowDecimals: false },
 ];
 
 // ── 组件 ────────────────────────────────────────────────────────────────────
@@ -155,7 +154,7 @@ const HistoryStatsPanel: React.FC<HistoryStatsPanelProps> = ({ stats, totalSessi
     { label: 'Token 消耗', value: `${summary.tokenEstimated ? '≈ ' : ''}${formatNumber(summary.totalTokens)}`, bg: 'rgba(99,102,241,0.08)', color: '#6366f1', icon: TrendingUp },
     { label: '总会话', value: `${formatNumber(totalSessions)} 次`, bg: 'rgba(16,185,129,0.08)', color: '#10b981', icon: MessageSquare },
     { label: '响应时间', value: formatMs(summary.avgResponseMs), bg: 'rgba(245,158,11,0.08)', color: '#f59e0b', icon: Clock },
-    { label: '错误率', value: `${summary.avgErrorRate.toFixed(1)}%`, bg: 'rgba(239,68,68,0.08)', color: '#ef4444', icon: AlertTriangle },
+    { label: '消息数', value: `${formatNumber(summary.totalMessages)} 条`, bg: 'rgba(139,92,246,0.08)', color: '#8b5cf6', icon: MessagesSquare },
   ];
 
   return (

@@ -211,6 +211,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('skills:changed', handler);
   },
 
+  // 配置文件变更监听（外部修改 openclaw.json 时触发）
+  onConfigChanged: (callback) => {
+    const handler = (_event) => callback();
+    ipcRenderer.on('config:changed', handler);
+    return () => ipcRenderer.removeListener('config:changed', handler);
+  },
+
   // 插件管理（列表/安装/卸载/启用/禁用/详情/诊断）
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsInstall: (spec) => ipcRenderer.invoke('plugins:install', spec),

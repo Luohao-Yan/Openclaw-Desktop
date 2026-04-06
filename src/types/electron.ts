@@ -435,7 +435,8 @@ export interface DailyStats {
   tokenEstimated: boolean;   // Token 数据是否为估算值
   sessionCount: number;      // 当日会话数量
   avgResponseMs: number;     // 当日平均响应时间（毫秒）
-  errorRate: number;         // 当日错误率（百分比 0-100）
+  errorRate: number;         // 当日错误率（百分比 0-100）— 保留兼容
+  messageCount: number;      // 当日消息总数
 }
 
 /** 安全检查类别 */
@@ -904,7 +905,8 @@ export interface ElectronAPI {
   /** 监听技能文件变更事件，返回取消订阅函数 */
   onSkillsChanged: (callback: () => void) => () => void;
 
-  // ── 插件管理 API（需求 8.1-8.6）──
+  /** 监听配置文件变更事件（外部修改 openclaw.json 时触发），返回取消订阅函数 */
+  onConfigChanged: (callback: () => void) => () => void;
   /** 获取插件列表 */
   pluginsList: () => Promise<{ success: boolean; plugins?: PluginInfo[]; error?: string }>;
   /** 安装插件 */

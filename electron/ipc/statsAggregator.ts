@@ -41,8 +41,10 @@ export interface DailyStats {
   sessionCount: number;
   /** 当日平均响应时间（毫秒） */
   avgResponseMs: number;
-  /** 当日错误率（百分比 0-100） */
+  /** 当日错误率（百分比 0-100）— 保留用于兼容 */
   errorRate: number;
+  /** 当日消息总数 */
+  messageCount: number;
 }
 
 /** 聚合结果：包含每日统计和独立会话总数 */
@@ -152,6 +154,7 @@ export function computeDailyMetrics(
       sessionCount,
       avgResponseMs: 0,
       errorRate: 0,
+      messageCount: 0,
     };
   }
 
@@ -194,6 +197,9 @@ export function computeDailyMetrics(
   const errorCount = entries.filter((e) => e.type === 'error').length;
   const errorRate = (errorCount / entries.length) * 100;
 
+  // 计算消息总数（user + assistant 消息）
+  const messageCount = entries.filter((e) => e.role === 'user' || e.role === 'assistant').length;
+
   return {
     date,
     tokenUsage,
@@ -201,6 +207,7 @@ export function computeDailyMetrics(
     sessionCount,
     avgResponseMs,
     errorRate,
+    messageCount,
   };
 }
 
