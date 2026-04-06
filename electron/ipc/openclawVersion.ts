@@ -239,6 +239,12 @@ async function installVersion(
     });
 
     if (!result.success) {
+      // 超时错误时提供更友好的提示信息（原始错误中 command 为 shell 名称如 'bash'，不够直观）
+      if (result.errorCode === 'TIMEOUT') {
+        return buildErrorResponse(
+          `安装 OpenClaw v${targetVersion} 超时（${INSTALL_TIMEOUT_MS / 1000}秒）。请检查网络连接后重试。`,
+        );
+      }
       return buildErrorResponse(result.error || '安装脚本执行失败');
     }
 
