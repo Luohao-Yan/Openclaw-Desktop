@@ -464,7 +464,7 @@ const Skills: React.FC = () => {
       }
       throw new Error('error' in result ? (result.error ?? '加载失败') : '加载失败');
     },
-    { ttl: 30000, staleWhileRevalidate: true },
+    { ttl: 30000, staleWhileRevalidate: true, timeout: 30000 },
   );
 
   const skills = cachedSkills ?? [];

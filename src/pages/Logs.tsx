@@ -40,7 +40,7 @@ const Logs: React.FC = () => {
       }
       return [];
     },
-    { ttl: 15000, staleWhileRevalidate: true },
+    { ttl: 15000, staleWhileRevalidate: true, timeout: 15000 },
   );
 
   const logs = cachedLogs ?? [];

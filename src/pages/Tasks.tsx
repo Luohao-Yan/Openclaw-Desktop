@@ -260,7 +260,7 @@ const Tasks: React.FC = () => {
       if (result.success && result.overview) return result.overview;
       return null;
     },
-    { ttl: 30000, staleWhileRevalidate: true },
+    { ttl: 30000, staleWhileRevalidate: true, timeout: 15000 },
   );
   const overview = cachedOverview;
 
@@ -278,7 +278,7 @@ const Tasks: React.FC = () => {
         name: String(item.name || item.id || t('tasks.unnamedAgent')),
       }));
     },
-    { ttl: 60000, staleWhileRevalidate: true },
+    { ttl: 60000, staleWhileRevalidate: true, timeout: 15000 },
   );
   const agents = cachedAgents ?? [];
 
