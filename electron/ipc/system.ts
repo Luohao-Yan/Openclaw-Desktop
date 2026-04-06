@@ -452,7 +452,7 @@ interface SetupInstallResult {
   error?: string;
 }
 
-const DESKTOP_APP_VERSION = '0.4.5-preview-1';
+const DESKTOP_APP_VERSION = '0.4.5-preview-2';
 const OPENCLAW_COMPAT_TAIL = 8;
 const DESKTOP_RUNTIME_VERSION = 'desktop-runtime-0.5.8';
 const DESKTOP_PRELOAD_VERSION = 'desktop-preload-0.5.8';
