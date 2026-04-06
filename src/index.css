@@ -936,3 +936,20 @@ button, input, select, textarea {
   opacity: 0;
   transition: opacity var(--transition-normal) ease-in;
 }
+
+/* ==================== 侧边栏毛玻璃效果 ==================== */
+/* 深色模式：半透明深色背景 + 毛玻璃 */
+.sidebar-glass {
+  background-color: rgba(18, 18, 26, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.08);
+}
+
+/* 浅色模式：半透明白色背景 + 毛玻璃 */
+[data-theme="light"] .sidebar-glass {
+  background-color: rgba(255, 255, 255, 0.72);
+  border-right: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.03);
+}

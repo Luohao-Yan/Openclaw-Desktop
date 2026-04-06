@@ -158,12 +158,12 @@ const Sidebar: React.FC<SidebarProps> = ({ hasUpdate, currentVersion: _currentVe
 
   return (
     <aside 
-      className="relative z-30 h-full flex flex-col overflow-visible transition-all duration-300 ease-out border-r"
+      className="relative z-30 h-full flex flex-col overflow-visible transition-all duration-300 ease-out sidebar-glass"
       style={{
         width: collapsed ? 72 : sidebarWidth,
-        backgroundColor: 'var(--app-bg-elevated)',
-        borderColor: 'var(--app-border)',
         color: 'var(--app-text)',
+        borderTopRightRadius: 16,
+        borderBottomRightRadius: 16,
       }}
     >
       {/* 导航菜单 */}
