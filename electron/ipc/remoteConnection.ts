@@ -17,6 +17,7 @@ import {
   buildCertErrorMessage,
   parseVersionFromBody,
   isAuthError,
+  buildProbeUrls,
 } from './remoteConnectionLogic.js';
 
 // ─── 类型定义（与 src/types/electron.ts 中的类型保持一致）────────────────────
@@ -68,7 +69,11 @@ const CONNECTION_TIMEOUT_MS = 10_000;
 /**
  * 测试远程 OpenClaw 连接
  *
- * 向 `{protocol}://{host}:{port}/api/version` 发送 GET 请求，
+ * 按优先级依次向以下路径发送 GET 请求，遇到首个有效响应即终止：
+ *   1. /status        — OpenClaw 4.5+ 标准路径（v2026.3.28 起主用）
+ *   2. /api/status    — 反向代理部署常见路径
+ *   3. /api/version   — 旧版兼容路径
+ *
  * 携带 `Authorization: Bearer {token}` 头（如果提供了 token）。
  * 支持 skipCertVerification 选项以允许自签名证书。
  *
@@ -79,110 +84,112 @@ async function testRemoteConnection(
   payload: RemoteOpenClawConnectionPayload,
 ): Promise<RemoteOpenClawTestResult> {
   const { host, port = 3000, protocol = 'http', token, skipCertVerification } = payload;
-  const url = `${protocol}://${host}:${port}/api/version`;
+
+  // 构建请求头
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // 临时禁用 TLS 证书验证（自签名证书场景）
+  if (skipCertVerification) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
 
   try {
-    // 构建请求头
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    // 获取按优先级排列的探测 URL 列表
+    const probeUrls = buildProbeUrls({ host, port, protocol });
+    let lastError: string = '路径探测失败，请确认远程 Gateway 已启动且地址/端口正确';
 
-    // 使用 AbortController 实现超时控制
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), CONNECTION_TIMEOUT_MS);
+    for (const url of probeUrls) {
+      // 每个路径独立使用 AbortController 控制超时
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), CONNECTION_TIMEOUT_MS);
 
-    let response: Response;
-    try {
-      // 当 skipCertVerification 为 true 时，临时禁用 TLS 证书验证
-      if (skipCertVerification) {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-      }
       try {
-        response = await fetch(url, {
+        const response = await fetch(url, {
           method: 'GET',
           headers,
           signal: controller.signal,
         });
-      } finally {
-        // 无论请求成功与否，都恢复 TLS 验证设置
-        if (skipCertVerification) {
-          delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+
+        // 认证失败（401/403）：说明服务器可达，直接返回认证错误，无需继续探测
+        if (isAuthError(response.status)) {
+          return {
+            success: false,
+            error: '认证失败，请检查访问令牌是否正确',
+            host,
+            port,
+            authenticated: false,
+          };
         }
+
+        // 当前路径返回 404 或其他非 2xx：记录错误并尝试下一路径
+        if (!response.ok) {
+          lastError = `服务器返回错误状态码: ${response.status} ${response.statusText}`;
+          continue;
+        }
+
+        // 成功：解析响应体，提取版本号
+        let version = 'unknown';
+        try {
+          const body = await response.json();
+          version = parseVersionFromBody(body);
+        } catch {
+          // 响应体解析失败时使用默认版本号
+        }
+
+        return {
+          success: true,
+          version,
+          authenticated: Boolean(token),
+          host,
+          port,
+        };
+      } catch (err: any) {
+        // 超时：记录并尝试下一路径
+        if (err.name === 'AbortError') {
+          lastError = '连接超时，请检查服务器地址和端口是否正确';
+          continue;
+        }
+
+        // 自签名证书错误：直接返回，无需继续探测
+        if (isSelfSignedCertError(err)) {
+          return {
+            success: false,
+            error: buildCertErrorMessage(err),
+            host,
+            port,
+            isSelfSignedCertError: true,
+          };
+        }
+
+        // 网络层错误（ECONNREFUSED / ENOTFOUND 等）：直接返回，无需继续探测
+        return {
+          success: false,
+          error: mapNetworkError(err),
+          host,
+          port,
+        };
+      } finally {
+        clearTimeout(timeoutId);
       }
-    } finally {
-      clearTimeout(timeoutId);
     }
 
-    // 使用纯函数判断 HTTP 认证失败（401/403）
-    if (isAuthError(response.status)) {
-      return {
-        success: false,
-        error: '认证失败，请检查访问令牌是否正确',
-        host,
-        port,
-        authenticated: false,
-      };
-    }
-
-    // 处理其他非成功状态码
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `服务器返回错误状态码: ${response.status} ${response.statusText}`,
-        host,
-        port,
-      };
-    }
-
-    // 解析响应体，使用纯函数提取版本号
-    let version = 'unknown';
-    try {
-      const body = await response.json();
-      version = parseVersionFromBody(body);
-    } catch {
-      // 响应体解析失败时使用默认版本号
-    }
-
-    return {
-      success: true,
-      version,
-      authenticated: Boolean(token),
-      host,
-      port,
-    };
-  } catch (err: any) {
-    // 超时错误处理（AbortController 触发的 AbortError）
-    if (err.name === 'AbortError') {
-      return {
-        success: false,
-        error: '连接超时，请检查服务器地址和端口是否正确',
-        host,
-        port,
-      };
-    }
-
-    // 使用纯函数检测自签名证书错误
-    if (isSelfSignedCertError(err)) {
-      return {
-        success: false,
-        error: buildCertErrorMessage(err),
-        host,
-        port,
-        isSelfSignedCertError: true,
-      };
-    }
-
-    // 使用 remoteConnectionLogic 中的纯函数映射网络错误
-    const errorMessage = mapNetworkError(err);
+    // 所有候选路径均未返回成功响应
     return {
       success: false,
-      error: errorMessage,
+      error: lastError,
       host,
       port,
     };
+  } finally {
+    // 无论结果如何，都恢复 TLS 验证设置
+    if (skipCertVerification) {
+      delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    }
   }
 }
 

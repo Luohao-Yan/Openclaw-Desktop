@@ -33,10 +33,35 @@ export interface TimeoutResult {
  *
  * @param payload 远程连接参数
  * @returns 完整的 URL 字符串，格式为 `{protocol}://{host}:{port}/api/version`
+ * @deprecated 建议使用 buildProbeUrls() 按优先级依次探测多个路径
  */
 export function buildRemoteUrl(payload: RemoteConnectionPayload): string {
   const { host, port = 3000, protocol = 'http' } = payload;
   return `${protocol}://${host}:${port}/api/version`;
+}
+
+/**
+ * 按优先级顺序返回远程 Gateway 健康检测的候选 URL 列表
+ *
+ * OpenClaw 4.5+ 将健康端点从 /api/version 迁移到 /status。
+ * 为兼容新旧版本（包括 v2026.3.28），依次尝试以下路径，
+ * 遇到首个有效响应（2xx 或 401/403）即停止：
+ *
+ *   1. /status        — OpenClaw 4.5+ 标准路径
+ *   2. /api/status    — 反向代理部署常见路径
+ *   3. /api/version   — 旧版兼容路径
+ *
+ * @param payload 远程连接参数
+ * @returns 按探测优先级排列的 URL 字符串数组
+ */
+export function buildProbeUrls(payload: RemoteConnectionPayload): string[] {
+  const { host, port = 3000, protocol = 'http' } = payload;
+  const base = `${protocol}://${host}:${port}`;
+  return [
+    `${base}/status`,
+    `${base}/api/status`,
+    `${base}/api/version`,
+  ];
 }
 
 // ─── 纯函数：映射网络错误 ────────────────────────────────────────────────────
