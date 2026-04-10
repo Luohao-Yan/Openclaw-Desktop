@@ -6,6 +6,31 @@
 
 ---
 
+## [0.4.9-preview-1] - 2026-04-13
+
+### ✨ 新增 (Features)
+
+- **OpenClaw 4.9 Manifest**：新增 `4.9.json` manifest 文件，覆盖 4.6~4.9 全部新增字段与命令，更新 `manifest-version.ts` 将当前版本升级至 `4.9`
+- **3 个新 AI Provider**：`providers.ts` 新增 Arcee AI（`ARCEEAI_API_KEY`）、Fireworks AI（`FIREWORKS_API_KEY`）、StepFun（`STEPFUN_API_KEY`）
+- **ComfyUI 媒体 Provider**：新增本地 ComfyUI / Comfy Cloud 工作流 provider，支持图像/视频/音乐生成工具
+- **Memory Dreaming 配置面板**：Config Center Memory 板块新增 `Dreaming` 子标签页，可配置 `enabled`、`frequency`、`recencyHalfLifeDays`、`maxAgeDays`
+- **Compaction Provider 字段**：Compaction 面板新增 `agents.defaults.compaction.provider`（可插拔压缩 provider）配置项
+- **Agent 新字段**：agent-defaults 面板新增 `agents.defaults.systemPromptOverride`（系统提示覆盖）和 `agents.defaults.contextInjection`（上下文注入模式）配置
+- **Sessions 分支/恢复**：会话面板头部新增「从压缩检查点创建分支」按钮（GitBranch 图标），底层通过新 IPC `sessions:branch` 调用 `openclaw sessions branch`，成功后自动刷新并切换至分支会话
+
+### 🔄 更新 (Updates)
+
+- **authChoice 新增 Arcee AI**：Model & Auth 配置中新增 `arcee-api-key` 认证选项
+- **channels.*.contextVisibility** 选项更新为 4.7 规范值：`all` / `allowlist` / `allowlist_quote`
+- **channels.slack** 新增 `slackThreadRequireExplicitMention` 字段
+- **channels.matrix** 新增 `matrixInviteAutoJoin` 字段
+- **Plugins** 新增 `webhookIngressConfig`（Webhook 入站插件配置）字段
+- **Sessions section** 新增 `sessions branch` / `sessions restore` CLI 命令条目
+- **Memory section** 新增 `memory dreaming status`、`memory rem-harness --path`、`memory wiki` 系列命令
+- **modelAuth section** 新增 `openclaw infer` 系列命令（4.7 新增 CLI）
+
+---
+
 ## [0.4.5-preview-2] - 2026-04-06
 
 ### 🎨 UI 优化 (UI)
@@ -462,6 +487,7 @@
 ### ✨ 新增功能 (Features)
 
 #### Setup 引导流程补全
+
 - **渠道 CLI 添加**：Setup 渠道配置步骤新增 CLI 自动添加功能，点击"继续"时自动执行 `openclaw channels add` 命令
 - **创建 Agent 步骤**：新增 `SetupCreateAgentPage`，引导用户在 Setup 流程中创建第一个智能体
 - **完成页增强**：完成页新增初始化摘要卡片（运行模式、已添加渠道、已创建 Agent）和后续操作引导卡片
@@ -485,6 +511,7 @@
 ### ✨ 新增功能 (Features)
 
 #### 渠道管理系统
+
 - **渠道配置页面重构**：`SettingsChannels` 页面全面重写，支持多渠道多账号管理
 - **渠道配置弹窗**：新增 `ChannelConfigModal`，三段式布局（Tab 切换 + 滚动内容 + 底部操作栏）
 - **添加渠道/账号**：新增 `AddChannelModal`、`AddAccountModal`，网格式渠道类型选择
@@ -498,11 +525,13 @@
 - **渠道 IPC 接口**：新增 `electron/ipc/channels.ts`，支持渠道状态查询、列表、诊断、重连、配对审批
 
 #### 智能体创建向导
+
 - **多步骤创建流程**：新增 `CreateAgentWizard`，四步向导（基础信息 → 模板选择 → Identity 配置 → 确认创建）
 - **Identity 更新接口**：新增 `agents:updateIdentity` IPC，支持写入智能体名称、主题、Emoji、头像
 - **智能体增强功能**：扩展 agents IPC，新增性能监控、安全检查、配置导出/导入、克隆、重启等接口
 
 #### 会话管理重构
+
 - **会话页面拆分**：将单文件 `Sessions.tsx` 拆分为模块化子组件目录 `src/pages/sessions/`
   - `Sessions.tsx` — 主组件（状态管理 + 紧凑工具栏布局）
   - `SessionList.tsx` — 左侧会话列表（卡片式、选中高亮）
@@ -515,6 +544,7 @@
 - **消息发送**：支持在会话面板中直接发送消息，乐观 UI 更新
 
 #### 日志增强
+
 - **日志过滤接口**：新增 `logsFilter` IPC，支持按条件过滤查询日志
 
 ### 🎨 界面优化 (UI/UX)
@@ -547,6 +577,7 @@
 ### ✨ 新增功能 (Features)
 
 #### 模型提供商配置增强
+
 - **自定义提供商管理**：支持添加、编辑和删除自定义模型提供商
 - **提供商详情页面**：新增独立的提供商详情和配置页面
 - **提供商列表视图**：优化模型设置页面，采用列表+详情的双栏布局
@@ -560,6 +591,7 @@
   - `resetProvider` - 重置提供商到默认配置
 
 #### 定时器清理优化
+
 - **组件卸载清理**：新增定时刷新清理函数，确保组件卸载时正确销毁定时器
 - **内存泄漏防护**：防止页面切换时定时器持续运行导致的内存泄漏
 
@@ -601,6 +633,7 @@
 ## [0.3.8-preview-1] - 2026-03-XX
 
 ### ✨ 新增功能
+
 - 初始版本发布
 - 基础的 OpenClaw Desktop 管理界面
 - 支持 Agent、Session、Task、Log、Instance、Skill 管理

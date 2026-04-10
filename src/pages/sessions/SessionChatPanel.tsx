@@ -16,6 +16,7 @@ import {
   RefreshCw,
   AlertTriangle,
   ChevronDown,
+  GitBranch,
 } from 'lucide-react';
 import AppButton from '../../components/AppButton';
 import type { Session, TranscriptMessage, TFunc } from './types';
@@ -41,6 +42,8 @@ interface SessionChatPanelProps {
   availableModels?: { label: string; value: string }[];
   /** 切换模型回调：创建新 session（同 agent + 新 model） */
   onSwitchModel?: (model: string) => void;
+  /** 从压缩检查点创建分支回调（4.7 新增） */
+  onBranch?: (sessionId: string) => void;
 }
 
 /** 根据角色返回图标和颜色 */
@@ -60,6 +63,7 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
   isPending, sendError, onRetry,
   onExport, onClose, t,
   availableModels = [], onSwitchModel,
+  onBranch,
 }) => {
   // 自动滚动到最新消息
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -170,6 +174,14 @@ const SessionChatPanel: React.FC<SessionChatPanelProps> = ({
             onClick={() => navigator.clipboard.writeText(session.key)}
             title="复制 Key"
           />
+          {/* 从压缩检查点创建分支（4.7 新增） */}
+          {onBranch && (
+            <AppButton variant="ghost" size="sm" iconOnly
+              icon={<GitBranch size={14} />}
+              onClick={() => onBranch(session.id)}
+              title="从压缩检查点创建分支"
+            />
+          )}
           {/* 关闭会话：danger ghost */}
           <AppButton variant="ghost" size="sm" iconOnly
             icon={<Trash2 size={14} />}

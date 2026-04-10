@@ -334,6 +334,7 @@ const configDetailPanels: Record<string, ConfigDetailPanelDefinition> = {
       { id: 'all', label: 'All' },
       { id: 'backend', label: 'Memory Backend' },
       { id: 'citations-mode', label: 'Memory Citations Mode' },
+      { id: 'dreaming', label: 'Dreaming' },
       { id: 'qmd', label: 'Qmd' },
     ],
   },
@@ -1990,6 +1991,37 @@ const SettingsCoreConfig: React.FC = () => {
         );
       }
 
+      if (activeTabId === 'dreaming') {
+        content = (
+          <div className="space-y-6">
+            {renderToggleBlock(
+              'Dreaming Enabled',
+              'Enables background memory dreaming phases (light, deep, REM) that promote short-term notes into durable long-term memory. Writes summaries to `dreams.md`.',
+              'memoryDreamingEnabled',
+            )}
+            {renderInputBlock(
+              'Dreaming Frequency',
+              'Controls how often dreaming runs. Leave empty to use the default schedule. Example: `daily`, `hourly`.',
+              'memoryDreamingFrequency',
+              'text',
+              'daily',
+            )}
+            {renderInputBlock(
+              'Recency Half Life Days',
+              'Half-life in days for memory recency weighting. Lower values make recent memories decay faster during dreaming promotion.',
+              'memoryRecencyHalfLifeDays',
+              'number',
+            )}
+            {renderInputBlock(
+              'Max Age Days',
+              'Maximum age in days before dreaming considers memories stale and eligible for pruning.',
+              'memoryMaxAgeDays',
+              'number',
+            )}
+          </div>
+        );
+      }
+
       if (activeTabId === 'qmd') {
         content = (
           <div className="space-y-6">
@@ -2344,6 +2376,21 @@ const SettingsCoreConfig: React.FC = () => {
               'agentDefaultsSubagentsMaxConcurrent',
               'number',
             )}
+            {renderTextareaBlock(
+              'System Prompt Override',
+              'Replaces the entire system prompt for all agents inheriting defaults. Use with caution — overrides the official AGENTS.md injection pipeline. Leave empty to use the standard bootstrap system prompt.',
+              'agentDefaultsSystemPromptOverride',
+              '',
+            )}
+            {renderSelectBlock(
+              'Context Injection',
+              'Controls how continuation context is injected at the start of resumed sessions. `continuation-skip` omits the context re-injection turn used to recover state after a session restart.',
+              'agentDefaultsContextInjection',
+              [
+                { label: 'default', value: 'default' },
+                { label: 'continuation-skip', value: 'continuation-skip' },
+              ],
+            )}
           </div>
         );
       }
@@ -2428,6 +2475,13 @@ const SettingsCoreConfig: React.FC = () => {
               'agentDefaultsCompactionModel',
               'text',
               'openrouter/anthropic/claude-sonnet-4-5',
+            )}
+            {renderInputBlock(
+              'Compaction Provider',
+              'Pluggable compaction provider id registered via plugins. Leave empty to use the built-in LLM summarization pipeline. Falls back to LLM summarization on provider failure.',
+              'agentDefaultsCompactionProvider',
+              'text',
+              '',
             )}
             {renderToggleBlock(
               'Compaction Memory Flush Enabled',

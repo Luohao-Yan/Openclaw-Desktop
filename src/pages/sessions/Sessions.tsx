@@ -265,6 +265,28 @@ const Sessions: React.FC = () => {
     }
   }, [selectedSession, loadSessions, loadTranscript]);
 
+  /**
+   * 从压缩检查点创建分支（4.7 新增）
+   * 调用 openclaw sessions branch <sessionId>，成功后刷新列表并自动选中分支会话
+   */
+  const handleBranchSession = useCallback(async (sessionId: string) => {
+    try {
+      const result = await (window.electronAPI as any).sessionsBranch(sessionId);
+      if (result?.success) {
+        await loadSessions();
+        if (result.branchKey) {
+          const listResult: any = await window.electronAPI.sessionsList();
+          const list = Array.isArray(listResult) ? listResult : listResult?.sessions ?? [];
+          const branchSession = list.find((s: any) => s.id === result.branchKey || s.key === result.branchKey);
+          if (branchSession) {
+            setSelectedSession(branchSession);
+            void loadTranscript(branchSession);
+          }
+        }
+      }
+    } catch (err) { console.error('[Sessions] 创建分支失败:', err); }
+  }, [loadSessions, loadTranscript]);
+
   const handleExportSession = useCallback(async (sessionId: string, format: 'json' | 'markdown') => {
     try {
       const result = await window.electronAPI.sessionsExport(sessionId, format);
@@ -659,6 +681,7 @@ const Sessions: React.FC = () => {
           t={t}
           availableModels={availableModels}
           onSwitchModel={handleSwitchModel}
+          onBranch={(id) => void handleBranchSession(id)}
         />
       </div>
 

@@ -94,7 +94,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   agentsRepairCompleteness: (agentId) => ipcRenderer.invoke('agents:repairCompleteness', agentId),
   agentsRename: (agentId, newName) => ipcRenderer.invoke('agents:rename', agentId, newName),
   agentsWriteModelsJson: (agentId, content) => ipcRenderer.invoke('agents:writeModelsJson', agentId, content),
-  
+
   // Agent 运维工具箱 — 快速操作
   agentsOpenDebugTerminal: (agentId) => ipcRenderer.invoke('agents:openDebugTerminal', agentId),
   agentsExportConfig: (agentId) => ipcRenderer.invoke('agents:exportConfig', agentId),
@@ -131,6 +131,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sessionsStats: () => ipcRenderer.invoke('sessions:stats'),
   sessionsAgentDetailedStats: () => ipcRenderer.invoke('sessions:agentDetailedStats'),
   sessionsCleanup: (dryRun) => ipcRenderer.invoke('sessions:cleanup', dryRun),
+  sessionsBranch: (sessionId) => ipcRenderer.invoke('sessions:branch', sessionId),
 
   // 打开文件路径（用于 Skills 页面）
   openPath: (targetPath) => ipcRenderer.invoke('shell:openPath', targetPath),

@@ -838,6 +838,23 @@ export function setupSessionsIPC() {
     return { success: true, sessionId: parsed?.sessionId || parsed?.key || parsed?.id };
   });
 
+  /**
+   * 从指定 session 的最近一次压缩检查点创建分支
+   * 执行: openclaw sessions branch <sessionId> --json
+   * 4.7 新增：Sessions UI 分支/恢复功能对应的底层命令
+   */
+  ipcMain.handle('sessions:branch', async (_event, sessionId: string): Promise<{ success: boolean; branchKey?: string; error?: string }> => {
+    const result = await runCommand(['sessions', 'branch', sessionId, '--json'], { timeoutMs: 30_000 });
+    if (!result.success) {
+      return { success: false, error: result.error || '创建分支失败' };
+    }
+    const parsed = tryParseJson<any>(result.output);
+    return {
+      success: true,
+      branchKey: parsed?.key || parsed?.sessionId || parsed?.id,
+    };
+  });
+
   // 清理 session（维护）
   // 支持 --dry-run 预览和 --enforce 执行
   ipcMain.handle('sessions:cleanup', async (_event, dryRun = true): Promise<{ success: boolean; output?: string; summary?: RawCleanupOutput; error?: string }> => {

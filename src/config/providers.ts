@@ -164,7 +164,31 @@ export const PROVIDER_LIST: ProviderDefinition[] = [
     name: 'Amazon Bedrock',
     category: 'llm',
     authType: 'oauth',
-    description: 'AWS 凭证认证',
+    description: 'AWS 凭证认证 / Mantle 自动发现',
+  },
+  {
+    id: 'arcee',
+    name: 'Arcee AI',
+    category: 'llm',
+    description: 'Trinity 模型系列（mini/large）',
+    authType: 'api-key',
+    envVar: 'ARCEEAI_API_KEY',
+  },
+  {
+    id: 'fireworks',
+    name: 'Fireworks AI',
+    category: 'llm',
+    description: 'Fireworks 推理平台',
+    authType: 'api-key',
+    envVar: 'FIREWORKS_API_KEY',
+  },
+  {
+    id: 'stepfun',
+    name: 'StepFun',
+    category: 'llm',
+    description: 'StepFun API',
+    authType: 'api-key',
+    envVar: 'STEPFUN_API_KEY',
   },
 
   // ── 需要 models.providers 配置的提供商 ──────────────────────────────────
@@ -274,6 +298,16 @@ export const PROVIDER_LIST: ProviderDefinition[] = [
     authType: 'api-key',
     requiresConfig: true,
     apiType: 'openai-completions',
+  },
+
+  {
+    id: 'comfy',
+    name: 'ComfyUI',
+    category: 'llm',
+    description: '本地 ComfyUI / Comfy Cloud 工作流（图像/视频/音乐生成）',
+    authType: 'none',
+    defaultBaseUrl: 'http://127.0.0.1:8188',
+    requiresConfig: true,
   },
 
   // ── 转录提供商 ──────────────────────────────────────────────────────────
