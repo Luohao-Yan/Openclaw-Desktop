@@ -6,6 +6,37 @@
 
 ---
 
+## [0.4.9-preview-2] - 2026-04-12
+
+### 🔄 版本同步 (Version Sync)
+
+- **对齐 openclaw@2026.4.10**：同步官方最新版本（`2026.4.10`）的运行时要求与推荐配置，确保项目与官方保持一致
+
+### ⬆️ 运行时要求更新 (Runtime Requirements)
+
+- **Node.js 最低版本**：`22` → `22.14.0`（来源：`openclaw@2026.4.10` `engines` 字段）
+- **Node.js 推荐版本**：新增 Node 24 推荐提示（官方文档明确推荐 Node 24 以获得最佳性能）
+- **`system.ts`**：更新 `node-not-installed`、`node-version-low` fixableIssue 标签和 notes 文案，统一使用 `22.14+（推荐 Node 24）`
+
+### 🛠️ 环境修复器增强 (Environment Fixer)
+
+- **新增 `mise` 版本管理器支持**：`detectVersionManager` 检测优先级更新为 `nvm > volta > fnm > mise > n`；`mise` 为官方文档新增推荐工具
+- **升级目标版本**：所有版本管理器（nvm / volta / fnm / mise / n）的升级目标从 Node 22 统一提升为 **Node 24**
+- **Windows 安装失败备选方案**：winget 安装失败时，错误提示改为 PowerShell 脚本方式（`iwr -useb https://openclaw.ai/install.ps1 | iex`），对齐官方 Windows 安装文档
+- **未找到版本管理器**：错误提示中补充 `mise`，与检测列表保持一致
+
+### 🖥️ 引导流程 UI 同步 (Setup UI)
+
+- **安装确认弹窗**：描述文案补充「官方最低要求 Node 22.14，推荐 Node 24」；Windows 安装说明新增 PowerShell 备选方案
+- **升级确认弹窗**：标题从「升级 Node.js 到 22+」改为「升级 Node.js 到 22.14+（推荐 Node 24）」；版本管理器列表补充 `mise`
+- **环境检测项**：版本过低提示从「需要 22 或更高版本」更新为「需要 22.14+ / 推荐 Node 24」
+
+### 🔧 版本升级 (Version)
+
+- 版本号从 `v0.4.5-preview-2` 升级到 `v0.4.9-preview-2`
+
+---
+
 ## [0.4.9-preview-1] - 2026-04-13
 
 ### ✨ 新增 (Features)
