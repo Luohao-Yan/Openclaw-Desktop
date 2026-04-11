@@ -6,7 +6,7 @@
 
 ---
 
-## [0.4.9-preview-2] - 2026-04-12
+## [0.4.9-preview-1] - 2026-04-12
 
 ### 🔄 版本同步 (Version Sync)
 
@@ -33,7 +33,14 @@
 
 ### 🔧 版本升级 (Version)
 
-- 版本号从 `v0.4.5-preview-2` 升级到 `v0.4.9-preview-2`
+- 版本号从 `v0.4.5-preview-2` 升级到 `v0.4.9-preview-1`
+
+### 🐛 引导流程 Bug 修复 (Setup Flow Bugfix)
+
+- **`needsRestart` 结构化字段**：`FixResult` / `FixProgressState` 新增 `needsRestart?: boolean` 字段；`environmentFixer.ts` 在 install 验证失败（PATH 未生效）和 fixPath 写入成功时设 `needsRestart: true`；`SetupFlowContext` 将该字段透传到 `SET_FIX_PROGRESS`；前端 `showRestartHint` 由依赖文案字符串匹配改为 `fixProgress.needsRestart` 字段判断，**文案变更不再影响"退出并重启"按钮的显示逻辑**
+- **移除远程模式过时禁用提示**：`remoteOpenClawTestConnection` IPC 及主进程 `remoteConnection.ts` 均已完整实现，删除 `disabledReason="暂未完成开发"` 误导文案
+- **`coreConfigWriteBinding` IPC 防御**：`SetupBindChannelsPage` 调用前补充 `typeof` 守卫，与其他 IPC 调用风格保持一致，IPC 不可用时 `continue` 跳过并打印警告，不再有运行时异常风险
+- **JSX 缩进修正**：`SetupLocalEnvironmentPage` 中"必要条件未满足"块的缩进对齐到 Fragment 内层，与兄弟节点（平台信息、检测项、修复日志面板）统一
 
 ---
 
