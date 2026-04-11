@@ -767,6 +767,7 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
 
   const nodeVersion = nodeResult.success ? nodeResult.output.trim() : undefined;
   const nodeMajorVersion = parseMajorVersion(nodeVersion);
+  // 官方最低要求 Node 22.14.0，推荐 Node 24（来源：openclaw@2026.4.10 engines 字段）
   const nodeVersionSatisfies = nodeMajorVersion !== null && nodeMajorVersion >= 22;
   const npmVersion = npmResult.success ? npmResult.output.trim() : undefined;
   const openclawVersion = openclawResult.success ? openclawResult.output.trim() : undefined;
@@ -779,20 +780,20 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     // Node.js 未安装 → 添加 install 修复动作
     fixableIssues.push({
       id: 'node-not-installed',
-      label: '未检测到 Node.js，需要安装 Node.js 22 或更高版本',
+      label: '未检测到 Node.js，需要安装 Node.js 22.14 或更高版本（推荐 Node 24）',
       action: 'install',
       severity: 'required',
     });
-    notes.push('未检测到 Node.js，请先安装 Node.js 22 或更高版本。');
+    notes.push('未检测到 Node.js，请先安装 Node.js 22.14 或更高版本（推荐 Node 24）。');
   } else if (!nodeVersionSatisfies) {
     // Node.js 版本过低 → 添加 upgrade 修复动作
     fixableIssues.push({
       id: 'node-version-low',
-      label: `当前 Node.js 版本 ${nodeVersion || '未知'} 低于最低要求 22`,
+      label: `当前 Node.js 版本 ${nodeVersion || '未知'} 低于最低要求 22.14（推荐 Node 24）`,
       action: 'upgrade',
       severity: 'required',
     });
-    notes.push(`当前 Node 版本为 ${nodeVersion || '未知'}，OpenClaw 官方要求 Node >= 22。`);
+    notes.push(`当前 Node 版本为 ${nodeVersion || '未知'}，OpenClaw 官方最低要求 Node >= 22.14（推荐 Node 24）。`);
   }
 
   // 检测 Node.js 是否已安装但 PATH 未正确配置（Runtime Resolver 检测到系统版本但 runCommand 未找到）
@@ -892,8 +893,8 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
     clawhubInstalled,
     clawhubVersion,
     // 从 SUPPORTED_MANIFEST_VERSIONS 派生可安装版本列表
-    availableVersions: [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v}`),
-    recommendedVersion: `2026.${CURRENT_MANIFEST_VERSION}`,
+    availableVersions: [...SUPPORTED_MANIFEST_VERSIONS].map(v => `2026.${v} `),
+    recommendedVersion: `2026.${CURRENT_MANIFEST_VERSION} `,
   };
 }
 
@@ -1176,7 +1177,7 @@ async function testModelConnection(params: {
       return { success: false, error };
     }
     if (resolved != null) {
-      headers['Authorization'] = `Bearer ${resolved}`;
+      headers['Authorization'] = `Bearer ${resolved} `;
     }
   }
 
@@ -1212,10 +1213,10 @@ async function testModelConnection(params: {
       // 400 可能是模型名错误，但 API 可达——无需重试
       if (response.status === 400) {
         const text = await response.text().catch(() => '');
-        return { success: false, error: `请求参数错误：${text.slice(0, 200)}`, latencyMs };
+        return { success: false, error: `请求参数错误：${text.slice(0, 200)} `, latencyMs };
       }
       if (!response.ok) {
-        return { success: false, error: `HTTP ${response.status}`, latencyMs };
+        return { success: false, error: `HTTP ${response.status} `, latencyMs };
       }
 
       return { success: true, latencyMs };

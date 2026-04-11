@@ -116,7 +116,7 @@ async function verifyNodeVersion(
 
       // 超时保护
       setTimeout(() => {
-        try { child.kill(); } catch {}
+        try { child.kill(); } catch { }
         resolve({ success: false, version: '' });
       }, 5000);
     } catch {
@@ -275,7 +275,7 @@ export async function autoInstallRuntime(
 
   try {
     // ── 步骤 1: 安装 Node.js ──────────────────────────────────────────────
-    sendFixProgress(sender, 'running', '正在安装 Node.js 22…');
+    sendFixProgress(sender, 'running', '正在安装 Node.js（推荐 Node 24）…');
 
     let nodeInstallResult: { success: boolean; output: string; error?: string };
 
@@ -289,10 +289,11 @@ export async function autoInstallRuntime(
       );
 
       if (!nodeInstallResult.success) {
-        sendFixProgress(sender, 'error', 'winget 安装失败，请手动下载安装 Node.js');
+        // winget 失败时提示 PowerShell 安装脚本备选方案
+        sendFixProgress(sender, 'error', 'winget 安装失败，可尝试 PowerShell: iwr -useb https://openclaw.ai/install.ps1 | iex');
         return {
           success: false,
-          message: 'Windows 自动安装 Node.js 失败，请访问 https://nodejs.org 手动下载安装',
+          message: 'Windows 自动安装失败，备选方案：以管理员身份运行 PowerShell 并执行 iwr -useb https://openclaw.ai/install.ps1 | iex',
           action,
           error: nodeInstallResult.error || 'winget 安装失败',
         };
@@ -397,7 +398,7 @@ export async function upgradeNodeVersion(
       sendFixProgress(sender, 'error', '未检测到版本管理器，无法自动升级');
       return {
         success: false,
-        message: '未检测到 Node.js 版本管理器（nvm/volta/fnm/n），请手动升级到 Node.js 22 或更高版本',
+        message: '未检测到 Node.js 版本管理器（nvm / volta / fnm / mise / n），请手动升级到 Node.js 22.14+ （推荐 Node 24）',
         action,
         error: '未找到支持的版本管理器',
       };
@@ -468,7 +469,8 @@ interface VersionManagerInfo {
 /**
  * 检测当前系统使用的 Node.js 版本管理器
  *
- * 按优先级检测：nvm > volta > fnm > n
+ * 按优先级检测：nvm > volta > fnm > mise > n
+ * （来源：openclaw 官方文档推荐列表）
  *
  * @returns 检测到的版本管理器信息，未找到时返回 null
  */
@@ -481,7 +483,7 @@ async function detectVersionManager(): Promise<VersionManagerInfo | null> {
     return {
       name: 'nvm',
       command: 'nvm',
-      args: ['install', '22'],
+      args: ['install', '24'],
       useLoginShell: true,
     };
   }
@@ -492,18 +494,29 @@ async function detectVersionManager(): Promise<VersionManagerInfo | null> {
     return {
       name: 'volta',
       command: 'volta',
-      args: ['install', 'node@22'],
+      args: ['install', 'node@24'],
       useLoginShell: false,
     };
   }
 
-  // 检测 fnm
+  // 检测 fnm（官方文档推荐，跨平台）
   const fnmCheck = await runCommand('fnm', ['--version']);
   if (fnmCheck.success) {
     return {
       name: 'fnm',
       command: 'fnm',
-      args: ['install', '22'],
+      args: ['install', '24'],
+      useLoginShell: false,
+    };
+  }
+
+  // 检测 mise（官方文档推荐，多语言版本管理器）
+  const miseCheck = await runCommand('mise', ['--version']);
+  if (miseCheck.success) {
+    return {
+      name: 'mise',
+      command: 'mise',
+      args: ['install', 'node@24'],
       useLoginShell: false,
     };
   }
@@ -514,7 +527,7 @@ async function detectVersionManager(): Promise<VersionManagerInfo | null> {
     return {
       name: 'n',
       command: 'n',
-      args: ['22'],
+      args: ['24'],
       useLoginShell: false,
     };
   }
@@ -623,11 +636,11 @@ async function runSpawnCommand(
       try {
         child.stdin?.write('y\n');
         child.stdin?.end();
-      } catch {}
+      } catch { }
 
       // 超时保护
       setTimeout(() => {
-        try { child.kill(); } catch {}
+        try { child.kill(); } catch { }
         finish({ success: false, output: output.trim(), error: '操作超时' });
       }, timeoutMs);
     } catch (err: any) {
@@ -707,7 +720,7 @@ async function installClawHub(sender: Electron.WebContents): Promise<FixResult> 
 
         // 超时保护
         setTimeout(() => {
-          try { child.kill(); } catch {}
+          try { child.kill(); } catch { }
           finish({ success: false, output: output.trim(), error: '安装超时（3 分钟）' });
         }, CLAWHUB_INSTALL_TIMEOUT_MS);
       } catch (err: any) {

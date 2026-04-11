@@ -360,8 +360,8 @@ const FIX_CONFIRM_CONFIG: Record<string, {
 }> = {
   install: {
     title: '自动安装 Node.js 运行环境',
-    description: '即将执行以下操作，过程大约需要 1–5 分钟，请保持网络连接。',
-    detail: 'macOS / Linux：执行官方安装脚本\ncurl -fsSL https://openclaw.ai/install.sh | bash\n\nWindows：通过 winget 安装 Node.js LTS',
+    description: '即将执行以下操作，过程大约需要 1–5 分钟，请保持网络连接。官方最低要求 Node 22.14，推荐 Node 24。',
+    detail: 'macOS / Linux：执行官方安装脚本\ncurl -fsSL https://openclaw.ai/install.sh | bash\n\nWindows：首选 winget 安装 Node.js LTS\n备选：以管理员身份运行 PowerShell\niwr -useb https://openclaw.ai/install.ps1 | iex',
     confirmLabel: '开始安装',
   },
   'install:openclaw-not-installed': {
@@ -371,8 +371,8 @@ const FIX_CONFIRM_CONFIG: Record<string, {
     confirmLabel: '开始安装',
   },
   upgrade: {
-    title: '升级 Node.js 到 22+',
-    description: '即将通过当前版本管理器（nvm / volta / fnm / n）将 Node.js 升级到 22 或更高版本。',
+    title: '升级 Node.js 到 22.14+（推荐 Node 24）',
+    description: '即将通过当前版本管理器（nvm / volta / fnm / mise）将 Node.js 升级到 22.14 或更高版本（推荐 Node 24）。',
     detail: '将自动检测并调用已安装的版本管理器执行升级命令',
     confirmLabel: '开始升级',
   },
@@ -497,10 +497,10 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
         : environmentCheck.nodeInstalled
           ? nodeVersionOk
             ? `已就绪（${environmentCheck.nodeVersion || ''}）`
-            : `版本过低（${environmentCheck.nodeVersion || '未知'}），需要 22 或更高版本`
+            : `版本过低（${environmentCheck.nodeVersion || '未知'}），需要 22.14+ / 推荐 Node 24`
           : '未检测到，需要安装后才能继续',
       warn: nodeOk && !nodeVersionOk && !bundled,
-      warnDetail: `当前版本 ${environmentCheck.nodeVersion || '未知'}，需要 22 或更高版本`,
+      warnDetail: `当前版本 ${environmentCheck.nodeVersion || '未知'}，需要 22.14 或更高版本（推荐 Node 24）`,
       fixable: !bundled && (
         (!nodeOk && Boolean(findFixableIssue(fixableIssues, 'install')))
         || (nodeOk && !nodeVersionOk && Boolean(findFixableIssue(fixableIssues, 'upgrade')))
