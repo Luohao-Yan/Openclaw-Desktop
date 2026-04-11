@@ -280,7 +280,7 @@ async function runShellCommand(
       });
 
       setTimeout(() => {
-        try { child.kill(); } catch {}
+        try { child.kill(); } catch { }
         finish({ success: false, output, error: 'Installation timed out' });
       }, timeoutMs);
     } catch (err: any) {
@@ -359,7 +359,7 @@ async function runLoginShellCommand(
       try {
         child.stdin?.write('y\n');
         child.stdin?.end();
-      } catch {}
+      } catch { }
       let output = '';
       let errorOutput = '';
       let settled = false;
@@ -394,7 +394,7 @@ async function runLoginShellCommand(
       });
 
       setTimeout(() => {
-        try { child.kill(); } catch {}
+        try { child.kill(); } catch { }
         finish({ success: false, output, error: 'Installation timed out' });
       }, timeoutMs);
     } catch (err: any) {
@@ -507,7 +507,7 @@ async function getShellPath(): Promise<string> {
       child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
       child.on('close', () => resolve(out.trim()));
       child.on('error', () => resolve(''));
-      setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 3000);
+      setTimeout(() => { try { child.kill(); } catch { } resolve(''); }, 3000);
     });
 
     if (result) {
@@ -515,7 +515,7 @@ async function getShellPath(): Promise<string> {
       _resolvedShellPath = combined;
       return combined;
     }
-  } catch {}
+  } catch { }
 
   const fallback = Array.from(new Set((process.env.PATH || '').split(':').concat(extraPaths))).join(':');
   _resolvedShellPath = fallback;
@@ -813,6 +813,15 @@ async function getSetupEnvironmentCheck(): Promise<SetupEnvironmentCheckResult> 
 
   if (!openclawResult.success) {
     notes.push('当前未检测到 openclaw 命令，建议先完成 CLI 安装。');
+    // Node.js 已就绪时才允许一键安装 OpenClaw CLI（依赖 Node.js 运行安装脚本）
+    if (nodeResult.success && nodeVersionSatisfies) {
+      fixableIssues.push({
+        id: 'openclaw-not-installed',
+        label: '未检测到 OpenClaw CLI，需要安装',
+        action: 'install',
+        severity: 'required',
+      });
+    }
   } else {
     notes.push('当前使用系统中的 OpenClaw CLI。若要实现真正开箱即用，请在打包时附带内置运行时。');
   }
@@ -1075,7 +1084,7 @@ export async function getSystemStats(): Promise<SystemStats> {
       getNetworkActivity(),
       getGatewayUptime(),
     ]);
-    
+
     return {
       cpu: cpu.status === 'fulfilled' ? cpu.value : 0,
       memory: memory.status === 'fulfilled' ? memory.value : 0,

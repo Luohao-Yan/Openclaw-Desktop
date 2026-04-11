@@ -1,8 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Bot, CheckCircle2, ChevronRight, ExternalLink, Laptop, Link2, Loader2, MessageSquare, RefreshCw, Server, Settings2, Shield, ShieldCheck, Stethoscope, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, ChevronRight, Download, ExternalLink, Laptop, Link2, Loader2, MessageSquare, RefreshCw, RotateCcw, Server, Settings2, Shield, ShieldCheck, Stethoscope, Terminal, Wrench, XCircle } from 'lucide-react';
 import SetupSkeleton from '../../components/setup/SetupSkeleton';
 import AppButton from '../../components/AppButton';
+import AppModal from '../../components/AppModal';
 import SetupLayout from '../../components/setup/SetupLayout';
 import { useSetupFlow } from '../../contexts/SetupFlowContext';
 import type { FixableIssue, SetupMode, SetupRemoteDraft } from '../../types/setup';
@@ -348,6 +349,41 @@ const findFixableIssue = (
   id?: string,
 ): FixableIssue | undefined => issues.find((i) => i.action === action && (!id || i.id === id));
 
+// ── 确认弹窗配置 ────────────────────────────────────────────────────────────
+
+/** 一键修复操作说明配置 */
+const FIX_CONFIRM_CONFIG: Record<string, {
+  title: string;
+  description: string;
+  detail: string;
+  confirmLabel: string;
+}> = {
+  install: {
+    title: '自动安装 Node.js 运行环境',
+    description: '即将执行以下操作，过程大约需要 1–5 分钟，请保持网络连接。',
+    detail: 'macOS / Linux：执行官方安装脚本\ncurl -fsSL https://openclaw.ai/install.sh | bash\n\nWindows：通过 winget 安装 Node.js LTS',
+    confirmLabel: '开始安装',
+  },
+  'install:openclaw-not-installed': {
+    title: '自动安装 OpenClaw CLI',
+    description: '即将通过官方安装脚本安装 OpenClaw CLI，过程大约需要 1–3 分钟，请保持网络连接。',
+    detail: '执行官方安装脚本\ncurl -fsSL https://openclaw.ai/install.sh | bash',
+    confirmLabel: '开始安装',
+  },
+  upgrade: {
+    title: '升级 Node.js 到 22+',
+    description: '即将通过当前版本管理器（nvm / volta / fnm / n）将 Node.js 升级到 22 或更高版本。',
+    detail: '将自动检测并调用已安装的版本管理器执行升级命令',
+    confirmLabel: '开始升级',
+  },
+  fixPath: {
+    title: '修复 PATH 环境变量',
+    description: '已检测到 Node.js 安装但当前 PATH 未包含其路径，即将向 shell 配置文件写入 export PATH 配置。',
+    detail: '将在 ~/.zshrc / ~/.bashrc / ~/.profile 中追加 export PATH 行\n修复后需重启应用才能生效',
+    confirmLabel: '写入配置',
+  },
+};
+
 export const SetupLocalEnvironmentPage: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -361,6 +397,17 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
   // 检测耗时计时器：超过 5 秒显示加载指示器
   const [showLoadingHint, setShowLoadingHint] = React.useState(false);
   const loadingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 确认弹窗状态
+  const [confirmPending, setConfirmPending] = React.useState<{
+    action: 'install' | 'upgrade' | 'fixPath';
+    issueId?: string;
+    configKey: string;
+  } | null>(null);
+
+  // 安装日志行（多行滚动面板）
+  const [logLines, setLogLines] = React.useState<string[]>([]);
+  const logEndRef = React.useRef<HTMLDivElement>(null);
 
   // 当 isBusy 变化时管理计时器
   React.useEffect(() => {
@@ -383,6 +430,27 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
     };
   }, [isBusy]);
 
+  // 监听 fixProgress.message 变化，累积日志行
+  React.useEffect(() => {
+    if (fixProgress.status === 'idle') {
+      // 修复开始前清空旧日志
+      setLogLines([]);
+      return;
+    }
+    if (fixProgress.message) {
+      setLogLines((prev) => {
+        // 避免连续重复行
+        if (prev.length > 0 && prev[prev.length - 1] === fixProgress.message) return prev;
+        return [...prev, fixProgress.message];
+      });
+    }
+  }, [fixProgress.status, fixProgress.message]);
+
+  // 日志面板自动滚动到底部
+  React.useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logLines]);
+
   const platformLabel = environmentCheck.platformLabel || '检测中…';
   const bundled = environmentCheck.runtimeTier === 'bundled';
   const nodeOk = bundled || environmentCheck.nodeInstalled;
@@ -399,9 +467,22 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
   // 修复进度是否正在运行
   const isFixing = fixProgress.status === 'running';
 
-  /** 处理一键修复按钮点击 */
+  // 安装完成但 PATH 未生效（node --version 仍不可用）
+  const showRestartHint = fixProgress.status === 'error'
+    && fixProgress.message.includes('未检测到 Node.js');
+
+  /** 点击一键修复：先弹出确认弹窗 */
   const handleFix = (action: 'install' | 'upgrade' | 'fixPath', issueId?: string) => {
-    void fixEnvironment(action, issueId);
+    const configKey = issueId ? `${action}:${issueId}` : action;
+    setConfirmPending({ action, issueId, configKey });
+  };
+
+  /** 用户确认后正式执行修复 */
+  const handleConfirmFix = () => {
+    if (!confirmPending) return;
+    setLogLines([]);
+    setConfirmPending(null);
+    void fixEnvironment(confirmPending.action, confirmPending.issueId);
   };
 
   // ── 构建检测项分组 ──────────────────────────────────────────────────────
@@ -439,8 +520,9 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
         : openclawOk
           ? `已就绪（${environmentCheck.openclawVersion || ''}）`
           : '未安装，后续步骤会引导安装',
-      fixable: !bundled && !openclawOk && Boolean(findFixableIssue(fixableIssues, 'install')),
+      fixable: !bundled && !openclawOk && Boolean(findFixableIssue(fixableIssues, 'install', 'openclaw-not-installed')),
       fixAction: !openclawOk ? 'install' : undefined,
+      fixIssueId: 'openclaw-not-installed',
       coveredByBundled: bundled,
     },
   ];
@@ -663,35 +745,96 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
             </div>
           )}
 
-          {/* 修复进度显示 */}
-          {(fixProgress.status === 'running' || fixProgress.status === 'done' || fixProgress.status === 'error') && fixProgress.message && (
+          {/* 修复进度日志面板 */}
+          {(fixProgress.status === 'running' || fixProgress.status === 'done' || fixProgress.status === 'error') && (
             <div
-              className="mt-4 flex items-center gap-3 rounded-2xl border p-4 text-sm"
+              className="mt-4 rounded-2xl border overflow-hidden"
               style={{
-                backgroundColor: fixProgress.status === 'error'
-                  ? 'rgba(239,68,68,0.06)'
-                  : fixProgress.status === 'done'
-                    ? 'rgba(34,197,94,0.06)'
-                    : 'var(--app-bg)',
                 borderColor: fixProgress.status === 'error'
-                  ? 'rgba(239,68,68,0.28)'
+                  ? 'rgba(239,68,68,0.35)'
                   : fixProgress.status === 'done'
-                    ? 'rgba(34,197,94,0.28)'
-                : 'var(--app-border)',
-          }}
-        >
-          {fixProgress.status === 'running' && (
-            <Loader2 size={16} className="animate-spin" style={{ color: 'var(--app-active-text)', flexShrink: 0 }} />
+                    ? 'rgba(34,197,94,0.35)'
+                    : 'var(--app-active-border)',
+              }}
+            >
+              {/* 日志面板标题栏 */}
+              <div
+                className="flex items-center justify-between gap-2 px-4 py-2.5 border-b"
+                style={{
+                  backgroundColor: fixProgress.status === 'error'
+                    ? 'rgba(239,68,68,0.08)'
+                    : fixProgress.status === 'done'
+                      ? 'rgba(34,197,94,0.08)'
+                      : 'rgba(99,102,241,0.08)',
+                  borderColor: fixProgress.status === 'error'
+                    ? 'rgba(239,68,68,0.2)'
+                    : fixProgress.status === 'done'
+                      ? 'rgba(34,197,94,0.2)'
+                      : 'rgba(99,102,241,0.2)',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  {fixProgress.status === 'running' && (
+                    <Loader2 size={14} className="animate-spin" style={{ color: 'var(--app-active-text)', flexShrink: 0 }} />
+                  )}
+                  {fixProgress.status === 'done' && (
+                    <CheckCircle2 size={14} style={{ color: '#22c55e', flexShrink: 0 }} />
+                  )}
+                  {fixProgress.status === 'error' && (
+                    <XCircle size={14} style={{ color: '#f87171', flexShrink: 0 }} />
+                  )}
+                  <span className="text-xs font-semibold" style={{
+                    color: fixProgress.status === 'error' ? '#f87171'
+                      : fixProgress.status === 'done' ? '#22c55e'
+                      : 'var(--app-active-text)',
+                  }}>
+                    {fixProgress.status === 'running' ? '正在修复…'
+                      : fixProgress.status === 'done' ? '修复完成'
+                      : '修复失败'}
+                  </span>
+                </div>
+                <Terminal size={13} style={{ color: 'var(--app-text-muted)', flexShrink: 0 }} />
+              </div>
+              {/* 日志内容区（最多显示 12 行，超出可滚动） */}
+              <div
+                className="px-4 py-3 font-mono text-xs leading-5 overflow-y-auto"
+                style={{
+                  backgroundColor: 'var(--app-bg)',
+                  color: 'var(--app-text-muted)',
+                  maxHeight: '180px',
+                  minHeight: '60px',
+                }}
+              >
+                {logLines.length === 0 ? (
+                  <span style={{ opacity: 0.5 }}>等待输出…</span>
+                ) : (
+                  logLines.map((line, i) => (
+                    <div key={i} className="whitespace-pre-wrap break-all">{line}</div>
+                  ))
+                )}
+                <div ref={logEndRef} />
+              </div>
+              {/* PATH 未生效时提示重启 */}
+              {showRestartHint && (
+                <div
+                  className="flex items-center justify-between gap-3 px-4 py-3 border-t text-xs"
+                  style={{ borderColor: 'rgba(239,68,68,0.2)', backgroundColor: 'rgba(239,68,68,0.04)' }}
+                >
+                  <span style={{ color: 'var(--app-text-muted)' }}>
+                    安装脚本已执行，但当前 PATH 尚未生效，需重启应用后重新检测。
+                  </span>
+                  <AppButton
+                    size="xs"
+                    variant="secondary"
+                    icon={<RotateCcw size={11} />}
+                    onClick={() => void window.electronAPI?.appConfigQuit()}
+                  >
+                    退出并重启
+                  </AppButton>
+                </div>
+              )}
+            </div>
           )}
-          {fixProgress.status === 'done' && (
-            <CheckCircle2 size={16} style={{ color: '#22c55e', flexShrink: 0 }} />
-          )}
-          {fixProgress.status === 'error' && (
-            <XCircle size={16} style={{ color: '#f87171', flexShrink: 0 }} />
-          )}
-          <span style={{ color: 'var(--app-text-muted)' }}>{fixProgress.message}</span>
-        </div>
-      )}
 
       {/* 必要条件未满足时的引导信息 */}
       {!bundled && !requiredMet && (
@@ -733,6 +876,40 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
       )}
         </>
       )}
+      {/* 一键修复确认弹窗 */}
+      {confirmPending && (() => {
+        const cfg = FIX_CONFIRM_CONFIG[confirmPending.configKey] || FIX_CONFIRM_CONFIG[confirmPending.action];
+        return (
+          <AppModal
+            open
+            onClose={() => setConfirmPending(null)}
+            title={cfg.title}
+            variant="warning"
+            icon={<Download size={20} />}
+            size="md"
+            footer={
+              <>
+                <AppButton variant="secondary" onClick={() => setConfirmPending(null)}>取消</AppButton>
+                <AppButton variant="primary" onClick={handleConfirmFix}>{cfg.confirmLabel}</AppButton>
+              </>
+            }
+          >
+            <p className="text-sm leading-6" style={{ color: 'var(--app-text-muted)' }}>
+              {cfg.description}
+            </p>
+            <pre
+              className="mt-3 rounded-xl p-3 text-xs leading-5 font-mono whitespace-pre-wrap break-all"
+              style={{
+                backgroundColor: 'rgba(99,102,241,0.06)',
+                border: '1px solid rgba(99,102,241,0.18)',
+                color: 'var(--app-text-muted)',
+              }}
+            >
+              {cfg.detail}
+            </pre>
+          </AppModal>
+        );
+      })()}
     </SetupLayout>
   );
 };
