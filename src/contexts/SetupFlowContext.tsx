@@ -891,13 +891,14 @@ export const SetupFlowProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const result = await window.electronAPI.fixEnvironment(action, issueId);
 
-      // 更新最终进度状态
+      // 更新最终进度状态（含 needsRestart 字段，供前端判断是否显示重启按钮）
       dispatch({
         type: 'SET_FIX_PROGRESS',
         payload: {
           action,
           status: result.success ? 'done' : 'error',
           message: result.message,
+          needsRestart: result.needsRestart,
         },
       });
 

@@ -226,9 +226,7 @@ export const SetupWelcomePage: React.FC = () => {
           description="适合已经在服务器、NAS 或另一台电脑上完成部署的用户。你只需要填写连接信息并验证连通性。"
           icon={<Server size={22} />}
           onClick={() => void handleSelectMode('remote', '/setup/remote/intro')}
-          // 远程功能未实现时禁用卡片
           disabled={!isRemoteAvailable}
-          disabledReason="暂未完成开发"
         />
       </div>
     </SetupLayout>
@@ -467,9 +465,9 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
   // 修复进度是否正在运行
   const isFixing = fixProgress.status === 'running';
 
-  // 安装完成但 PATH 未生效（node --version 仍不可用）
-  const showRestartHint = fixProgress.status === 'error'
-    && fixProgress.message.includes('未检测到 Node.js');
+  // 安装完成但 PATH 未生效，需要重启应用（由后端 needsRestart 字段驱动，不依赖文案匹配）
+  const showRestartHint = Boolean(fixProgress.needsRestart)
+    && (fixProgress.status === 'error' || fixProgress.status === 'done');
 
   /** 点击一键修复：先弹出确认弹窗 */
   const handleFix = (action: 'install' | 'upgrade' | 'fixPath', issueId?: string) => {

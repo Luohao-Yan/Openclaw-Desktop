@@ -45,6 +45,8 @@ export interface FixProgressState {
   status: 'idle' | 'running' | 'done' | 'error';
   /** 状态描述信息 */
   message: string;
+  /** 是否需要重启应用才能生效（如安装后 PATH 未生效） */
+  needsRestart?: boolean;
 }
 
 // ============================================================================

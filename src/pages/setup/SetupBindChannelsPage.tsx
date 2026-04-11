@@ -203,6 +203,10 @@ export const SetupBindChannelsPage: React.FC = () => {
       // 遍历已勾选的渠道-账户组合，逐个调用 IPC 写入绑定
       for (const a of checkedAccounts) {
         try {
+          if (typeof window.electronAPI?.coreConfigWriteBinding !== 'function') {
+            console.warn(`[SetupBindChannelsPage] coreConfigWriteBinding IPC 不可用，跳过 [${a.checkKey}]`);
+            continue;
+          }
           const result = await window.electronAPI.coreConfigWriteBinding(
             createdAgent.id,
             a.channelKey,

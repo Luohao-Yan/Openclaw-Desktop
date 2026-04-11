@@ -27,6 +27,8 @@ interface FixResult {
   action: string;
   /** 失败时的错误信息 */
   error?: string;
+  /** 是否需要重启应用才能生效（如安装后 PATH 未生效） */
+  needsRestart?: boolean;
 }
 
 // ─── 内部缓存引用（用于清除 PATH 缓存）─────────────────────────────────────
@@ -184,6 +186,7 @@ export async function fixPathConfiguration(nodePath: string): Promise<FixResult>
       success: true,
       message: `已将 Node.js 路径写入 ${path.basename(shellConfigFile)}，请重启终端或应用以生效`,
       action,
+      needsRestart: true,
     };
   } catch (err: any) {
     return {
@@ -334,6 +337,7 @@ export async function autoInstallRuntime(
         message: '安装脚本已执行但未检测到 Node.js，请重启应用后重试',
         action,
         error: '安装后 node --version 失败',
+        needsRestart: true,
       };
     }
 

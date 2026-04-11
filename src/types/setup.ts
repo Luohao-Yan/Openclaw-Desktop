@@ -83,6 +83,8 @@ export interface FixResult {
   action: string;
   /** 失败时的错误信息 */
   error?: string;
+  /** 是否需要重启应用才能生效（如安装后 PATH 未生效） */
+  needsRestart?: boolean;
 }
 
 /**
@@ -142,27 +144,27 @@ export interface SetupEnvironmentCheckData {
  */
 export type EnvironmentCheckResult =
   | {
-      /** 检测成功 */
-      status: 'success';
-      /** 完整的检测数据 */
-      data: SetupEnvironmentCheckData;
-    }
+    /** 检测成功 */
+    status: 'success';
+    /** 完整的检测数据 */
+    data: SetupEnvironmentCheckData;
+  }
   | {
-      /** 检测失败 */
-      status: 'failed';
-      /** 错误信息 */
-      error: SetupError;
-      /** 已成功获取的部分结果 */
-      partialData?: Partial<SetupEnvironmentCheckData>;
-    }
+    /** 检测失败 */
+    status: 'failed';
+    /** 错误信息 */
+    error: SetupError;
+    /** 已成功获取的部分结果 */
+    partialData?: Partial<SetupEnvironmentCheckData>;
+  }
   | {
-      /** 降级模式 */
-      status: 'fallback';
-      /** 降级后的检测数据（部分字段使用默认值） */
-      data: SetupEnvironmentCheckData;
-      /** 降级原因 */
-      reason: string;
-    };
+    /** 降级模式 */
+    status: 'fallback';
+    /** 降级后的检测数据（部分字段使用默认值） */
+    data: SetupEnvironmentCheckData;
+    /** 降级原因 */
+    reason: string;
+  };
 
 // ============================================================================
 // 运行时解析类型（判别联合）
@@ -174,49 +176,49 @@ export type EnvironmentCheckResult =
  */
 export type RuntimeResolution =
   | {
-      /** 内置运行时层级 */
-      tier: 'bundled';
-      /** Node.js 可执行文件路径 */
-      nodePath: string;
-      /** OpenClaw CLI 可执行文件路径 */
-      openclawPath: string;
-      /** 内置 Node.js 可用 */
-      bundledNodeAvailable: true;
-      /** 内置 OpenClaw CLI 可用 */
-      bundledOpenClawAvailable: true;
-    }
+    /** 内置运行时层级 */
+    tier: 'bundled';
+    /** Node.js 可执行文件路径 */
+    nodePath: string;
+    /** OpenClaw CLI 可执行文件路径 */
+    openclawPath: string;
+    /** 内置 Node.js 可用 */
+    bundledNodeAvailable: true;
+    /** 内置 OpenClaw CLI 可用 */
+    bundledOpenClawAvailable: true;
+  }
   | {
-      /** 系统运行时层级 */
-      tier: 'system';
-      /** Node.js 可执行文件路径 */
-      nodePath: string;
-      /** OpenClaw CLI 可执行文件路径，未安装时为 null */
-      openclawPath: string | null;
-      /** 系统 Node.js 版本号 */
-      systemNodeVersion: string;
-      /** 系统 Node.js 版本满足要求 */
-      systemNodeSatisfies: true;
-      /** 系统是否已安装 OpenClaw CLI */
-      systemOpenClawInstalled: boolean;
-    }
+    /** 系统运行时层级 */
+    tier: 'system';
+    /** Node.js 可执行文件路径 */
+    nodePath: string;
+    /** OpenClaw CLI 可执行文件路径，未安装时为 null */
+    openclawPath: string | null;
+    /** 系统 Node.js 版本号 */
+    systemNodeVersion: string;
+    /** 系统 Node.js 版本满足要求 */
+    systemNodeSatisfies: true;
+    /** 系统是否已安装 OpenClaw CLI */
+    systemOpenClawInstalled: boolean;
+  }
   | {
-      /** 在线安装层级（需要下载安装） */
-      tier: 'online';
-      /** Node.js 可执行文件路径，未找到时为 null */
-      nodePath: string | null;
-      /** OpenClaw CLI 可执行文件路径，未找到时为 null */
-      openclawPath: string | null;
-      /** 系统 Node.js 版本号，未检测到时为 null */
-      systemNodeVersion: string | null;
-      /** 系统 Node.js 版本是否满足要求 */
-      systemNodeSatisfies: boolean;
-    }
+    /** 在线安装层级（需要下载安装） */
+    tier: 'online';
+    /** Node.js 可执行文件路径，未找到时为 null */
+    nodePath: string | null;
+    /** OpenClaw CLI 可执行文件路径，未找到时为 null */
+    openclawPath: string | null;
+    /** 系统 Node.js 版本号，未检测到时为 null */
+    systemNodeVersion: string | null;
+    /** 系统 Node.js 版本是否满足要求 */
+    systemNodeSatisfies: boolean;
+  }
   | {
-      /** 缺失层级（无可用运行时） */
-      tier: 'missing';
-      /** 错误信息 */
-      error?: string;
-    };
+    /** 缺失层级（无可用运行时） */
+    tier: 'missing';
+    /** 错误信息 */
+    error?: string;
+  };
 
 // ============================================================================
 // 渠道配置类型
