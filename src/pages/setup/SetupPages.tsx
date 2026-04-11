@@ -834,44 +834,44 @@ export const SetupLocalEnvironmentPage: React.FC = () => {
             </div>
           )}
 
-      {/* 必要条件未满足时的引导信息 */}
-      {!bundled && !requiredMet && (
-        <div
-          className="mt-4 rounded-2xl border p-4 text-sm"
-          style={{
-            backgroundColor: 'rgba(239,68,68,0.06)',
-            borderColor: 'rgba(239,68,68,0.28)',
-            color: 'var(--app-text)',
-          }}
-        >
-          <div className="font-semibold" style={{ color: '#f87171' }}>部分必要条件尚未满足</div>
-          <div className="mt-1 leading-6" style={{ color: 'var(--app-text-muted)' }}>
-            你可以点击检测项旁的"一键修复"按钮让系统自动处理，也可以跳过此步骤进入安装流程。
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <a
-              href="https://nodejs.org/zh-cn/download"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
-              style={{ borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+          {/* 必要条件未满足时的引导信息 */}
+          {!bundled && !requiredMet && (
+            <div
+              className="mt-4 rounded-2xl border p-4 text-sm"
+              style={{
+                backgroundColor: 'rgba(239,68,68,0.06)',
+                borderColor: 'rgba(239,68,68,0.28)',
+                color: 'var(--app-text)',
+              }}
             >
-              <ExternalLink size={12} />
-              Node.js 官网下载
-            </a>
-            <a
-              href="https://nodejs.org/zh-cn/download/package-manager"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
-              style={{ borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
-            >
-              <ExternalLink size={12} />
-              通过包管理器安装
-            </a>
-          </div>
-        </div>
-      )}
+              <div className="font-semibold" style={{ color: '#f87171' }}>部分必要条件尚未满足</div>
+              <div className="mt-1 leading-6" style={{ color: 'var(--app-text-muted)' }}>
+                你可以点击检测项旁的"一键修复"按钮让系统自动处理，也可以跳过此步骤进入安装流程。
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href="https://nodejs.org/zh-cn/download"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+                  style={{ borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+                >
+                  <ExternalLink size={12} />
+                  Node.js 官网下载
+                </a>
+                <a
+                  href="https://nodejs.org/zh-cn/download/package-manager"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80"
+                  style={{ borderColor: 'var(--app-border)', color: 'var(--app-text)' }}
+                >
+                  <ExternalLink size={12} />
+                  通过包管理器安装
+                </a>
+              </div>
+            </div>
+          )}
         </>
       )}
       {/* 一键修复确认弹窗 */}
