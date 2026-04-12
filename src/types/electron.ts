@@ -398,13 +398,13 @@ export interface ModelsConfigResult {
   /** 备用模型列表 */
   fallbacks?: string[];
   /** 已配置的模型（agents.defaults.models）- 模型别名映射 */
-  configuredModels?: Record<string, { alias?: string; [key: string]: any }>;
+  configuredModels?: Record<string, { alias?: string;[key: string]: any }>;
   /** 自定义提供商配置（models.providers） */
   providers?: Record<string, {
     baseUrl?: string;
     apiKey?: string;
     api?: string;
-    models?: Array<{ id: string; name: string; [key: string]: any }>;
+    models?: Array<{ id: string; name: string;[key: string]: any }>;
     [key: string]: any;
   }>;
   error?: string;
@@ -437,6 +437,18 @@ export interface DailyStats {
   avgResponseMs: number;     // 当日平均响应时间（毫秒）
   errorRate: number;         // 当日错误率（百分比 0-100）— 保留兼容
   messageCount: number;      // 当日消息总数
+}
+
+/** 智能体基本信息 */
+export interface AgentInfo {
+  id: string;
+  name: string;
+  workspace: string;
+  model?: string;
+  emoji?: string;
+  avatar?: string;
+  theme?: string;
+  createdAt?: string;
 }
 
 /** 安全检查类别 */
@@ -714,6 +726,14 @@ export interface VersionHistoryRecord {
   type: 'upgrade' | 'switch';
 }
 
+/** instancesQuickStatus 返回值类型 */
+export interface QuickStatusResult {
+  success: boolean;
+  gatewayRunning: boolean;
+  gatewayPort?: number;
+  error?: string;
+}
+
 export interface ElectronAPI {
   runtimeInfo: () => Promise<DesktopRuntimeInfo | null>;
   getCapabilities: () => Promise<DesktopRuntimeCapabilities | null>;
@@ -748,7 +768,9 @@ export interface ElectronAPI {
     error?: string;
   }>;
   tasksGet: () => Promise<any[]>;
-  tasksKill: (id: string) => Promise<any>;
+  tasksKill: (id: string) => Promise<{ success: boolean; error?: string }>;
+  /** 获取单个任务详情 */
+  tasksDetails: (id: string) => Promise<{ success: boolean; task?: any; error?: string }>;
   cronList: (includeAll?: boolean) => Promise<CronListResult>;
   cronStatus: () => Promise<CronStatusResult>;
   cronCreate: (payload: CronJobDraft) => Promise<CronMutationResult>;
@@ -870,6 +892,10 @@ export interface ElectronAPI {
   instancesRestart: (instanceId: string) => Promise<any>;
   instancesDelete: (instanceId: string) => Promise<any>;
   instancesStats: () => Promise<any>;
+  /** 快速本地实例存活检测（3s 超时，供列表页首次渲染使用） */
+  instancesQuickStatus: () => Promise<QuickStatusResult>;
+  /** 订阅后台轮询器推送的实例状态变化，返回取消订阅函数 */
+  onInstancesUpdated: (callback: (data: { instances: any[] }) => void) => () => void;
   skillsGetAll: () => Promise<any>;
   skillsInstall: (skillId: string) => Promise<any>;
   skillsUninstall: (skillId: string) => Promise<any>;
@@ -1019,11 +1045,11 @@ export interface ElectronAPI {
   /** 从提供商配置中删除模型 */
   modelsModelRemove: (providerId: string, modelId: string) => Promise<BasicSuccessResult>;
   /** 向提供商配置中添加模型 */
-  modelsModelAdd: (providerId: string, model: { id: string; name: string; alias?: string; [key: string]: any }) => Promise<BasicSuccessResult>;
+  modelsModelAdd: (providerId: string, model: { id: string; name: string; alias?: string;[key: string]: any }) => Promise<BasicSuccessResult>;
   /** 更新模型配置 */
   modelsModelUpdate: (providerId: string, modelId: string, updates: { [key: string]: any }) => Promise<BasicSuccessResult>;
   /** 保存提供商配置（baseUrl、apiKey 等） */
-  modelsProviderConfigSave: (providerId: string, config: { baseUrl?: string; apiKey?: string; [key: string]: any }) => Promise<BasicSuccessResult>;
+  modelsProviderConfigSave: (providerId: string, config: { baseUrl?: string; apiKey?: string;[key: string]: any }) => Promise<BasicSuccessResult>;
 
   // ── Agent专属技能管理 ───────────────────────────────────────────────────
   /** 将技能绑定到一个或多个Agent */
@@ -1129,4 +1155,39 @@ export interface ElectronAPI {
   onRemoteWsEvent: (callback: (event: { type: WsEventType; data: unknown }) => void) => () => void;
   /** 监听连接状态变更 */
   onRemoteConnectionStatus: (callback: (event: ConnectionStatusEvent) => void) => () => void;
+
+  // ── Desktop 本地数据目录 API ──────────────────────────────────────────────
+  /** 获取各存储路径信息，供设置页面展示 */
+  desktopDirGetPaths: () => Promise<{
+    success: boolean;
+    paths?: {
+      desktopDir: string;
+      logsDir: string;
+      cacheDir: string;
+      instancesFile: string;
+    };
+    error?: string;
+  }>;
+  /** 在系统文件管理器中打开桌面端数据目录或其子路径 */
+  desktopDirOpenInFinder: (subPath?: string) => Promise<{ success: boolean; error?: string }>;
+
+  // ── 桌面端应用日志 API ────────────────────────────────────────────────────
+  /** 读取最近 N 行日志（当天日志文件） */
+  appLoggerGetRecentLines: (maxLines?: number) => Promise<{
+    success: boolean;
+    lines: string[];
+    error?: string;
+  }>;
+  /** 获取日志文件列表 */
+  appLoggerListFiles: () => Promise<{
+    success: boolean;
+    files: string[];
+    error?: string;
+  }>;
+  /** 清除所有日志文件 */
+  appLoggerClearAll: () => Promise<{
+    success: boolean;
+    deletedCount: number;
+    error?: string;
+  }>;
 }

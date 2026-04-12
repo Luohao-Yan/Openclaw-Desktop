@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { AlertTriangle, RotateCcw, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { AlertTriangle, RotateCcw, Download, FolderOpen, HardDrive, Trash2, RefreshCw, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import AppButton from '../components/AppButton';
 import GlassCard from '../components/GlassCard';
 import { useI18n } from '../i18n/I18nContext';
 import UninstallOpenclawCard from './settings/UninstallOpenclawCard';
 import OpenClawVersionPanel from './settings/OpenClawVersionPanel';
+import type { DesktopDirPaths } from '../../types/electron';
 
 const SettingsAdvanced: React.FC = () => {
   const { t } = useI18n();
@@ -24,6 +25,17 @@ const SettingsAdvanced: React.FC = () => {
   const [runMode, setRunMode] = useState<'local' | 'remote'>('local');
   const [remoteHost, setRemoteHost] = useState<string | undefined>(undefined);
 
+  // 本地数据目录路径状态
+  const [desktopPaths, setDesktopPaths] = useState<DesktopDirPaths | null>(null);
+  const [pathsLoading, setPathsLoading] = useState(false);
+  const [clearingLogs, setClearingLogs] = useState(false);
+  const [clearLogsMsg, setClearLogsMsg] = useState('');
+
+  // 日志查看器状态
+  const [logViewerOpen, setLogViewerOpen] = useState(false);
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const [logLoading, setLogLoading] = useState(false);
+
   /** 从 settings 读取 runMode 和远程连接地址 */
   useEffect(() => {
     const loadSettings = async () => {
@@ -42,6 +54,78 @@ const SettingsAdvanced: React.FC = () => {
     };
     void loadSettings();
   }, []);
+
+  /** 加载本地数据目录路径 */
+  const loadDesktopPaths = useCallback(async () => {
+    setPathsLoading(true);
+    try {
+      const result = await window.electronAPI.desktopDirGetPaths();
+      if (result.success && result.paths) {
+        setDesktopPaths(result.paths);
+      }
+    } catch {
+      // 静默失败
+    } finally {
+      setPathsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDesktopPaths();
+  }, [loadDesktopPaths]);
+
+  /** 在 Finder/Explorer 中打开指定目录 */
+  const handleOpenInFinder = async (subPath?: string) => {
+    try {
+      await window.electronAPI.desktopDirOpenInFinder(subPath);
+    } catch {
+      // 静默失败
+    }
+  };
+
+  /** 加载最近日志行 */
+  const handleLoadLogs = useCallback(async () => {
+    setLogLoading(true);
+    try {
+      const result = await window.electronAPI.appLoggerGetRecentLines(200);
+      if (result.success && result.lines) {
+        setLogLines(result.lines);
+      } else {
+        setLogLines([]);
+      }
+    } catch {
+      setLogLines([]);
+    } finally {
+      setLogLoading(false);
+    }
+  }, []);
+
+  /** 切换日志查看器展开状态 */
+  const handleToggleLogViewer = () => {
+    const next = !logViewerOpen;
+    setLogViewerOpen(next);
+    if (next && logLines.length === 0) void handleLoadLogs();
+  };
+
+  /** 清除所有桌面端日志文件 */
+  const handleClearLogs = async () => {
+    setClearingLogs(true);
+    setClearLogsMsg('');
+    try {
+      const result = await window.electronAPI.appLoggerClearAll();
+      if (result.success) {
+        setLogLines([]);
+        setClearLogsMsg(`已清除 ${result.deletedCount} 个日志文件`);
+      } else {
+        setClearLogsMsg(`清除失败：${result.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      setClearLogsMsg(`清除失败：${err.message}`);
+    } finally {
+      setClearingLogs(false);
+      setTimeout(() => setClearLogsMsg(''), 3000);
+    }
+  };
 
   /** 重置应用配置 */
   const handleReset = async () => {
@@ -97,6 +181,155 @@ const SettingsAdvanced: React.FC = () => {
     <div className="space-y-6 p-1">
       {/* OpenClaw 版本管理 */}
       <OpenClawVersionPanel />
+
+      {/* 本地数据存储路径 */}
+      <GlassCard className="rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HardDrive size={16} style={{ color: 'var(--app-accent)' }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+              本地数据存储
+            </span>
+          </div>
+          <button
+            onClick={loadDesktopPaths}
+            disabled={pathsLoading}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-opacity hover:opacity-70"
+            style={{ color: 'var(--app-text-muted)' }}
+          >
+            <RefreshCw size={12} className={pathsLoading ? 'animate-spin' : ''} />
+            刷新
+          </button>
+        </div>
+
+        {desktopPaths ? (
+          <div className="space-y-3">
+            {/* 路径列表 */}
+            {([
+              { label: '桌面端数据根目录', path: desktopPaths.desktopDir, subPath: undefined },
+              { label: '远程实例配置', path: desktopPaths.instancesFile, subPath: 'instances.json' },
+              { label: '应用日志目录', path: desktopPaths.logsDir, subPath: 'logs' },
+              { label: '缓存目录', path: desktopPaths.cacheDir, subPath: 'cache' },
+            ] as const).map(({ label, path: p, subPath }) => (
+              <div
+                key={label}
+                className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5"
+                style={{ backgroundColor: 'var(--app-bg-subtle)', border: '1px solid var(--app-border)' }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium mb-0.5" style={{ color: 'var(--app-text-muted)' }}>
+                    {label}
+                  </div>
+                  <div
+                    className="text-xs font-mono truncate"
+                    style={{ color: 'var(--app-text)' }}
+                    title={p}
+                  >
+                    {p}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleOpenInFinder(subPath)}
+                  className="shrink-0 flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-70"
+                  style={{
+                    backgroundColor: 'rgba(var(--app-accent-rgb, 99,102,241), 0.12)',
+                    color: 'var(--app-accent)',
+                  }}
+                  title="在文件管理器中打开"
+                >
+                  <FolderOpen size={12} />
+                  打开
+                </button>
+              </div>
+            ))}
+
+            {/* 日志查看器 */}
+            <div
+              className="rounded-xl border overflow-hidden"
+              style={{ borderColor: 'var(--app-border)' }}
+            >
+              <button
+                onClick={handleToggleLogViewer}
+                className="flex w-full items-center justify-between px-4 py-3 text-sm transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--app-bg-subtle)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <FileText size={13} style={{ color: 'var(--app-accent)' }} />
+                  <span className="font-medium" style={{ color: 'var(--app-text)' }}>应用日志查看器</span>
+                  {logLines.length > 0 && (
+                    <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      ({logLines.length} 行)
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {logViewerOpen && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void handleLoadLogs(); }}
+                      disabled={logLoading}
+                      className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-md transition-opacity hover:opacity-70"
+                      style={{ color: 'var(--app-text-muted)' }}
+                      title="刷新"
+                    >
+                      <RefreshCw size={11} className={logLoading ? 'animate-spin' : ''} />
+                      刷新
+                    </button>
+                  )}
+                  {logViewerOpen ? <ChevronUp size={14} style={{ color: 'var(--app-text-muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--app-text-muted)' }} />}
+                </div>
+              </button>
+
+              {logViewerOpen && (
+                <div
+                  className="max-h-64 overflow-y-auto px-4 py-3"
+                  style={{ backgroundColor: 'var(--app-bg-subtle)' }}
+                >
+                  {logLoading ? (
+                    <div className="text-xs py-4 text-center" style={{ color: 'var(--app-text-muted)' }}>加载中...</div>
+                  ) : logLines.length === 0 ? (
+                    <div className="text-xs py-4 text-center" style={{ color: 'var(--app-text-muted)' }}>暂无日志</div>
+                  ) : (
+                    <pre
+                      className="text-xs leading-5 whitespace-pre-wrap break-all"
+                      style={{ color: 'var(--app-text-muted)', fontFamily: 'monospace' }}
+                    >
+                      {logLines.join('\n')}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 清除日志按钮 */}
+            <div className="flex items-center gap-3 pt-1">
+              <AppButton
+                variant="secondary"
+                onClick={handleClearLogs}
+                disabled={clearingLogs}
+                icon={<Trash2 size={13} />}
+              >
+                {clearingLogs ? '清除中...' : '清除应用日志'}
+              </AppButton>
+              {clearLogsMsg && (
+                <span
+                  className="text-xs"
+                  style={{
+                    color: clearLogsMsg.startsWith('清除失败')
+                      ? '#FB7185'
+                      : '#4ADE80',
+                  }}
+                >
+                  {clearLogsMsg}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+            {pathsLoading ? '加载中...' : '无法获取路径信息'}
+          </div>
+        )}
+      </GlassCard>
 
       {/* 危险操作区域标题 */}
       <div className="flex items-center gap-2">

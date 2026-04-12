@@ -33,26 +33,26 @@ export interface RemoteApiResult<T = unknown> {
 
 /** 远程模式下的功能可用性映射 */
 export interface RemoteCapabilities {
-  gatewayStatus: boolean;       // GET /status
-  gatewayStartStop: false;      // 不可用
-  sessions: boolean;            // GET/DELETE /v1/sessions
-  sessionSend: boolean;         // POST /v1/agent/run
-  channels: boolean;            // GET /v1/channels
-  channelEnableDisable: boolean;// POST /v1/channels/{id}/enable|disable
-  logs: boolean;                // GET /api/v1/logs
-  config: boolean;              // GET/PUT /api/v1/config
-  skills: boolean;              // GET /api/v1/skills
-  skillInstall: boolean;        // POST /api/v1/skills/install
-  models: boolean;              // GET /v1/models
-  cron: false;                  // 不可用
-  approvals: false;             // 不可用
-  systemStats: false;           // 不可用
-  tailscale: false;             // 不可用
-  agentCreate: false;           // 不可用
-  agentWorkspace: false;        // 不可用
-  environmentFix: false;        // 不可用
-  customSkills: false;          // 不可用
-  openLocalFile: false;         // 不可用
+  gatewayStatus: boolean;       // WS RPC health / HTTP GET /status
+  gatewayStartStop: boolean;    // 始终 false（远程无法控制 Gateway 进程）
+  sessions: boolean;            // WS RPC sessions.list / sessions.get
+  sessionSend: boolean;         // WS RPC sessions.send
+  channels: boolean;            // WS RPC channels.status
+  channelEnableDisable: boolean;// WS RPC channels.reconnect
+  logs: boolean;                // WS RPC logs.tail
+  config: boolean;              // WS RPC config.get / config.set
+  skills: boolean;              // WS RPC skills.status
+  skillInstall: boolean;        // WS RPC skills.install
+  models: boolean;              // HTTP GET /v1/models
+  cron: boolean;                // WS RPC cron.list / cron.add / cron.run 等
+  approvals: boolean;           // WS RPC exec.approvals.get（写操作暂不支持）
+  systemStats: boolean;         // 始终 false
+  tailscale: boolean;           // 始终 false
+  agentCreate: boolean;         // WS RPC agents.list / agents.create / agents.delete
+  agentWorkspace: boolean;      // 始终 false（文件系统操作不可远程）
+  environmentFix: boolean;      // 始终 false
+  customSkills: boolean;        // 始终 false
+  openLocalFile: boolean;       // 始终 false
 }
 
 // ─── 连接管理器类型 ──────────────────────────────────────────────────────────

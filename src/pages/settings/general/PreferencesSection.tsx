@@ -64,6 +64,17 @@ const PreferencesSection: React.FC<PreferencesSectionProps> = ({
             onChange={(value) => void onSettingChange('enableDebugTools', value)}
           />
         </div>
+        <div
+          className="rounded-2xl border p-4 md:col-span-2"
+          style={{ borderColor: 'rgba(251,113,133,0.25)', backgroundColor: 'rgba(244,63,94,0.04)' }}
+        >
+          <ToggleRow
+            checked={settings.requireCredentials}
+            label="访问凭据保护（requireCredentials）"
+            description="开启后，外部调用 Gateway API 须提供有效凭据，防止未授权访问。适用于将 Gateway 暴露到局域网或公网时使用。"
+            onChange={(value) => void onSettingChange('requireCredentials', value)}
+          />
+        </div>
       </div>
     </div>
   );

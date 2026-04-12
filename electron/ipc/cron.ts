@@ -1,6 +1,8 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
 import { resolveOpenClawCommand, runCommand } from './settings.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 
 export interface CronScheduleAt {
   kind: 'at';
@@ -587,14 +589,97 @@ export async function cronRuns(jobId: string, limit = 10) {
 }
 
 export function setupCronIPC() {
-  ipcMain.handle('cron:list', async (_, includeAll?: boolean) => cronList(includeAll !== false));
-  ipcMain.handle('cron:status', cronStatus);
-  ipcMain.handle('cron:create', async (_, payload: CronJobDraft) => cronCreate(payload));
-  ipcMain.handle('cron:add', async (_, payload: CronJobDraft) => cronCreate(payload));
-  ipcMain.handle('cron:edit', async (_, jobId: string, patch: Partial<CronJobDraft>) => cronEdit(jobId, patch));
-  ipcMain.handle('cron:remove', async (_, jobId: string) => cronRemove(jobId));
-  ipcMain.handle('cron:enable', async (_, jobId: string) => cronEnable(jobId));
-  ipcMain.handle('cron:disable', async (_, jobId: string) => cronDisable(jobId));
-  ipcMain.handle('cron:run', async (_, jobId: string, force?: boolean) => cronRun(jobId, Boolean(force)));
-  ipcMain.handle('cron:runs', async (_, jobId: string, limit?: number) => cronRuns(jobId, limit || 10));
+  // 远程模式：通过 WebSocket RPC cron.list 获取定时任务列表
+  // 官方 WS RPC 方法，非 HTTP REST（无对应 REST 接口）
+  ipcMain.handle('cron:list', async (_, includeAll?: boolean) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('cron.list');
+      if (!result.success) return { success: false, jobs: [], error: result.error };
+      return { success: true, jobs: Array.isArray(result.data) ? result.data : (result.data as any)?.jobs ?? [] };
+    }
+    return cronList(includeAll !== false);
+  });
+
+  // 远程模式：通过 WebSocket RPC cron.status 获取定时任务整体状态
+  ipcMain.handle('cron:status', async () => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('cron.status');
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true, ...result.data };
+    }
+    return cronStatus();
+  });
+
+  // 远程模式：通过 WebSocket RPC cron.add 创建定时任务
+  ipcMain.handle('cron:create', async (_, payload: CronJobDraft) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('cron.add', payload as unknown as Record<string, unknown>);
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
+    return cronCreate(payload);
+  });
+
+  ipcMain.handle('cron:add', async (_, payload: CronJobDraft) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('cron.add', payload as unknown as Record<string, unknown>);
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
+    return cronCreate(payload);
+  });
+
+  // 远程模式：通过 WebSocket RPC cron.update 编辑定时任务
+  ipcMain.handle('cron:edit', async (_, jobId: string, patch: Partial<CronJobDraft>) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('cron.update', { jobId, ...patch } as Record<string, unknown>);
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
+    return cronEdit(jobId, patch);
+  });
+
+  // 远程模式：通过 WebSocket RPC cron.remove 删除定时任务
+  ipcMain.handle('cron:remove', async (_, jobId: string) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('cron.remove', { jobId });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
+    return cronRemove(jobId);
+  });
+
+  ipcMain.handle('cron:enable', async (_, jobId: string) => {
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式暂不支持启用/禁用定时任务' };
+    }
+    return cronEnable(jobId);
+  });
+
+  ipcMain.handle('cron:disable', async (_, jobId: string) => {
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式暂不支持启用/禁用定时任务' };
+    }
+    return cronDisable(jobId);
+  });
+
+  // 远程模式：通过 WebSocket RPC cron.run 立即执行定时任务
+  ipcMain.handle('cron:run', async (_, jobId: string, force?: boolean) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('cron.run', { jobId, force: Boolean(force) });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
+    return cronRun(jobId, Boolean(force));
+  });
+
+  // 远程模式：通过 WebSocket RPC cron.runs 获取历史执行记录
+  ipcMain.handle('cron:runs', async (_, jobId: string, limit?: number) => {
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('cron.runs', { jobId, limit: limit || 10 });
+      if (!result.success) return { success: false, runs: [], error: result.error };
+      return { success: true, runs: Array.isArray(result.data) ? result.data : (result.data as any)?.runs ?? [] };
+    }
+    return cronRuns(jobId, limit || 10);
+  });
 }

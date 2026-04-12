@@ -13,7 +13,7 @@ import { setupTailscaleIPC } from './ipc/tailscale.js';
 import { setupAgentsIPC } from './ipc/agents.js';
 import { setupSystemIPC } from './ipc/system.js';
 import { setupSessionsIPC } from './ipc/sessions.js';
-import { setupInstancesIPC } from './ipc/instances.js';
+import { setupInstancesIPC, localInstancePoller } from './ipc/instances.js';
 import { setupSkillsIPC } from './ipc/skills.js';
 import { setupCronIPC } from './ipc/cron.js';
 import { setupApprovalsIPC } from './ipc/approvals.js';
@@ -29,6 +29,8 @@ import { setupOpenclawVersionIPC } from './ipc/openclawVersion.js';
 import { setupRemoteManagementIPC } from './ipc/remoteManagement.js';
 import { getShellPath } from './ipc/settings.js';
 import { asyncSendManager } from './ipc/asyncSendManager.js';
+import { ensureDesktopDir, setupDesktopDirIPC } from './ipc/desktopDir.js';
+import { appLogger, setupAppLoggerIPC } from './ipc/appLogger.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -104,7 +106,7 @@ function createWindow() {
   // 加载页面
   if (isDevelopment) {
     mainWindow.loadURL(devServerUrl).catch(err => {
-      console.error('Failed to load development server:', err);
+      appLogger.error('Failed to load development server', { error: String(err) });
     });
   } else {
     // 生产环境 indexPath：tsc 编译后 __dirname 为 dist-electron/electron/，
@@ -112,7 +114,7 @@ function createWindow() {
     // 打包后 .app 包内同样适用（app/ 目录下包含 dist-electron/ 和 dist/）
     const indexPath = path.join(__dirname, '../../dist/index.html');
     mainWindow.loadFile(indexPath).catch(err => {
-      console.error('Failed to load production build:', err);
+      appLogger.error('Failed to load production build', { error: String(err) });
     });
   }
 
@@ -120,13 +122,15 @@ function createWindow() {
   mainWindow.on('ready-to-show', () => { mainWindow?.show(); mainWindow?.focus(); });
   mainWindow.webContents.on('did-finish-load', () => { console.log('Page finished loading'); });
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    console.log('Page failed to load:', errorCode, errorDescription);
+    appLogger.error('Page failed to load', { errorCode, errorDescription });
   });
 }
 
 // 初始化应用程序
 app.whenReady().then(() => {
-  console.log('Electron app ready');
+  // 初始化 ~/.openclawdesktop/ 目录（幂等，首次运行时自动创建）
+  const desktopDataDir = ensureDesktopDir();
+  appLogger.info('Electron app ready', { desktopDataDir });
   setupAppIcon();
 
   // 注册所有 IPC 处理模块
@@ -142,6 +146,8 @@ app.whenReady().then(() => {
   setupSystemIPC();
   setupSessionsIPC();
   setupInstancesIPC();
+  // 启动本地实例后台轮询器，缓存 Gateway 状态供前端零延迟读取
+  localInstancePoller.start();
   setupSkillsIPC();
   setupCronIPC();
   setupApprovalsIPC();
@@ -155,8 +161,10 @@ app.whenReady().then(() => {
   setupAgentGroupsIPC();
   setupOpenclawVersionIPC();
   setupRemoteManagementIPC();
+  setupDesktopDirIPC();
+  setupAppLoggerIPC();
   getShellPath().catch(error => {
-    console.error('Failed to get shell path:', error);
+    appLogger.error('Failed to get shell path', { error: String(error) });
   });
 
   createWindow();
@@ -176,8 +184,10 @@ app.on('activate', () => {
   }
 });
 
-// 退出前清理异步发送管理器
+// 退出前清理
 app.on('before-quit', () => {
+  // 停止本地实例轮询器
+  localInstancePoller.stop();
   if (asyncSendManager) {
     asyncSendManager.killAll();
   }

@@ -23,6 +23,7 @@ const Agents = React.lazy(() => import('./pages/Agents'));
 const AgentWorkspace = React.lazy(() => import('./pages/AgentWorkspace'));
 const Sessions = React.lazy(() => import('./pages/sessions'));
 const Instances = React.lazy(() => import('./pages/Instances'));
+const InstanceDetail = React.lazy(() => import('./pages/InstanceDetail'));
 const Skills = React.lazy(() => import('./pages/Skills'));
 const Help = React.lazy(() => import('./pages/Help'));
 import {
@@ -129,6 +130,7 @@ const MainAppLayout: React.FC = () => {
               <Route path="/agent-workspace/:agentId" element={<AgentWorkspace />} />
               <Route path="/sessions" element={<Sessions />} />
               <Route path="/instances" element={<Instances />} />
+              <Route path="/instances/:instanceId" element={<InstanceDetail />} />
               <Route path="/skills" element={<Skills />} />
               <Route path="/help" element={<Help />} />
             </Routes>

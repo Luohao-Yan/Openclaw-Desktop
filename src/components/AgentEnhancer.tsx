@@ -64,7 +64,7 @@ const AgentEnhancer: React.FC<AgentEnhancerProps> = ({ agentId, agentName }) => 
     try {
       const result = await window.electronAPI.agentsGetHistoryStats(agentId);
       if (result.success && result.stats) {
-        setStats(result.stats);
+        setStats(result.stats as DailyStats[]);
         setTotalSessions(result.totalSessions ?? 0);
       } else {
         console.error('加载历史统计失败:', result.error);

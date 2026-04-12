@@ -329,19 +329,18 @@ describe('Feature: remote-management-enhancement, Property 9: 远程 Capabilitie
   /**
    * Validates: Requirements 1.1, 1.6, 10.2
    *
-   * 所有仅限本地的功能（gatewayStartStop、cron、approvals、systemStats、
-   * tailscale、agentCreate、agentWorkspace、environmentFix、customSkills、
-   * openLocalFile）在远程 capabilities 中应为 false。
+   * 所有仅限本地的功能（gatewayStartStop、systemStats、tailscale、
+   * agentWorkspace、environmentFix、customSkills、openLocalFile）
+   * 在远程 capabilities 中应为 false。
+   *
+   * cron、approvals、agentCreate 已通过 WS RPC 实现，移入 REMOTE_AVAILABLE_FEATURES。
    */
 
   /** 仅限本地的功能键列表 */
   const LOCAL_ONLY_FEATURES = [
     'gatewayStartStop',
-    'cron',
-    'approvals',
     'systemStats',
     'tailscale',
-    'agentCreate',
     'agentWorkspace',
     'environmentFix',
     'customSkills',
@@ -360,6 +359,9 @@ describe('Feature: remote-management-enhancement, Property 9: 远程 Capabilitie
     'skills',
     'skillInstall',
     'models',
+    'cron',
+    'approvals',
+    'agentCreate',
   ] as const;
 
   test('所有仅限本地的功能在 capabilities 中为 false', () => {
@@ -398,22 +400,22 @@ describe('Feature: remote-management-enhancement, Property 9: 远程 Capabilitie
     }
   });
 
-  test('capabilities 中仅限本地功能的数量为 10', () => {
+  test('capabilities 中仅限本地功能的数量为 7', () => {
     const capabilities = getRemoteCapabilities();
     const localOnlyCount = LOCAL_ONLY_FEATURES.filter(
       (key) => capabilities[key] === false,
     ).length;
-    // 10 个仅限本地的功能
-    expect(localOnlyCount).toBe(10);
+    // 7 个仅限本地的功能（cron/approvals/agentCreate 已通过 WS RPC 支持）
+    expect(localOnlyCount).toBe(7);
   });
 
-  test('capabilities 中远程可用功能的数量为 10', () => {
+  test('capabilities 中远程可用功能的数量为 13', () => {
     const capabilities = getRemoteCapabilities();
     const remoteCount = REMOTE_AVAILABLE_FEATURES.filter(
       (key) => capabilities[key] === true,
     ).length;
-    // 10 个远程可用的功能
-    expect(remoteCount).toBe(10);
+    // 13 个远程可用的功能（新增 cron/approvals/agentCreate）
+    expect(remoteCount).toBe(13);
   });
 
   test('多次调用 getRemoteCapabilities 返回结构一致的结果', () => {

@@ -3,7 +3,8 @@ const { ipcMain, shell } = pkg;
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { getShellPath, resolveOpenClawCommand } from './settings.js';
-import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 import { mapLogs } from './remoteResponseMapper.js';
 
 const LOG_PATH = `${homedir()}/.openclaw/logs/gateway.log`;
@@ -13,18 +14,18 @@ export async function logsGet(lines: number = 100): Promise<{ success: boolean; 
     try {
       // 修复命令注入：使用 spawn 代替 execSync
       const tail = spawn('tail', ['-n', String(lines), LOG_PATH]);
-      
+
       let output = '';
       let errorOutput = '';
-      
+
       tail.stdout.on('data', (data) => {
         output += data.toString();
       });
-      
+
       tail.stderr.on('data', (data) => {
         errorOutput += data.toString();
       });
-      
+
       tail.on('close', (code) => {
         if (code === 0 || output.trim()) {
           const logs = output.split('\n')
@@ -35,33 +36,33 @@ export async function logsGet(lines: number = 100): Promise<{ success: boolean; 
               if (line.includes('ERROR') || line.includes('error')) level = 'error';
               else if (line.includes('WARN') || line.includes('warning')) level = 'warn';
               else if (line.includes('DEBUG') || line.includes('debug')) level = 'debug';
-              
-              return { 
+
+              return {
                 id: `log-${Date.now()}-${index}`,
-                raw: line, 
-                level, 
+                raw: line,
+                level,
                 timestamp: Date.now() - (output.length - index) * 1000 // 模拟时间戳
               };
             });
-          
+
           resolve({ success: true, logs });
         } else {
           // 日志文件不存在或为空
-          resolve({ 
-            success: true, 
+          resolve({
+            success: true,
             logs: [{ id: 'no-logs', raw: '日志文件不存在或为空', level: 'info' }]
           });
         }
       });
-      
+
       tail.on('error', (error) => {
-        resolve({ 
-          success: false, 
+        resolve({
+          success: false,
           error: `Failed to get logs: ${error.message}`,
           logs: [{ id: 'error', raw: `Error: ${error.message}`, level: 'error' }]
         });
       });
-      
+
       // 设置超时
       setTimeout(() => {
         try {
@@ -69,16 +70,16 @@ export async function logsGet(lines: number = 100): Promise<{ success: boolean; 
         } catch (e) {
           // ignore
         }
-        resolve({ 
-          success: false, 
+        resolve({
+          success: false,
           error: 'Log read timeout',
           logs: [{ id: 'timeout', raw: 'Log read timeout', level: 'error' }]
         });
       }, 5000);
-      
+
     } catch (error: any) {
-      resolve({ 
-        success: false, 
+      resolve({
+        success: false,
         error: `Failed to get logs: ${error.message}`,
         logs: [{ id: 'error', raw: `Error: ${error.message}`, level: 'error' }]
       });
@@ -91,18 +92,18 @@ export async function logsSearch(searchTerm: string): Promise<{ success: boolean
     try {
       // 修复命令注入：使用 spawn 并传递参数
       const grep = spawn('grep', ['-i', searchTerm, LOG_PATH]);
-      
+
       let output = '';
       let errorOutput = '';
-      
+
       grep.stdout.on('data', (data) => {
         output += data.toString();
       });
-      
+
       grep.stderr.on('data', (data) => {
         errorOutput += data.toString();
       });
-      
+
       grep.on('close', (code) => {
         if (output.trim()) {
           const logs = output.split('\n')
@@ -113,20 +114,20 @@ export async function logsSearch(searchTerm: string): Promise<{ success: boolean
               level: line.includes('ERROR') ? 'error' : line.includes('WARN') ? 'warn' : 'info',
               timestamp: Date.now()
             }));
-          
+
           resolve({ success: true, logs });
         } else {
-          resolve({ 
-            success: true, 
+          resolve({
+            success: true,
             logs: [{ id: 'no-match', raw: '未找到匹配项', level: 'info' }]
           });
         }
       });
-      
+
       grep.on('error', (error) => {
         resolve({ success: false, error: error.message });
       });
-      
+
       // 设置超时
       setTimeout(() => {
         try {
@@ -134,12 +135,12 @@ export async function logsSearch(searchTerm: string): Promise<{ success: boolean
         } catch (e) {
           // ignore
         }
-        resolve({ 
-          success: false, 
+        resolve({
+          success: false,
           error: 'Search timeout'
         });
       }, 5000);
-      
+
     } catch (error: any) {
       resolve({ success: false, error: error.message });
     }
@@ -257,9 +258,10 @@ export async function logsFilter(filter: string): Promise<{ success: boolean; lo
 // IPC 设置函数
 export function setupLogsIPC() {
   ipcMain.handle('logs:get', async (_, lines) => {
-    // 远程模式：通过 HTTP API 获取日志
+    // 远程模式：通过 WebSocket RPC logs.tail 获取日志
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/logs 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/api/v1/logs' });
+      const result = await remoteRpc<unknown>('logs.tail', { limit: lines || 100 });
       if (!result.success) return { success: false, logs: [], error: result.error };
       return mapLogs(result.data);
     }
@@ -267,9 +269,10 @@ export function setupLogsIPC() {
   });
 
   ipcMain.handle('logs:search', async (_, searchTerm) => {
-    // 远程模式：通过 HTTP API 搜索日志（附加过滤参数）
+    // 远程模式：通过 WebSocket RPC logs.tail 带关键词搜索
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/logs?search= 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: `/api/v1/logs?search=${encodeURIComponent(searchTerm)}` });
+      const result = await remoteRpc<unknown>('logs.tail', { limit: 200, search: searchTerm });
       if (!result.success) return { success: false, logs: [], error: result.error };
       return mapLogs(result.data);
     }
@@ -286,9 +289,10 @@ export function setupLogsIPC() {
 
   // 按过滤条件查询日志（用于渠道故障排查）
   ipcMain.handle('logs:filter', async (_, filter) => {
-    // 远程模式：通过 HTTP API 过滤日志
+    // 远程模式：通过 WebSocket RPC logs.tail 带 filter 参数
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/logs?filter= 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: `/api/v1/logs?filter=${encodeURIComponent(filter)}` });
+      const result = await remoteRpc<unknown>('logs.tail', { limit: 200, filter });
       if (!result.success) return { success: false, logs: [], error: result.error };
       return mapLogs(result.data);
     }

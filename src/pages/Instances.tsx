@@ -1,378 +1,424 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Server, Cpu, HardDrive, Clock, 
-  RefreshCw, Play, StopCircle, Trash2,
-  AlertCircle, CheckCircle, XCircle,
-  Plus, Settings,
-  Activity, Database, Users
+import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Server, RefreshCw, Plus, AlertCircle, CheckCircle,
+  XCircle, Wifi, WifiOff, Clock, ChevronRight, Trash2,
+  MonitorCheck,
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import GlobalLoading from '../components/GlobalLoading';
 import AppBadge from '../components/AppBadge';
 import AppButton from '../components/AppButton';
+import AddInstanceModal from '../components/instances/AddInstanceModal';
 import { useI18n } from '../i18n/I18nContext';
-import { useIpcCache } from '../hooks/useIpcCache';
+import type { ManagedInstance, InstanceConnectionStatus } from '../types/instanceManager';
+import type { RemoteInstanceConfig, InstanceStatus } from '../../types/remote';
 
-interface InstanceInfo {
-  id: string;
-  name: string;
-  type: 'gateway' | 'agent' | 'node' | 'service';
-  status: 'running' | 'stopped' | 'starting' | 'error';
-  pid?: number;
-  memoryUsage?: number;
-  cpuUsage?: number;
-  uptime?: number;
-  port?: number;
-  version?: string;
-  lastActive?: string;
-  configPath?: string;
+// ─── 辅助函数 ─────────────────────────────────────────────────────────────────
+
+/** 将连接状态映射到 AppBadge variant */
+function getConnectionVariant(
+  status: InstanceConnectionStatus,
+): 'success' | 'neutral' | 'warning' | 'danger' {
+  switch (status) {
+    case 'connected':    return 'success';
+    case 'connecting':   return 'warning';
+    case 'error':        return 'danger';
+    case 'disconnected': return 'neutral';
+    default:             return 'neutral';
+  }
 }
 
-const Instances: React.FC = () => {
+/** 将连接状态映射到图标 */
+function getConnectionIcon(status: InstanceConnectionStatus): React.ReactNode {
+  switch (status) {
+    case 'connected':    return <Wifi size={13} />;
+    case 'connecting':   return <Clock size={13} />;
+    case 'error':        return <AlertCircle size={13} />;
+    case 'disconnected': return <WifiOff size={13} />;
+    default:             return <WifiOff size={13} />;
+  }
+}
+
+/** 构建本地实例的 ManagedInstance 对象 */
+function buildLocalInstance(gatewayPort?: number): ManagedInstance {
+  return {
+    id: 'local',
+    source: 'local',
+    alias: '本地实例',
+    protocol: 'local',
+    host: 'localhost',
+    port: gatewayPort,
+    connectionStatus: 'connected',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** 将 RemoteInstanceConfig + InstanceStatus 合并为 ManagedInstance */
+function mergeRemoteInstance(
+  config: RemoteInstanceConfig,
+  status?: InstanceStatus,
+): ManagedInstance {
+  let connectionStatus: InstanceConnectionStatus = 'disconnected';
+  if (status?.status === 'connected') {
+    connectionStatus = 'connected';
+  } else if (status?.status === 'error') {
+    connectionStatus = 'error';
+  }
+
+  return {
+    id: config.id,
+    source: 'remote',
+    alias: config.alias,
+    protocol: config.protocol,
+    host: config.host,
+    port: config.port,
+    connectionStatus,
+    version: status?.version,
+    latencyMs: status?.latencyMs,
+    createdAt: config.createdAt,
+    lastConnectedAt: config.lastConnectedAt,
+  };
+}
+
+// ─── 实例卡片子组件 ───────────────────────────────────────────────────────────
+
+interface InstanceCardProps {
+  instance: ManagedInstance;
+  onDelete?: (id: string) => void;
+  onNavigate: (id: string) => void;
+}
+
+const InstanceCard: React.FC<InstanceCardProps> = ({ instance, onDelete, onNavigate }) => {
   const { t } = useI18n();
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const isLocal = instance.source === 'local';
 
-  // 使用 useIpcCache 缓存实例列表，避免每次导航都重新加载
-  const {
-    data: cachedInstances,
-    loading,
-    error: cacheError,
-    refresh: refreshInstances,
-  } = useIpcCache<InstanceInfo[]>(
-    'instances:list',
-    async () => {
-      const result = await window.electronAPI.instancesGetAll();
-      if (result.success && result.instances) {
-        return result.instances;
-      }
-      throw new Error(result.error || t('instances.loadFailed'));
-    },
-    { ttl: 30000, staleWhileRevalidate: true, timeout: 15000 },
-  );
-
-  const instances = cachedInstances ?? [];
-  const error = cacheError?.message ?? null;
-
-  // 兼容旧的 loadInstances 调用（操作后刷新）
-  const loadInstances = refreshInstances;
-
-  const startInstance = async (instanceId: string) => {
-    setActionLoading({ ...actionLoading, [instanceId]: true });
-    try {
-      const result = await window.electronAPI.instancesStart(instanceId);
-      if (result.success) {
-        await loadInstances();
-      } else {
-        alert(result.error || t('instances.startFailed'));
-      }
-    } catch (error) {
-      console.error('Failed to start instance:', error);
-      alert(t('instances.startFailed'));
-    } finally {
-      setActionLoading({ ...actionLoading, [instanceId]: false });
-    }
-  };
-
-  const stopInstance = async (instanceId: string) => {
-    setActionLoading({ ...actionLoading, [instanceId]: true });
-    try {
-      const result = await window.electronAPI.instancesStop(instanceId);
-      if (result.success) {
-        await loadInstances();
-      } else {
-        alert(result.error || t('instances.stopFailed'));
-      }
-    } catch (error) {
-      console.error('Failed to stop instance:', error);
-      alert(t('instances.stopFailed'));
-    } finally {
-      setActionLoading({ ...actionLoading, [instanceId]: false });
-    }
-  };
-
-  const restartInstance = async (instanceId: string) => {
-    setActionLoading({ ...actionLoading, [instanceId]: true });
-    try {
-      const result = await window.electronAPI.instancesRestart(instanceId);
-      if (result.success) {
-        await loadInstances();
-      } else {
-        alert(result.error || t('instances.restartFailed'));
-      }
-    } catch (error) {
-      console.error('Failed to restart instance:', error);
-      alert(t('instances.restartFailed'));
-    } finally {
-      setActionLoading({ ...actionLoading, [instanceId]: false });
-    }
-  };
-
-  const deleteInstance = async (instanceId: string) => {
-    if (!confirm(t('instances.confirmDelete'))) return;
-    
-    setActionLoading({ ...actionLoading, [instanceId]: true });
-    try {
-      const result = await window.electronAPI.instancesDelete(instanceId);
-      if (result.success) {
-        await loadInstances();
-      } else {
-        alert(result.error || t('instances.deleteFailed'));
-      }
-    } catch (error) {
-      console.error('Failed to delete instance:', error);
-      alert(t('instances.deleteFailed'));
-    } finally {
-      setActionLoading({ ...actionLoading, [instanceId]: false });
-    }
-  };
-
-  // 初始加载由 useIpcCache 自动处理
-
-  /** 将实例状态映射到 AppBadge variant */
-  const getStatusVariant = (status: InstanceInfo['status']): 'success' | 'neutral' | 'warning' | 'danger' => {
-    switch (status) {
-      case 'running':  return 'success';
-      case 'stopped':  return 'neutral';
-      case 'starting': return 'warning';
-      case 'error':    return 'danger';
-      default:         return 'neutral';
-    }
-  };
-
-  const getStatusIcon = (status: InstanceInfo['status']) => {
-    switch (status) {
-      case 'running': return <CheckCircle className="w-4 h-4" />;
-      case 'stopped': return <XCircle className="w-4 h-4" />;
-      case 'starting': return <Clock className="w-4 h-4" />;
-      case 'error': return <AlertCircle className="w-4 h-4" />;
-      default: return <Activity className="w-4 h-4" />;
-    }
-  };
-
-  const getTypeIcon = (type: InstanceInfo['type']) => {
-    switch (type) {
-      case 'gateway': return <Server className="w-5 h-5" />;
-      case 'agent': return <Users className="w-5 h-5" />;
-      case 'node': return <Database className="w-5 h-5" />;
-      case 'service': return <Settings className="w-5 h-5" />;
-      default: return <Server className="w-5 h-5" />;
-    }
-  };
-
-  const InstanceCard = ({ instance }: { instance: InstanceInfo }) => (
-    /* 实例卡片：使用 transition-token-normal 统一过渡动画 */
-    <GlassCard className="p-6 hover:shadow-xl transition-token-normal">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
-            {getTypeIcon(instance.type)}
+  return (
+    <GlassCard
+      className="p-5 hover:shadow-xl transition-token-normal cursor-pointer group"
+      onClick={() => onNavigate(instance.id)}
+    >
+      <div className="flex items-start justify-between gap-3">
+        {/* 左侧：图标 + 名称 + badge */}
+        <div className="flex items-start gap-3 min-w-0">
+          {/* 图标区域 */}
+          <div
+            className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{
+              background: isLocal
+                ? 'linear-gradient(135deg, rgba(20,184,166,0.18) 0%, rgba(6,182,212,0.12) 100%)'
+                : 'linear-gradient(135deg, rgba(139,92,246,0.18) 0%, rgba(99,102,241,0.12) 100%)',
+              border: `1px solid ${isLocal ? 'rgba(20,184,166,0.25)' : 'rgba(139,92,246,0.25)'}`,
+            }}
+          >
+            {isLocal ? (
+              <MonitorCheck size={18} style={{ color: '#2dd4bf' }} />
+            ) : (
+              <Server size={18} style={{ color: '#a78bfa' }} />
+            )}
           </div>
-          <div>
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>{instance.name}</h3>
-            <div className="flex items-center space-x-2 mt-1">
-              {/* 实例状态 badge */}
+
+          {/* 名称 + badge 区 */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-semibold truncate" style={{ color: 'var(--app-text)' }}>
+                {instance.alias}
+              </h3>
+              {/* 来源 badge */}
               <AppBadge
-                variant={getStatusVariant(instance.status)}
+                variant="neutral"
                 size="sm"
-                icon={getStatusIcon(instance.status)}
+                style={{
+                  backgroundColor: isLocal ? 'rgba(20,184,166,0.1)' : 'rgba(139,92,246,0.1)',
+                  borderColor: isLocal ? 'rgba(20,184,166,0.2)' : 'rgba(139,92,246,0.2)',
+                  color: isLocal ? '#2dd4bf' : '#a78bfa',
+                }}
               >
-                {t(`instances.status.${instance.status}`)}
+                {isLocal ? t('instances.local' as any) : t('instances.remote' as any)}
               </AppBadge>
-              <AppBadge variant="neutral" size="sm">
-                {instance.type.charAt(0).toUpperCase() + instance.type.slice(1)}
+            </div>
+
+            {/* 连接状态 + 地址 */}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <AppBadge
+                variant={getConnectionVariant(instance.connectionStatus)}
+                size="sm"
+                icon={getConnectionIcon(instance.connectionStatus)}
+              >
+                {t(`instances.${instance.connectionStatus}` as any)}
               </AppBadge>
-              {instance.pid && (
-                <AppBadge variant="neutral" size="sm">PID: {instance.pid}</AppBadge>
+              {!isLocal && (
+                <span className="text-xs font-mono" style={{ color: 'var(--app-text-muted)' }}>
+                  {instance.protocol}://{instance.host}:{instance.port}
+                </span>
               )}
             </div>
           </div>
         </div>
+
+        {/* 右侧：延迟 + 箭头 */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {instance.latencyMs !== undefined && (
+            <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>
+              {instance.latencyMs}ms
+            </span>
+          )}
+          <ChevronRight
+            size={16}
+            className="opacity-40 group-hover:opacity-80 transition-opacity"
+            style={{ color: 'var(--app-text-muted)' }}
+          />
+        </div>
       </div>
 
-      {/* Instance Metrics */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        {instance.cpuUsage !== undefined && (
-          <div className="flex items-center space-x-2">
-            <Cpu className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
-            <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>CPU</div>
-              <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{instance.cpuUsage}%</div>
-            </div>
-          </div>
-        )}
-        
-        {instance.memoryUsage !== undefined && (
-          <div className="flex items-center space-x-2">
-            <HardDrive className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
-            <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>内存</div>
-              <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{instance.memoryUsage} MB</div>
-            </div>
-          </div>
-        )}
-        
-        {instance.uptime !== undefined && (
-          <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
-            <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>运行时间</div>
-              <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>
-                {Math.floor(instance.uptime / 3600)}h {Math.floor((instance.uptime % 3600) / 60)}m
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {instance.port && (
-          <div className="flex items-center space-x-2">
-            <Server className="w-4 h-4" style={{ color: 'var(--app-text-muted)' }} />
-            <div className="flex-1">
-              <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>端口</div>
-              <div className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>{instance.port}</div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* 底部：版本 + 端口 + 删除按钮（仅远程） */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+          {instance.version && (
+            <span>v{instance.version}</span>
+          )}
+          {instance.port && !isLocal && (
+            <span>
+              {t('instances.form.port' as any)}: {instance.port}
+            </span>
+          )}
+          {instance.lastConnectedAt && (
+            <span>
+              {new Date(instance.lastConnectedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
 
-      {/* Instance Info */}
-      <div className="text-xs space-y-1 mb-4" style={{ color: 'var(--app-text-muted)' }}>
-        {instance.version && (
-          <div>Version: {instance.version}</div>
-        )}
-        {instance.lastActive && (
-          <div>Last Active: {new Date(instance.lastActive).toLocaleString()}</div>
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex space-x-2">
-        {instance.status === 'stopped' && (
+        {/* 删除按钮（仅远程实例） */}
+        {!isLocal && onDelete && (
           <button
-            onClick={() => startInstance(instance.id)}
-            disabled={actionLoading[instance.id]}
-            className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: 'var(--app-bg-elevated)',
-              border: '1px solid var(--app-border)',
-              color: 'var(--app-text)',
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(instance.id);
             }}
+            className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{
+              backgroundColor: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.18)',
+              color: '#f87171',
+            }}
+            title={t('instances.detail.deleteInstance' as any)}
           >
-            {actionLoading[instance.id] ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <>
-                <Play className="w-4 h-4 mr-2" />
-                {t('instances.start')}
-              </>
-            )}
+            <Trash2 size={13} />
           </button>
         )}
-        
-        {instance.status === 'running' && (
-          <>
-            <button
-              onClick={() => stopInstance(instance.id)}
-              disabled={actionLoading[instance.id]}
-              className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text)',
-              }}
-            >
-              {actionLoading[instance.id] ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <StopCircle className="w-4 h-4 mr-2" />
-                  {t('instances.stop')}
-                </>
-              )}
-            </button>
-            
-            <button
-              onClick={() => restartInstance(instance.id)}
-              disabled={actionLoading[instance.id]}
-              className="flex-1 inline-flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: 'var(--app-bg-elevated)',
-                border: '1px solid var(--app-border)',
-                color: 'var(--app-text)',
-              }}
-            >
-              {actionLoading[instance.id] ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  {t('instances.restart')}
-                </>
-              )}
-            </button>
-          </>
-        )}
-        
-        <button
-          onClick={() => deleteInstance(instance.id)}
-          disabled={actionLoading[instance.id]}
-          className="px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.2)',
-            color: '#EF4444',
-          }}
-        >
-          {actionLoading[instance.id] ? (
-            <RefreshCw className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash2 className="w-4 h-4" />
-          )}
-        </button>
       </div>
     </GlassCard>
   );
+};
+
+// ─── 主页面组件 ───────────────────────────────────────────────────────────────
+
+const Instances: React.FC = () => {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+
+  /** 所有托管实例列表（本地 + 远程） */
+  const [instances, setInstances] = useState<ManagedInstance[]>([]);
+  /** 页面整体加载状态 */
+  const [loading, setLoading] = useState(true);
+  /** 页面错误信息 */
+  const [error, setError] = useState<string | null>(null);
+  /** 是否显示添加实例弹窗 */
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  /**
+   * 加载所有实例数据（两阶段策略）
+   *
+   * 第一阶段（立即展示，~300ms 内）：
+   *   - quickStatus：仅 3s 超时的本地存活检测
+   *   - remoteInstancesGetAll：只读缓存，几乎无延迟
+   *   → 拿到数据立刻 setLoading(false)，页面即时渲染
+   *
+   * 第二阶段（后台刷新，不阻塞 UI）：
+   *   - remoteInstancesRefreshAll：并行 HTTP 探测远程实例延迟/版本
+   *   → 静默更新远程实例状态，用户无感知
+   */
+  const loadAllInstances = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // ── 第一阶段：并行获取本地实例列表 + 远程实例列表 ──
+      // instancesGetAll 优先用 poller 缓存（已就绪则零延迟），未就绪时降级同步执行
+      // 设置 3s 超时防止渲染阻塞
+      const timeout3s = new Promise<{ success: boolean; instances: any[] }>(
+        (resolve) => setTimeout(() => resolve({ success: false, instances: [] }), 3000),
+      );
+      const [quickLocalResult, remoteResult] = await Promise.all([
+        Promise.race([
+          window.electronAPI.instancesGetAll().catch(() => ({ success: false, instances: [] })),
+          timeout3s,
+        ]),
+        window.electronAPI.remoteInstancesGetAll().catch(() => ({ success: false, instances: [] })),
+      ]);
+
+      // 从 poller 缓存中提取 gateway 实例状态（就绪时就是当前真实状态）
+      const localInstances: any[] = (quickLocalResult as any).instances ?? [];
+      const gatewayInstance = localInstances.find((i: any) => i.id === 'openclaw-gateway');
+
+      let localConnectionStatus: InstanceConnectionStatus;
+      let localPort: number | undefined;
+
+      if (localInstances.length > 0) {
+        // poller 缓存就绪：直接用 gateway 实例状态
+        localConnectionStatus =
+          gatewayInstance?.status === 'running' ? 'connected'
+          : gatewayInstance?.status === 'error'  ? 'error'
+          : 'disconnected';
+        localPort = gatewayInstance?.port;
+      } else {
+        // poller 缓存未就绪（首次启动 1.5s 内）或超时：先显示 connecting，等 onInstancesUpdated 将推送真实状态
+        localConnectionStatus = 'connecting';
+        localPort = undefined;
+      }
+
+      const localManagedInstance: ManagedInstance = {
+        ...buildLocalInstance(localPort),
+        connectionStatus: localConnectionStatus,
+      };
+
+      // 远程实例列表（此时状态暂为 disconnected，第二阶段刷新）
+      const remoteConfigs: RemoteInstanceConfig[] = remoteResult.instances ?? [];
+      const remoteManagedInstances = remoteConfigs.map((config) =>
+        mergeRemoteInstance(config, undefined),
+      );
+
+      // 立刻渲染页面，不再等待远程探测
+      setInstances([localManagedInstance, ...remoteManagedInstances]);
+      setLoading(false);
+
+      // ── 第二阶段：后台静默刷新远程实例连接状态 ──
+      if (remoteConfigs.length > 0) {
+        window.electronAPI.remoteInstancesRefreshAll()
+          .then((statusResult) => {
+            const statuses = statusResult?.statuses ?? [];
+            setInstances((prev) =>
+              prev.map((inst) => {
+                if (inst.source !== 'remote') return inst;
+                const s = statuses.find((st) => st.id === inst.id);
+                if (!s) return inst;
+                return {
+                  ...inst,
+                  connectionStatus:
+                    s.status === 'connected' ? 'connected'
+                    : s.status === 'error' ? 'error'
+                    : 'disconnected',
+                  version: s.version ?? inst.version,
+                  latencyMs: s.latencyMs ?? inst.latencyMs,
+                };
+              }),
+            );
+          })
+          .catch(() => {
+            // 后台刷新失败时静默降级，不影响已渲染的列表
+          });
+      }
+    } catch (err: any) {
+      setError(err?.message || t('instances.loadFailed'));
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    loadAllInstances();
+  }, [loadAllInstances]);
+
+  // 订阅后台轮询推送：本地实例状态变化时自动更新列表卡片，无需用户手动刷新
+  useEffect(() => {
+    const api = window.electronAPI as any;
+    const unsubscribe = api.onInstancesUpdated(({ instances }: { instances: any[] }) => {
+      const gatewayRaw = instances.find((i: any) => i.id === 'openclaw-gateway');
+      const connectionStatus: InstanceConnectionStatus =
+        gatewayRaw?.status === 'running' ? 'connected'
+        : gatewayRaw?.status === 'error'  ? 'error'
+        : 'disconnected';
+      setInstances((prev) =>
+        prev.map((inst) =>
+          inst.id === 'local'
+            ? { ...inst, connectionStatus, port: gatewayRaw?.port ?? inst.port }
+            : inst,
+        ),
+      );
+    });
+    return unsubscribe;
+  }, []);
+
+  /** 删除远程实例 */
+  const handleDeleteRemote = async (instanceId: string) => {
+    if (!confirm(t('instances.detail.confirmDelete' as any))) return;
+    try {
+      await window.electronAPI.remoteInstancesRemove(instanceId);
+      await loadAllInstances();
+    } catch (err: any) {
+      alert(err?.message || t('instances.deleteFailed'));
+    }
+  };
+
+  /** 添加实例成功回调 */
+  const handleAddSuccess = (_newId: string) => {
+    setShowAddModal(false);
+    loadAllInstances();
+  };
+
+  /** 跳转到实例详情页 */
+  const handleNavigate = (instanceId: string) => {
+    navigate(`/instances/${instanceId}`);
+  };
+
+  // 统计数据
+  const connectedCount = instances.filter((i) => i.connectionStatus === 'connected').length;
+  const disconnectedCount = instances.filter((i) => i.connectionStatus === 'disconnected').length;
+  const errorCount = instances.filter((i) => i.connectionStatus === 'error').length;
+
+  // ─── 渲染 ──────────────────────────────────────────────────────────────────
 
   return (
-    /* 页面内容区域：使用 page-content 统一内边距 --space-6 */
     <div className="h-full overflow-y-auto page-content" style={{ backgroundColor: 'var(--app-bg)', color: 'var(--app-text)' }}>
       <div className="max-w-7xl mx-auto">
+
         {/* 顶部渐变标题卡片 */}
         <GlassCard
           variant="gradient"
           className="relative rounded-[28px] px-6 py-5 mb-8"
           style={{
-            background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.12) 0%, rgba(6, 182, 212, 0.08) 48%, rgba(255, 255, 255, 0.02) 100%)',
+            background: 'linear-gradient(135deg, rgba(20,184,166,0.12) 0%, rgba(6,182,212,0.08) 48%, rgba(255,255,255,0.02) 100%)',
             backdropFilter: 'blur(18px)',
             border: 'none',
           }}
         >
           {/* 装饰性光晕 */}
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(20, 184, 166, 0.18)' }} />
-          <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(6, 182, 212, 0.14)' }} />
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(20,184,166,0.18)' }} />
+          <div className="pointer-events-none absolute bottom-0 right-20 h-32 w-32 rounded-full blur-3xl" style={{ backgroundColor: 'rgba(6,182,212,0.14)' }} />
 
           <div className="relative flex items-start justify-between gap-4">
             <div className="max-w-2xl">
-              {/* 页面标题 badge */}
               <AppBadge
                 variant="neutral"
                 icon={<Server size={13} />}
                 style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.08)' }}
               >
-                运行时实例
+                实例管理
               </AppBadge>
               <h1 className="mt-2 text-3xl font-semibold leading-tight" style={{ color: 'var(--app-text)' }}>
                 {t('instances.title')}
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-7" style={{ color: 'var(--app-text-muted)' }}>
-                实例是 OpenClaw 系统中运行的各类服务进程，包括网关、智能体节点、后台服务等。在这里可以查看它们的运行状态、资源占用，并进行启停控制。
+                管理本地、Docker 及远程云服务器上的所有 OpenClaw 实例，点击实例卡片查看详情与服务进程状态。
               </p>
-              {/* 内联统计指标 badge 组 */}
+
+              {/* 统计 badge 组 */}
               <div className="mt-4 flex flex-wrap gap-2.5">
                 {[
                   { label: '总实例', value: instances.length, color: '#2dd4bf', icon: Server },
-                  { label: '运行中', value: instances.filter(i => i.status === 'running').length, color: '#34d399', icon: CheckCircle },
-                  { label: '已停止', value: instances.filter(i => i.status === 'stopped').length, color: '#94a3b8', icon: XCircle },
-                  { label: '异常', value: instances.filter(i => i.status === 'error').length, color: '#f87171', icon: AlertCircle },
+                  { label: '已连接', value: connectedCount, color: '#34d399', icon: CheckCircle },
+                  { label: '未连接', value: disconnectedCount, color: '#94a3b8', icon: XCircle },
+                  { label: '异常', value: errorCount, color: '#f87171', icon: AlertCircle },
                 ].map((m) => {
                   const Icon = m.icon;
                   return (
@@ -393,7 +439,7 @@ const Instances: React.FC = () => {
             {/* 操作按钮 */}
             <div className="flex items-center space-x-3 shrink-0">
               <AppButton
-                onClick={loadInstances}
+                onClick={loadAllInstances}
                 disabled={loading}
                 variant="secondary"
                 icon={<RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
@@ -401,11 +447,11 @@ const Instances: React.FC = () => {
                 {loading ? t('common.loading') : t('common.refresh')}
               </AppButton>
               <AppButton
-                onClick={() => alert('新建实例功能即将推出')}
+                onClick={() => setShowAddModal(true)}
                 variant="primary"
                 icon={<Plus className="w-4 h-4" />}
               >
-                {t('instances.createNew')}
+                {t('instances.addInstance' as any)}
               </AppButton>
             </div>
           </div>
@@ -413,7 +459,7 @@ const Instances: React.FC = () => {
 
         {/* 错误提示 */}
         {error && (
-          <div className="mb-6 p-4 border rounded-lg" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.22)' }}>
+          <div className="mb-6 p-4 border rounded-lg" style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)' }}>
             <div className="flex items-center">
               <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
               <span className="text-red-500">{error}</span>
@@ -421,41 +467,36 @@ const Instances: React.FC = () => {
           </div>
         )}
 
-        {/* Instances Grid */}
+        {/* 实例列表 */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <GlobalLoading visible text="加载实例中" overlay={false} size="md" />
           </div>
-        ) : instances.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {instances.map((instance) => (
-              <InstanceCard key={instance.id} instance={instance} />
+              <InstanceCard
+                key={instance.id}
+                instance={instance}
+                onDelete={instance.source === 'remote' ? handleDeleteRemote : undefined}
+                onNavigate={handleNavigate}
+              />
             ))}
           </div>
-        ) : (
-          <GlassCard className="p-12 text-center">
-            <Server className="w-16 h-16 mx-auto mb-4" style={{ color: 'var(--app-text-muted)' }} />
-            <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--app-text)' }}>{t('instances.noInstances')}</h3>
-            <p className="mb-6" style={{ color: 'var(--app-text-muted)' }}>
-              {t('instances.noInstancesDescription')}
-            </p>
-            <button
-              onClick={() => alert('Create new instance feature coming soon')}
-              className="inline-flex items-center px-4 py-2 bg-tech-cyan hover:bg-tech-green text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {t('instances.createFirstInstance')}
-            </button>
-          </GlassCard>
         )}
 
-        {/* 页脚信息 */}
+        {/* 页脚说明 */}
         <div className="mt-8 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
-          <p>
-            {t('instances.footerInfo')}
-          </p>
+          <p>{t('instances.footerInfo')}</p>
         </div>
       </div>
+
+      {/* 添加实例弹窗 */}
+      <AddInstanceModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={handleAddSuccess}
+      />
     </div>
   );
 };

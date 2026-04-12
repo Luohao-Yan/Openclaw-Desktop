@@ -8,6 +8,8 @@ import type { ChildProcessWithoutNullStreams } from 'child_process';
 import { fileURLToPath } from 'url';
 import { getOpenClawRootDir, resolveOpenClawCommand } from './settings.js';
 import { CURRENT_MANIFEST_VERSION } from '../config/manifest-version.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 
 interface OpenClawConfigObject {
   [key: string]: any;
@@ -706,6 +708,26 @@ export const getAgentBindableInfo = async (
 
 export function setupCoreConfigIPC() {
   ipcMain.handle('coreConfig:getOverview', async () => {
+    // 远程模式：通过 WebSocket RPC config.get 获取 Gateway 配置
+    // 远程模式下无本地配置文件，返回简化的 overview
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('config.get');
+      if (!result.success) return { success: false, error: result.error };
+      const rawConfig = (result.data as any)?.config ?? result.data;
+      return {
+        success: true,
+        overview: {
+          manifest: null,
+          openclawVersion: 'remote',
+          manifestVersion: CURRENT_MANIFEST_VERSION,
+          configPath: '(remote)',
+          commandPath: '(remote)',
+          draft: rawConfig || {},
+          commandPreviews: [],
+          rawConfig: rawConfig || {},
+        },
+      };
+    }
     try {
       let settingsModule: typeof import('./settings.js');
       try {
@@ -781,6 +803,12 @@ export function setupCoreConfigIPC() {
   });
 
   ipcMain.handle('coreConfig:saveOverview', async (_, payload: { values: Record<string, unknown> }) => {
+    // 远程模式：通过 WebSocket RPC config.set 将配置写入 Gateway
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('config.set', { config: payload.values });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
     try {
       let settingsModule: typeof import('./settings.js');
       try {

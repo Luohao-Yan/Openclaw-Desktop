@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshCw,
 } from 'lucide-react';
@@ -47,10 +47,40 @@ const SettingsGeneral: React.FC = () => {
     openclawRootDir: '',
   });
 
+  // 已保存的远程连接配置（传入 GatewaySection 回显表单）
+  const [savedRemoteConnection, setSavedRemoteConnection] = useState<{
+    host?: string;
+    port?: number;
+    protocol?: 'http' | 'https';
+    token?: string;
+  } | undefined>(undefined);
+
+  // 管理 onSettingsChanged 取消订阅函数的 ref
+  const unsubscribeSettingsRef = useRef<(() => void) | null>(null);
+
   const memoizedExposureOptions = useMemo(() => exposureOptions, []);
 
   useEffect(() => {
     void loadAll();
+
+    // 订阅配置变更推送事件，主进程调用 updateSettings 后自动广播，渲染层无需轮询
+    const unsubscribe = window.electronAPI.onSettingsChanged?.((updated) => {
+      const s = updated as Partial<GeneralSettings> & { remoteConnection?: any };
+      setSettings((prev) => ({ ...prev, ...s }));
+      if (s.remoteConnection) {
+        setSavedRemoteConnection({
+          host: s.remoteConnection.host,
+          port: s.remoteConnection.port,
+          protocol: s.remoteConnection.protocol,
+          token: s.remoteConnection.token,
+        });
+      }
+    });
+    if (unsubscribe) unsubscribeSettingsRef.current = unsubscribe;
+
+    return () => {
+      unsubscribeSettingsRef.current?.();
+    };
   }, []);
 
   const showMessage = (nextMessage: string) => {
@@ -161,6 +191,17 @@ const SettingsGeneral: React.FC = () => {
       openclawPath: typeof savedSettings.openclawPath === 'string' ? savedSettings.openclawPath : '',
       openclawRootDir: typeof savedSettings.openclawRootDir === 'string' ? savedSettings.openclawRootDir : '',
     });
+
+    // 回显已保存的远程连接配置
+    const remoteConn = (savedSettings as any).remoteConnection;
+    if (remoteConn) {
+      setSavedRemoteConnection({
+        host: remoteConn.host,
+        port: remoteConn.port,
+        protocol: remoteConn.protocol,
+        token: remoteConn.token,
+      });
+    }
 
     return savedSettings;
   };
@@ -544,6 +585,7 @@ const SettingsGeneral: React.FC = () => {
             pathDraft={pathDraft}
             pathDraftDirty={isPathDraftDirty}
             settings={settings}
+            savedRemoteConnection={savedRemoteConnection}
           />
 
           <TailscaleSection

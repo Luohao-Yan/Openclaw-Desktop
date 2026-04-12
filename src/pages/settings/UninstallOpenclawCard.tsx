@@ -64,8 +64,6 @@ const ManualGuidePanel: React.FC<ManualGuidePanelProps> = ({ sshErrorMsg, onDone
   // 注意：必须先判断 mac/darwin，因为 'darwin' 包含 'win' 子串
   const isMac = platform.includes('mac') || platform === 'darwin';
   const isWindows = !isMac && platform.includes('win');
-  // 非 Windows 非 Mac 默认为 Linux
-  const isLinux = !isWindows && !isMac;
 
   // macOS 手动卸载命令
   const macCommands = [
@@ -94,7 +92,7 @@ const ManualGuidePanel: React.FC<ManualGuidePanelProps> = ({ sshErrorMsg, onDone
 
   /** 在系统默认浏览器中打开官方卸载文档 */
   const handleOpenDocs = () => {
-    window.electronAPI.openPath('https://docs.openclaw.ai/install/uninstall');
+    void window.electronAPI.openPath!('https://docs.openclaw.ai/install/uninstall');
   };
 
   return (

@@ -4,16 +4,18 @@ import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from
 import path from 'path';
 import { getOpenClawRootDir } from './settings.js';
 import { migrateBindingsSchema } from './coreConfig.js';
-import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 import { mapConfig } from './remoteResponseMapper.js';
 
 const getConfigPath = () => path.join(getOpenClawRootDir(), 'openclaw.json');
 
 export function setupConfigIPC() {
   ipcMain.handle('config:get', async () => {
-    // 远程模式：通过 HTTP API 获取配置
+    // 远程模式：通过 WebSocket RPC config.get 获取配置
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/config 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/api/v1/config' });
+      const result = await remoteRpc<unknown>('config.get');
       if (!result.success) return { success: false, error: result.error };
       return mapConfig(result.data);
     }
@@ -31,9 +33,10 @@ export function setupConfigIPC() {
   });
 
   ipcMain.handle('config:set', async (_, config) => {
-    // 远程模式：通过 HTTP API 更新配置
+    // 远程模式：通过 WebSocket RPC config.set 写入配置
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/config PUT 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'PUT', path: '/api/v1/config', body: config });
+      const result = await remoteRpc<unknown>('config.set', { config });
       if (!result.success) return { success: false, error: result.error };
       return { success: true };
     }
@@ -56,11 +59,11 @@ export function setupConfigIPC() {
 
       // 执行 bindings schema 迁移，清理 enabled 等不兼容字段（防御层）
       const migrated = migrateBindingsSchema(sanitized);
-      
+
       // 写入新配置
       const jsonContent = JSON.stringify(migrated, null, 2);
       writeFileSync(configPath, jsonContent, 'utf8');
-      
+
       return { success: true, path: configPath };
     } catch (error) {
       return { success: false, error: String(error) };

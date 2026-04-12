@@ -61,13 +61,6 @@ const channelColors: Record<string, string> = {
 // 子组件
 // ============================================================================
 
-/** 底部操作栏组件 */
-const SetupActionBar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="mt-6 flex flex-wrap items-center gap-3">
-    {children}
-  </div>
-);
-
 /** 渠道开关组件 — 开启绿色/关闭灰色，带文字标签 */
 const ChannelToggle: React.FC<{
   enabled: boolean;

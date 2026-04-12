@@ -1,10 +1,26 @@
-import React from 'react';
-import { ServerCog } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ServerCog, Wifi, WifiOff, Eye, EyeOff } from 'lucide-react';
 import AppButton from '../../../components/AppButton';
 import type { OpenClawCommandDiagnostic } from '../../../types/electron';
 import ToggleRow from './ToggleRow';
 import type { GatewayStatusModel, GeneralSettings, OpenClawRunMode } from './types';
 import { statusDotStyle } from './utils';
+
+/** 远程连接表单暂存状态 */
+interface RemoteConnectionDraft {
+  host: string;
+  port: string;
+  protocol: 'http' | 'https';
+  token: string;
+}
+
+/** 已保存的远程连接配置（从 settings 传入） */
+interface SavedRemoteConnection {
+  host?: string;
+  port?: number;
+  protocol?: 'http' | 'https';
+  token?: string;
+}
 
 interface GatewaySectionProps {
   commandDiagnostic: OpenClawCommandDiagnostic | null;
@@ -32,6 +48,8 @@ interface GatewaySectionProps {
   };
   pathDraftDirty: boolean;
   settings: GeneralSettings;
+  /** 已保存的远程连接配置，用于切换到 remote 模式时回显已保存的表单值 */
+  savedRemoteConnection?: SavedRemoteConnection;
 }
 
 const GatewaySection: React.FC<GatewaySectionProps> = ({
@@ -54,7 +72,101 @@ const GatewaySection: React.FC<GatewaySectionProps> = ({
   pathDraft,
   pathDraftDirty,
   settings,
+  savedRemoteConnection,
 }) => {
+  const isRemote = settings.runMode === 'remote';
+
+  // 远程连接表单状态（优先从 savedRemoteConnection 回显已保存的配置）
+  const [remoteDraft, setRemoteDraft] = useState<RemoteConnectionDraft>({
+    host: savedRemoteConnection?.host ?? '',
+    port: savedRemoteConnection?.port ? String(savedRemoteConnection.port) : '3000',
+    protocol: savedRemoteConnection?.protocol ?? 'http',
+    token: savedRemoteConnection?.token ?? '',
+  });
+
+  // 当 savedRemoteConnection 更新（页面加载后异步回填），同步更新表单
+  useEffect(() => {
+    if (savedRemoteConnection) {
+      setRemoteDraft({
+        host: savedRemoteConnection.host ?? '',
+        port: savedRemoteConnection.port ? String(savedRemoteConnection.port) : '3000',
+        protocol: savedRemoteConnection.protocol ?? 'http',
+        token: savedRemoteConnection.token ?? '',
+      });
+    }
+  }, [savedRemoteConnection]);
+  const [showToken, setShowToken] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isSavingConnection, setIsSavingConnection] = useState(false);
+  const [connectionMsg, setConnectionMsg] = useState('');
+  const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
+
+  const showConnectionMsg = (msg: string, ok: boolean) => {
+    setConnectionMsg(msg);
+    setConnectionOk(ok);
+    setTimeout(() => setConnectionMsg(''), 5000);
+  };
+
+  /** 测试远程连接 */
+  const handleTestRemoteConnection = async () => {
+    if (!remoteDraft.host.trim()) {
+      showConnectionMsg('请先填写远程主机地址', false);
+      return;
+    }
+    setIsTestingConnection(true);
+    try {
+      const result = await window.electronAPI.remoteOpenClawTestConnection?.({
+        host: remoteDraft.host.trim(),
+        port: parseInt(remoteDraft.port, 10) || 3000,
+        protocol: remoteDraft.protocol,
+        token: remoteDraft.token.trim() || undefined,
+      });
+      if (result?.success) {
+        showConnectionMsg(`连接成功！远程版本: ${result.version || 'unknown'}`, true);
+      } else {
+        showConnectionMsg(`连接失败：${result?.error || '未知错误'}`, false);
+      }
+    } catch (err: any) {
+      showConnectionMsg(`连接异常：${err.message}`, false);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
+
+  /** 保存远程连接配置并切换运行模式 */
+  const handleSaveRemoteConnection = async () => {
+    if (!remoteDraft.host.trim()) {
+      showConnectionMsg('请先填写远程主机地址', false);
+      return;
+    }
+    setIsSavingConnection(true);
+    try {
+      const result = await window.electronAPI.remoteOpenClawSaveConnection?.({
+        host: remoteDraft.host.trim(),
+        port: parseInt(remoteDraft.port, 10) || 3000,
+        protocol: remoteDraft.protocol,
+        token: remoteDraft.token.trim() || undefined,
+      });
+      if (result?.success) {
+        showConnectionMsg('远程连接已保存，应用已切换到远程模式', true);
+        await onSettingChange('runMode', 'remote');
+      } else {
+        showConnectionMsg(`保存失败：${result?.error || '未知错误'}`, false);
+      }
+    } catch (err: any) {
+      showConnectionMsg(`保存异常：${err.message}`, false);
+    } finally {
+      setIsSavingConnection(false);
+    }
+  };
+
+  /** 切换回本地模式 */
+  const handleSwitchToLocal = async () => {
+    await onSettingChange('runMode', 'local');
+    setConnectionMsg('');
+    setConnectionOk(null);
+  };
+
   return (
     <div
       className="rounded-[24px] border p-6"
@@ -92,6 +204,7 @@ const GatewaySection: React.FC<GatewaySectionProps> = ({
           onChange={(value) => void onGatewayToggle(value)}
         />
 
+        {/* 运行模式切换 */}
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <div className="mb-2 text-sm font-medium" style={{ color: 'var(--app-text)' }}>
@@ -108,15 +221,166 @@ const GatewaySection: React.FC<GatewaySectionProps> = ({
               }}
             >
               <option value="local">本机（当前 Mac）</option>
+              <option value="remote">远程 OpenClaw 服务器</option>
             </select>
           </div>
           <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--app-bg-subtle)' }}>
             <div className="text-xs" style={{ color: 'var(--app-text-muted)' }}>连接地址</div>
             <div className="mt-2 text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
-              {gatewayStatus.host || '127.0.0.1'}:{gatewayStatus.port || 18789}
+              {isRemote
+                ? '远程连接已开启，请填写下方表单'
+                : `${gatewayStatus.host || '127.0.0.1'}:${gatewayStatus.port || 18789}`}
             </div>
           </div>
         </div>
+
+        {/* 远程连接配置卡片（runMode === 'remote' 时展开） */}
+        {isRemote && (
+          <div
+            className="mt-5 rounded-2xl border p-4 space-y-4"
+            style={{
+              backgroundColor: 'rgba(99, 102, 241, 0.06)',
+              borderColor: 'rgba(99, 102, 241, 0.25)',
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wifi size={15} style={{ color: '#818CF8' }} />
+                <span className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                  远程连接配置
+                </span>
+              </div>
+              <button
+                onClick={() => void handleSwitchToLocal()}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-opacity hover:opacity-70"
+                style={{ color: '#F87171', backgroundColor: 'rgba(244,63,94,0.10)' }}
+              >
+                <WifiOff size={11} />
+                切回本地模式
+              </button>
+            </div>
+
+            {/* 协议 + 主机 + 端口 */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[120px_1fr_100px]">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                  协议
+                </label>
+                <select
+                  value={remoteDraft.protocol}
+                  onChange={(e) => setRemoteDraft((d) => ({ ...d, protocol: e.target.value as 'http' | 'https' }))}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+                  style={{
+                    backgroundColor: 'var(--app-bg-elevated)',
+                    border: '1px solid var(--app-border)',
+                    color: 'var(--app-text)',
+                  }}
+                >
+                  <option value="http">http</option>
+                  <option value="https">https</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                  主机 / IP
+                </label>
+                <input
+                  type="text"
+                  value={remoteDraft.host}
+                  onChange={(e) => setRemoteDraft((d) => ({ ...d, host: e.target.value }))}
+                  placeholder="例如 192.168.1.100 或 my-server.com"
+                  className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+                  style={{
+                    backgroundColor: 'var(--app-bg-elevated)',
+                    border: '1px solid var(--app-border)',
+                    color: 'var(--app-text)',
+                  }}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                  端口
+                </label>
+                <input
+                  type="number"
+                  value={remoteDraft.port}
+                  onChange={(e) => setRemoteDraft((d) => ({ ...d, port: e.target.value }))}
+                  placeholder="3000"
+                  className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+                  style={{
+                    backgroundColor: 'var(--app-bg-elevated)',
+                    border: '1px solid var(--app-border)',
+                    color: 'var(--app-text)',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 访问令牌 (Token) */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--app-text-muted)' }}>
+                访问令牌（Token）— 可选
+              </label>
+              <div className="relative">
+                <input
+                  type={showToken ? 'text' : 'password'}
+                  value={remoteDraft.token}
+                  onChange={(e) => setRemoteDraft((d) => ({ ...d, token: e.target.value }))}
+                  placeholder="Bearer token 或空着不需要认证"
+                  className="w-full rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none"
+                  style={{
+                    backgroundColor: 'var(--app-bg-elevated)',
+                    border: '1px solid var(--app-border)',
+                    color: 'var(--app-text)',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--app-text-muted)' }}
+                  title={showToken ? '隐藏' : '显示'}
+                >
+                  {showToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+
+            {/* 操作按钮行 */}
+            <div className="flex flex-wrap items-center gap-2">
+              <AppButton
+                variant="secondary"
+                size="sm"
+                disabled={isTestingConnection || isSavingConnection}
+                onClick={() => void handleTestRemoteConnection()}
+              >
+                {isTestingConnection ? '测试中...' : '测试连接'}
+              </AppButton>
+              <AppButton
+                variant="success"
+                size="sm"
+                disabled={isTestingConnection || isSavingConnection || !remoteDraft.host.trim()}
+                onClick={() => void handleSaveRemoteConnection()}
+              >
+                {isSavingConnection ? '保存中...' : '保存并切换'}
+              </AppButton>
+            </div>
+
+            {/* 连接结果提示 */}
+            {connectionMsg && (
+              <div
+                className="rounded-xl px-3 py-2.5 text-xs"
+                style={{
+                  backgroundColor: connectionOk ? 'rgba(16,185,129,0.10)' : 'rgba(244,63,94,0.10)',
+                  border: `1px solid ${connectionOk ? 'rgba(16,185,129,0.30)' : 'rgba(244,63,94,0.30)'}`,
+                  color: connectionOk ? '#34D399' : '#F87171',
+                }}
+              >
+                {connectionMsg}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-5 rounded-2xl p-4" style={{ backgroundColor: 'rgba(59, 130, 246, 0.06)' }}>
           <div className="flex items-center gap-3">

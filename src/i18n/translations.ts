@@ -40,7 +40,7 @@ export const translations = {
     reloadAllRunningAgents: 'Reload all running agents',
     cleanCache: 'Clean Cache',
     freeUpSystemResources: 'Free up system resources',
-    
+
     // Instances page
     'instances.title': 'Instances',
     'instances.subtitle': 'Manage and monitor all your OpenClaw instances',
@@ -67,7 +67,7 @@ export const translations = {
     'instances.status.stopped': 'Stopped',
     'instances.status.starting': 'Starting',
     'instances.status.error': 'Error',
-    
+
     // Skills page
     'skills.title': 'Skills',
     'skills.subtitle': 'Manage skills and capabilities for your agents',
@@ -107,7 +107,7 @@ export const translations = {
     'skills.downloads': 'Downloads: {count}',
     'skills.updated': 'Updated: {date}',
     'skills.openDirectory': 'Open directory',
-    
+
     // Agent Enhancement
     'agent.enhancement.title': 'Agent Enhancement',
     'agent.enhancement.subtitle': 'Enhance agent capabilities and performance',
@@ -151,7 +151,7 @@ export const translations = {
     'agent.enhancement.lastUpdated': 'Last updated',
     'agent.enhancement.refreshData': 'Refresh data',
     'agent.enhancement.refresh': 'Refresh',
-    
+
     // Common
     'common.loading': 'Loading...',
     'common.refresh': 'Refresh',
@@ -304,7 +304,7 @@ export const translations = {
     'settings.advanced.dangerZone': 'Danger Zone',
     'settings.logs': 'Logs',
     'settings.logsDescription': 'View application logs and diagnostics',
-    
+
     // Models Configuration
     'settings.models': 'Models',
     'settings.modelsDescription': 'Manage LLM providers, models and aliases',
@@ -360,7 +360,7 @@ export const translations = {
     'settings.models.customProvidersDescription': 'Custom provider configurations from models.providers',
     'settings.models.apiKeyConfigured': 'API Key Set',
     'settings.models.providerModels': 'Models',
-    
+
     // 渠道配置管理
     'channels.title': 'Channel Configuration',
     'channels.description': 'Manage channels, accounts and binding routes',
@@ -556,7 +556,7 @@ export const translations = {
     'invalidImageType': 'Please upload a valid image (JPEG, PNG, GIF, WebP)',
     'imageTooLarge': 'Image must be less than 2MB',
     'uploadError': 'Failed to upload image',
-    
+
     // User Profile Settings
     'loadProfileError': 'Failed to load profile',
     'profileSaved': 'Profile saved successfully',
@@ -1017,6 +1017,47 @@ export const translations = {
     'instances.memory': 'Memory',
     'instances.port': 'Port',
 
+    // Instances management — new multi-instance support
+    'instances.local': 'Local',
+    'instances.remote': 'Remote',
+    'instances.addInstance': 'Add Instance',
+    'instances.noRemoteInstances': 'No remote instances added yet',
+    'instances.noRemoteInstancesDesc': 'Click "Add Instance" to connect a remote or Docker OpenClaw server.',
+    'instances.connected': 'Connected',
+    'instances.disconnected': 'Disconnected',
+    'instances.connecting': 'Connecting',
+    'instances.latency': 'Latency',
+    'instances.version': 'Version',
+    'instances.openDetail': 'View Detail',
+    'instances.disconnect': 'Disconnect',
+    'instances.connect': 'Connect',
+    'instances.switchTo': 'Switch To',
+    // Add instance form
+    'instances.form.alias': 'Alias',
+    'instances.form.aliasPlaceholder': 'e.g. My Cloud Server',
+    'instances.form.protocol': 'Protocol',
+    'instances.form.host': 'Host',
+    'instances.form.hostPlaceholder': 'e.g. 192.168.1.100 or example.com',
+    'instances.form.port': 'Port',
+    'instances.form.token': 'Auth Token (optional)',
+    'instances.form.tokenPlaceholder': 'Bearer token for authentication',
+    'instances.form.testConnection': 'Test Connection',
+    'instances.form.testSuccess': 'Connection successful',
+    'instances.form.testFailed': 'Connection failed',
+    'instances.form.addButton': 'Add Instance',
+    'instances.form.cancel': 'Cancel',
+    // Instance detail page
+    'instances.detail.back': 'Back to Instances',
+    'instances.detail.overview': 'Instance Overview',
+    'instances.detail.subProcesses': 'Services',
+    'instances.detail.connectionConfig': 'Connection Config',
+    'instances.detail.editConfig': 'Edit Config',
+    'instances.detail.saveConfig': 'Save',
+    'instances.detail.cancelEdit': 'Cancel',
+    'instances.detail.deleteInstance': 'Remove Instance',
+    'instances.detail.confirmDelete': 'Are you sure you want to remove this instance? This will not stop the remote server.',
+    'instances.detail.localInstanceNote': 'Local instance settings are managed by the OpenClaw installation.',
+
     // Agents page badges and tabs (English)
     'agents.badge.multiAgentSystem': 'Multi-Agent System',
     'agents.badge.enhancement': 'Agent Enhancement',
@@ -1190,7 +1231,7 @@ export const translations = {
     reloadAllRunningAgents: '重新加载所有运行中的智能体',
     cleanCache: '清理缓存',
     freeUpSystemResources: '释放系统资源',
-    
+
     // Instances page
     'instances.title': '实例管理',
     'instances.subtitle': '管理和监控所有 OpenClaw 实例',
@@ -1220,7 +1261,48 @@ export const translations = {
     'instances.cpu': 'CPU',
     'instances.memory': '内存',
     'instances.port': '端口',
-    
+
+    // 实例管理 — 多实例支持新增翻译
+    'instances.local': '本地',
+    'instances.remote': '远程',
+    'instances.addInstance': '添加实例',
+    'instances.noRemoteInstances': '尚未添加远程实例',
+    'instances.noRemoteInstancesDesc': '点击「添加实例」连接远程或 Docker 上的 OpenClaw 服务。',
+    'instances.connected': '已连接',
+    'instances.disconnected': '未连接',
+    'instances.connecting': '连接中',
+    'instances.latency': '延迟',
+    'instances.version': '版本',
+    'instances.openDetail': '查看详情',
+    'instances.disconnect': '断开连接',
+    'instances.connect': '连接',
+    'instances.switchTo': '切换到此实例',
+    // 添加实例表单
+    'instances.form.alias': '别名',
+    'instances.form.aliasPlaceholder': '例如：我的云服务器',
+    'instances.form.protocol': '协议',
+    'instances.form.host': 'Host 地址',
+    'instances.form.hostPlaceholder': '例如：192.168.1.100 或 example.com',
+    'instances.form.port': '端口',
+    'instances.form.token': '认证 Token（可选）',
+    'instances.form.tokenPlaceholder': '用于身份验证的 Bearer Token',
+    'instances.form.testConnection': '测试连接',
+    'instances.form.testSuccess': '连接成功',
+    'instances.form.testFailed': '连接失败',
+    'instances.form.addButton': '添加实例',
+    'instances.form.cancel': '取消',
+    // 实例详情页
+    'instances.detail.back': '返回实例列表',
+    'instances.detail.overview': '实例概览',
+    'instances.detail.subProcesses': '服务进程',
+    'instances.detail.connectionConfig': '连接配置',
+    'instances.detail.editConfig': '编辑配置',
+    'instances.detail.saveConfig': '保存',
+    'instances.detail.cancelEdit': '取消',
+    'instances.detail.deleteInstance': '移除实例',
+    'instances.detail.confirmDelete': '确定要移除此实例吗？移除后不会停止远程服务器。',
+    'instances.detail.localInstanceNote': '本地实例配置由 OpenClaw 安装程序管理，无法在此修改。',
+
     // Skills page
     'skills.title': '技能管理',
     'skills.subtitle': '管理和配置智能体的技能与能力',
@@ -1260,7 +1342,7 @@ export const translations = {
     'skills.downloads': '下载: {count}',
     'skills.updated': '更新: {date}',
     'skills.openDirectory': '打开目录',
-    
+
     // Agent Enhancement
     'agent.enhancement.title': '智能体增强',
     'agent.enhancement.subtitle': '增强智能体能力和性能',
@@ -1304,7 +1386,7 @@ export const translations = {
     'agent.enhancement.lastUpdated': '最后更新',
     'agent.enhancement.refreshData': '刷新数据',
     'agent.enhancement.refresh': '刷新',
-    
+
     // Common
     'common.loading': '加载中...',
     'common.refresh': '刷新',
@@ -1500,7 +1582,7 @@ export const translations = {
     'settings.advanced.dangerZone': '危险操作',
     'settings.logs': '日志',
     'settings.logsDescription': '查看应用日志和诊断',
-    
+
     // Models Configuration
     'settings.models': '模型配置',
     'settings.modelsDescription': '管理 LLM 提供商、模型与别名',
@@ -1556,7 +1638,7 @@ export const translations = {
     'settings.models.customProvidersDescription': '来自 models.providers 的自定义提供商配置',
     'settings.models.apiKeyConfigured': 'API Key 已配置',
     'settings.models.providerModels': '模型列表',
-    
+
     // 渠道配置管理
     'channels.title': '渠道配置中心',
     'channels.description': '管理渠道、账号和绑定路由',
@@ -1752,7 +1834,7 @@ export const translations = {
     'invalidImageType': '请上传有效的图片（JPEG、PNG、GIF、WebP）',
     'imageTooLarge': '图片必须小于 2MB',
     'uploadError': '上传图片失败',
-    
+
     // User Profile Settings
     'loadProfileError': '加载个人资料失败',
     'profileSaved': '个人资料保存成功',

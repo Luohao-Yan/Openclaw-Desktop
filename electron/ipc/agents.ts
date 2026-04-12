@@ -14,6 +14,8 @@ import {
 } from 'fs';
 import { basename, dirname, extname, join, relative, resolve } from 'path';
 import { getOpenClawRootDir, getShellPath, resolveOpenClawCommand } from './settings.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 import { buildAgentCreateArgs, classifyAgentError, formatAgentCreateError, needsAgentDirRepair, planAgentDirRepair } from './agentCreateLogic.js';
 import { checkAgentCompleteness, planAgentCompletenessRepair, validateAgentRename } from './agentCompletenessLogic.js';
 import { buildDeleteCleanupPlan } from './agentDeleteCleanupLogic.js';
@@ -376,7 +378,7 @@ async function runAgentCreateCommand(payload: { name: string; workspace: string;
       doctorChild.on('close', () => resolve());
       doctorChild.on('error', () => resolve());
       // doctor --fix 超时 10 秒后继续，不阻塞创建流程
-      setTimeout(() => { try { doctorChild.kill(); } catch {} resolve(); }, 10000);
+      setTimeout(() => { try { doctorChild.kill(); } catch { } resolve(); }, 10000);
     });
   } catch {
     // doctor --fix 失败不阻塞，继续尝试创建智能体
@@ -570,7 +572,7 @@ function ensureInsideAllowedRoots(targetPath: string, info: AgentInfo) {
 
   // Normalize paths for comparison
   const normalizedTarget = resolvedTarget;
-  
+
   if (!allowedRoots.some((root) => {
     const normalizedRoot = resolve(root);
     return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(normalizedRoot + '/');
@@ -972,13 +974,29 @@ function buildWorkspaceDetails(info: AgentInfo): AgentWorkspaceDetails {
 
 export function setupAgentsIPC() {
   ipcMain.handle('agents:getAll', async (): Promise<{ success: boolean; agents?: AgentInfo[]; error?: string }> => {
+    // 远程模式：通过 WebSocket RPC agents.list 获取智能体列表
+    // 官方 WS RPC 方法（无对应 REST 接口）
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('agents.list');
+      if (!result.success) return { success: false, error: result.error };
+      const rawList = Array.isArray(result.data)
+        ? result.data
+        : (result.data as any)?.agents ?? [];
+      const agents: AgentInfo[] = rawList.map((a: any) => ({
+        id: a.id || a.name,
+        name: a.name || a.id,
+        workspace: a.workspace || '',
+        model: a.model || 'unknown',
+      }));
+      return { success: true, agents };
+    }
     try {
       const config = readConfig();
       const agentsList = config?.agents?.list || [];
       // autoCreateWorkspace = true：自动创建缺失的 workspace 目录
       // 典型场景：新环境安装后 main agent 的 workspace 目录尚未创建
       const agents = agentsList.map((agent: any) => mapAgentInfo(agent, config, true));
-      
+
       return { success: true, agents };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -986,6 +1004,21 @@ export function setupAgentsIPC() {
   });
 
   ipcMain.handle('agents:create', async (_, payload: { name: string; workspace: string; model?: string }): Promise<{ success: boolean; agent?: AgentInfo; error?: string }> => {
+    // 远程模式：通过 WebSocket RPC agents.create 创建智能体
+    // 官方 WS RPC 方法（无对应 REST 接口）
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('agents.create', {
+        name: payload.name,
+        workspace: payload.workspace,
+        model: payload.model,
+      });
+      if (!result.success) return { success: false, error: result.error };
+      const a = result.data as any;
+      return {
+        success: true,
+        agent: { id: a?.id || payload.name, name: a?.name || payload.name, workspace: a?.workspace || payload.workspace, model: a?.model || payload.model || 'unknown' },
+      };
+    }
     try {
       const createResult = await runAgentCreateCommand(payload);
       if (!createResult.success) {
@@ -1034,6 +1067,13 @@ export function setupAgentsIPC() {
    * 通过官方 CLI 正式删除，清理 openclaw.json 条目、workspace 和 agentDir
    */
   ipcMain.handle('agents:delete', async (_, agentId: string): Promise<{ success: boolean; output?: string; error?: string }> => {
+    // 远程模式：通过 WebSocket RPC agents.delete 删除智能体
+    // 官方 WS RPC 方法（无对应 REST 接口）
+    if (isRemoteMode()) {
+      const result = await remoteRpc<unknown>('agents.delete', { agentId });
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true };
+    }
     try {
       const trimmedId = (agentId || '').trim();
       if (!trimmedId) {
@@ -1338,7 +1378,7 @@ export function setupAgentsIPC() {
   });
 
   // ── 快速操作 IPC Handlers ──────────────────────────────────────────────────────────
-  
+
   /**
    * 打开调试终端
    * 创建新窗口显示智能体的调试终端
@@ -1494,7 +1534,7 @@ export function setupAgentsIPC() {
 
         let stderr = '';
 
-        child.stdout.on('data', () => {});
+        child.stdout.on('data', () => { });
         child.stderr.on('data', (data) => { stderr += data.toString(); });
 
         child.on('close', (code) => {
@@ -1525,7 +1565,7 @@ export function setupAgentsIPC() {
 
         let stderr = '';
 
-        child.stdout.on('data', () => {});
+        child.stdout.on('data', () => { });
         child.stderr.on('data', (data) => { stderr += data.toString(); });
 
         child.on('close', (code) => {

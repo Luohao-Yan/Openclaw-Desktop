@@ -16,6 +16,7 @@ import { getRemoteCapabilities } from './remoteApiProxyLogic.js';
 import { ConnectionManager, buildStatusEvent } from './connectionManager.js';
 import { InstanceRegistry } from './instanceRegistry.js';
 import type { RemoteInstanceConfig } from '../../types/remote.js';
+import { resetWsConnection } from './remoteRpcProxy.js';
 
 // ─── 实例注册表单例 ─────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ export function setupRemoteManagementIPC(): void {
   // 切换到指定远程实例
   ipcMain.handle('remote:switchInstance', async (_event, instanceId: string) => {
     try {
+      // 切换实例前重置 WS 连接，确保下次 RPC 调用使用新实例的连接参数
+      resetWsConnection();
       const cm = ConnectionManager.getInstance();
       await cm.switchInstance(instanceId);
       return { success: true };
@@ -89,6 +92,8 @@ export function setupRemoteManagementIPC(): void {
     try {
       const registry = getRegistry();
       registry.remove(instanceId);
+      // 删除后重置 WS 连接，防止删除的实例连接划起
+      resetWsConnection();
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message || String(err) };

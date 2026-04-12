@@ -12,12 +12,16 @@ import {
   Wrench,
   ExternalLink,
   Stethoscope,
+  ListChecks,
+  ChevronRight,
 } from 'lucide-react';
 
 import GlassCard from '../components/GlassCard';
 import RuntimeUpdateNotice from '../components/RuntimeUpdateNotice';
 import HistoryStatsPanel from '../components/HistoryStatsPanel';
 import DoctorDialog from '../components/DoctorDialog';
+import ApprovalsModal from '../components/ApprovalsModal';
+import TaskDetailPanel from '../components/TaskDetailPanel';
 import { useDesktopRuntime } from '../contexts/DesktopRuntimeContext';
 import { useI18n } from '../i18n/I18nContext';
 import AppButton from '../components/AppButton';
@@ -35,6 +39,17 @@ interface OpenClawRootDiagnostic {
   error?: string;
 }
 import { useNavigate } from 'react-router-dom';
+
+/** 运行中任务类型 */
+interface RunningTask {
+  id: string;
+  name: string;
+  status: 'running' | 'stopped' | 'completed' | 'failed';
+  agent?: string;
+  model?: string;
+  startedAt?: string;
+  error?: string;
+}
 
 interface GatewayStatus {
   status: 'running' | 'stopped' | 'error' | 'checking';
@@ -110,11 +125,37 @@ function Dashboard() {
   // 综合加载状态：操作中或缓存首次加载中
   const loading = actionLoading || gatewayLoading;
   const [showGatewayErrorDetails, setShowGatewayErrorDetails] = useState(false);
+
   const [dashboardMessage, setDashboardMessage] = useState('');
   const [dashboardMessageTone, setDashboardMessageTone] = useState<'idle' | 'success' | 'error' | 'info'>('idle');
 
-  // ── DoctorDialog 弹窗控制状态 ──
+  // ── DoctorDialog / Approvals 弹窗控制状态 ──
   const [isDoctorOpen, setIsDoctorOpen] = useState(false);
+  const [isApprovalsOpen, setIsApprovalsOpen] = useState(false);
+
+  // ── 运行中任务状态 ──
+  const [runningTasks, setRunningTasks] = useState<RunningTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  /** 加载运行中任务列表 */
+  const loadRunningTasks = useCallback(async () => {
+    setTasksLoading(true);
+    try {
+      const tasks = await window.electronAPI.tasksGet();
+      setRunningTasks(
+        (tasks as RunningTask[]).filter((t) => t.status === 'running'),
+      );
+    } catch {
+      setRunningTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadRunningTasks();
+  }, [loadRunningTasks]);
 
   // ── 全局历史统计数据（聚合所有 Agent）──────────────────────────────────
   const [globalStats, setGlobalStats] = useState<DailyStats[]>([]);
@@ -317,10 +358,10 @@ function Dashboard() {
                 : 0;
               existing.sessionCount = totalCount;
               existing.errorRate = (existing.errorRate + s.errorRate) / 2;
-              existing.messageCount = (existing.messageCount ?? 0) + (s.messageCount ?? 0);
+              (existing as any).messageCount = ((existing as any).messageCount ?? 0) + ((s as any).messageCount ?? 0);
               existing.tokenEstimated = existing.tokenEstimated && s.tokenEstimated;
             } else {
-              dateMap.set(s.date, { ...s });
+              dateMap.set(s.date, { messageCount: 0, ...s });
             }
           }
         }
@@ -786,11 +827,110 @@ function Dashboard() {
         </GlassCard>
       ) : null}
 
+      {/* ── 当前运行任务卡片 ──────────────────────────────────────────── */}
+      <div className="flex gap-4">
+        <GlassCard className="flex-1 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ListChecks size={15} style={{ color: 'var(--app-accent)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--app-text)' }}>
+                运行中任务
+              </span>
+              {runningTasks.length > 0 && (
+                <AppBadge variant="success" size="sm">{runningTasks.length}</AppBadge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void loadRunningTasks()}
+                disabled={tasksLoading}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-opacity hover:opacity-70"
+                style={{ color: 'var(--app-text-muted)' }}
+              >
+                <RefreshCw size={11} className={tasksLoading ? 'animate-spin' : ''} />
+                刷新
+              </button>
+              <button
+                onClick={() => setIsApprovalsOpen(true)}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-opacity hover:opacity-70"
+                style={{
+                  color: '#FBBF24',
+                  backgroundColor: 'rgba(251,191,36,0.10)',
+                  border: '1px solid rgba(251,191,36,0.22)',
+                }}
+              >
+                <ShieldCheck size={11} />
+                审批策略
+              </button>
+            </div>
+          </div>
+
+          {tasksLoading ? (
+            <div className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              <RefreshCw size={14} className="animate-spin inline mr-2" />加载中...
+            </div>
+          ) : runningTasks.length === 0 ? (
+            <div className="py-6 text-center text-sm" style={{ color: 'var(--app-text-muted)' }}>
+              当前无运行中任务
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {runningTasks.map((task) => (
+                <button
+                  key={task.id}
+                  onClick={() => setSelectedTaskId(selectedTaskId === task.id ? null : task.id)}
+                  className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-all hover:opacity-80"
+                  style={{
+                    backgroundColor: selectedTaskId === task.id
+                      ? 'rgba(52,211,153,0.10)'
+                      : 'var(--app-bg-subtle)',
+                    border: `1px solid ${
+                      selectedTaskId === task.id
+                        ? 'rgba(52,211,153,0.30)'
+                        : 'var(--app-border)'
+                    }`,
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate" style={{ color: 'var(--app-text)' }}>
+                      {task.name}
+                    </div>
+                    {task.agent && (
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--app-text-muted)' }}>
+                        Agent: {task.agent}{task.model ? ` · ${task.model}` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <AppBadge variant="success" dot size="sm">运行中</AppBadge>
+                    <ChevronRight size={14} style={{ color: 'var(--app-text-muted)' }} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+
+        {/* 任务详情侧边栏 */}
+        {selectedTaskId && (
+          <TaskDetailPanel
+            taskId={selectedTaskId}
+            onClose={() => setSelectedTaskId(null)}
+          />
+        )}
+      </div>
+
       {/* ── DoctorDialog 一键修复弹窗 ─────────────────────────────────── */}
       <DoctorDialog
         open={isDoctorOpen}
         onClose={() => setIsDoctorOpen(false)}
         onComplete={handleDoctorComplete}
+      />
+
+      {/* ── 审批策略管理弹窗 ──────────────────────────────────────────── */}
+      <ApprovalsModal
+        open={isApprovalsOpen}
+        onClose={() => setIsApprovalsOpen(false)}
       />
     </div>
   );

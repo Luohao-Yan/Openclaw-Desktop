@@ -3,7 +3,7 @@
  * 左侧面板，紧凑卡片式列表，支持选中高亮
  */
 import React from 'react';
-import { MessageSquare, Bot, RefreshCw } from 'lucide-react';
+import { MessageSquare, Bot } from 'lucide-react';
 import type { Session, TFunc } from './types';
 
 interface SessionListProps {

@@ -455,6 +455,10 @@ export interface SetupEnvironmentCheck {
   clawhubInstalled: boolean;
   /** ClawHub CLI 版本号 */
   clawhubVersion?: string;
+  /** 可安装的 OpenClaw 版本列表 */
+  availableVersions: string[];
+  /** 推荐安装的版本（与 Desktop 版本匹配） */
+  recommendedVersion: string;
 }
 
 /** 本地安装检测结果 */

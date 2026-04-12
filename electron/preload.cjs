@@ -177,6 +177,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   instancesRestart: (instanceId) => ipcRenderer.invoke('instances:restart', instanceId),
   instancesDelete: (instanceId) => ipcRenderer.invoke('instances:delete', instanceId),
   instancesStats: () => ipcRenderer.invoke('instances:stats'),
+  instancesQuickStatus: () => ipcRenderer.invoke('instances:quickStatus'),
+  // 订阅後台轮询器推送的实例状态更新事件
+  onInstancesUpdated: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('instances:updated', handler);
+    return () => ipcRenderer.removeListener('instances:updated', handler);
+  },
 
   // Skills
   skillsGetAll: () => ipcRenderer.invoke('skills:getAll'),
@@ -365,5 +372,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('remote:connectionStatus', handler);
     return () => ipcRenderer.removeListener('remote:connectionStatus', handler);
+  },
+
+  // Desktop 本地数据目录管理（~/.openclawdesktop/）
+  desktopDirGetPaths: () => ipcRenderer.invoke('desktopDir:getPaths'),
+  desktopDirOpenInFinder: (subPath) => ipcRenderer.invoke('desktopDir:openInFinder', subPath),
+
+  // 桌面端应用日志（~/.openclawdesktop/logs/）
+  appLoggerGetRecentLines: (maxLines) => ipcRenderer.invoke('appLogger:getRecentLines', maxLines),
+  appLoggerListFiles: () => ipcRenderer.invoke('appLogger:listFiles'),
+  appLoggerClearAll: () => ipcRenderer.invoke('appLogger:clearAll'),
+
+  // 配置变更推送事件（主进程 updateSettings 后自动广播，渲染层订阅后无需轮询）
+  onSettingsChanged: (callback) => {
+    const handler = (_event, settings) => callback(settings);
+    ipcRenderer.on('settings:changed', handler);
+    return () => ipcRenderer.removeListener('settings:changed', handler);
   },
 });

@@ -1,5 +1,5 @@
 import pkg from 'electron';
-const { app, ipcMain } = pkg;
+const { app, ipcMain, BrowserWindow } = pkg;
 import Store from 'electron-store';
 import { spawn } from 'child_process';
 import os from 'os';
@@ -35,7 +35,7 @@ interface AppSettings {
   triggerSound?: string;
   sendSound?: string;
   triggerWords?: string[];
-  
+
   // Existing Settings
   openclawPath?: string;
   openclawRootDir?: string;
@@ -83,6 +83,32 @@ interface OpenClawCommandDiagnostic {
 }
 
 const store = new Store<AppSettings>({
+  /**
+   * migrations：版本迁移记录
+   *
+   * electron-store 在每次启动时会比较当前 package.json 版本与 store 中记录的版本，
+   * 仅执行尚未执行过的迁移函数（幂等，不会重复执行）。
+   *
+   * 迁移键名使用发布版本号，每次新增字段或重命名字段时在此添加迁移函数。
+   *
+   * 注意：迁移函数内的 store 参数类型为 any，可直接操作原始存储对象。
+   */
+  migrations: {
+    /**
+     * 0.4.9 基线迁移
+     *
+     * 建立迁移历史起点。
+     * 清理 0.4.9 之前可能残留的废弃字段（remoteInstances 将在 Phase 3 由
+     * instanceRegistry.ts 的迁移逻辑处理，此处仅做防御性清理）。
+     */
+    '0.4.9': (migrateStore) => {
+      // 清理旧版本可能残留的 runMode 非法值（历史上曾支持 'remote'，现仅支持 'local'）
+      const runMode = migrateStore.get('runMode');
+      if (runMode && runMode !== 'local') {
+        migrateStore.set('runMode', 'local');
+      }
+    },
+  },
   defaults: {
     // General Settings Defaults
     autoStart: false,
@@ -111,7 +137,7 @@ const store = new Store<AppSettings>({
     triggerSound: 'glass',
     sendSound: 'glass',
     triggerWords: ['openclaw', 'claude', 'computer'],
-    
+
     // Existing Settings Defaults
     openclawPath: '',
     openclawRootDir: '',
@@ -127,6 +153,14 @@ export function getSettings(): AppSettings {
 
 export function updateSettings(updates: Partial<AppSettings>): void {
   store.set(updates);
+
+  // 向所有渲染窗口广播配置变更事件，避免渲染层轮询
+  const updatedSettings = store.store;
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('settings:changed', updatedSettings);
+    }
+  });
 }
 
 export function getOpenClawPath(): string {
@@ -134,7 +168,7 @@ export function getOpenClawPath(): string {
   if (customPath && typeof customPath === 'string' && customPath.trim() !== '') {
     return customPath.trim();
   }
-  
+
   return '';
 }
 
@@ -337,7 +371,7 @@ async function getWindowsShellPath(): Promise<string> {
       child.on('close', () => resolve(out.trim()));
       child.on('error', () => resolve(''));
       // 3 秒超时保护
-      setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 3000);
+      setTimeout(() => { try { child.kill(); } catch { } resolve(''); }, 3000);
     });
 
     if (result) {
@@ -401,7 +435,7 @@ export async function getShellPath(): Promise<string> {
       child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
       child.on('close', () => resolve(out.trim()));
       child.on('error', () => resolve(''));
-      setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 3000);
+      setTimeout(() => { try { child.kill(); } catch { } resolve(''); }, 3000);
     });
 
     if (result) {
@@ -409,7 +443,7 @@ export async function getShellPath(): Promise<string> {
       _resolvedShellPath = combined;
       return combined;
     }
-  } catch {}
+  } catch { }
 
   const fallback = Array.from(new Set((process.env.PATH || '').split(':').concat(extraPaths))).join(':');
   _resolvedShellPath = fallback;
@@ -534,7 +568,7 @@ async function diagnoseOpenClawRoot(): Promise<OpenClawRootDiagnostic> {
 
 // 检测 OpenClaw 安装路径
 export // 通过 login shell 解析 npm global bin 目录（处理 nvm/nodenv 等版本管理器）
-async function resolveNpmGlobalBin(): Promise<string> {
+  async function resolveNpmGlobalBin(): Promise<string> {
   const shellBin = process.env.SHELL?.startsWith('/') ? process.env.SHELL : '/bin/sh';
   return new Promise((resolve) => {
     const child = spawn(shellBin, ['-l', '-c', 'npm prefix -g 2>/dev/null'], { env: process.env });
@@ -545,7 +579,7 @@ async function resolveNpmGlobalBin(): Promise<string> {
       resolve(prefix ? `${prefix}/bin` : '');
     });
     child.on('error', () => resolve(''));
-    setTimeout(() => { try { child.kill(); } catch {} resolve(''); }, 5000);
+    setTimeout(() => { try { child.kill(); } catch { } resolve(''); }, 5000);
   });
 }
 
@@ -572,12 +606,12 @@ export async function detectOpenClawInstallation(): Promise<OpenClawPathDetectio
   const fixedCandidates: string[] = process.platform === 'win32'
     ? ['C:\\Program Files\\openclaw\\openclaw.exe']
     : [
-        `${homeDir}/.local/bin/openclaw`,   // install.sh git 安装方式
-        '/opt/homebrew/bin/openclaw',        // macOS Apple Silicon Homebrew
-        '/usr/local/bin/openclaw',           // macOS Intel Homebrew / Linux
-        '/usr/bin/openclaw',                 // Linux 系统包
-        `${homeDir}/.npm-global/bin/openclaw`, // Linux npm 用户级安装
-      ];
+      `${homeDir}/.local/bin/openclaw`,   // install.sh git 安装方式
+      '/opt/homebrew/bin/openclaw',        // macOS Apple Silicon Homebrew
+      '/usr/local/bin/openclaw',           // macOS Intel Homebrew / Linux
+      '/usr/bin/openclaw',                 // Linux 系统包
+      `${homeDir}/.npm-global/bin/openclaw`, // Linux npm 用户级安装
+    ];
 
   for (const p of fixedCandidates) {
     try {

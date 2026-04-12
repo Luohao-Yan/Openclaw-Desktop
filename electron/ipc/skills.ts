@@ -21,7 +21,8 @@ import {
   checkSkillPermission,
   getAllBindings,
 } from './skillAgentBinding.js';
-import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 import { mapSkillsList } from './remoteResponseMapper.js';
 
 // 磁盘缓存实例（TTL 30 秒）
@@ -78,10 +79,12 @@ function readInstalledSkillsFromDisk(): SkillInfo[] {
             if (oc?.requires) requires = oc.requires;
           }
           const isCustom = skillPath.startsWith(customSkillsDir);
-          skills.push({ id: skillId, name, description, version: '1.0.0', author: 'Unknown',
+          skills.push({
+            id: skillId, name, description, version: '1.0.0', author: 'Unknown',
             category: inferSkillCategory(name, description), status: 'installed', enabled: true,
             path: skillPath, dependencies: [], missingRequirements: [],
-            source: isCustom ? 'custom' : 'bundled', emoji, requires, isCustom });
+            source: isCustom ? 'custom' : 'bundled', emoji, requires, isCustom
+          });
         } catch { /* 跳过 */ }
       }
     } catch (err) { console.error(`读取 skills 目录 ${skillsDir} 失败:`, err); }
@@ -134,8 +137,8 @@ async function fetchSkillsFromCLI(): Promise<SkillInfo[]> {
     // 真实返回结构是 { skills: [...] }，不是数组
     const list: any[] = Array.isArray(parsed) ? parsed
       : Array.isArray(parsed?.skills) ? parsed.skills
-      : Array.isArray(parsed?.items) ? parsed.items
-      : [];
+        : Array.isArray(parsed?.items) ? parsed.items
+          : [];
     // 缓存一次磁盘读取结果，避免 map 内重复调用
     const installedSkills = readInstalledSkillsFromDisk();
     return list
@@ -157,7 +160,7 @@ async function fetchEligibleSkillsFromCLI(): Promise<SkillInfo[]> {
   if (!parsed) return [];
   const list: any[] = Array.isArray(parsed) ? parsed
     : Array.isArray(parsed?.skills) ? parsed.skills
-    : [];
+      : [];
   const installedSkills = readInstalledSkillsFromDisk();
   return list
     .filter((item: any) => typeof item === 'object' && item !== null)
@@ -167,9 +170,10 @@ async function fetchEligibleSkillsFromCLI(): Promise<SkillInfo[]> {
 export function setupSkillsIPC() {
   // 获取所有技能（已安装 + 可用）
   ipcMain.handle('skills:getAll', async (): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }> => {
-    // 远程模式：通过 HTTP API 获取技能列表
+    // 远程模式：通过 WebSocket RPC skills.status 获取技能列表
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/skills 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/api/v1/skills' });
+      const result = await remoteRpc<unknown>('skills.status');
       if (!result.success) return { success: false, error: result.error };
       return mapSkillsList(result.data);
     }
@@ -191,9 +195,10 @@ export function setupSkillsIPC() {
 
   // 安装技能
   ipcMain.handle('skills:install', async (_, skillId: string) => {
-    // 远程模式：通过 HTTP API 安装技能
+    // 远程模式：通过 WebSocket RPC skills.install 安装技能
+    // 官方 WS RPC 方法，非 HTTP REST（/api/v1/skills/install POST 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'POST', path: '/api/v1/skills/install', body: { name: skillId } });
+      const result = await remoteRpc<unknown>('skills.install', { source: 'clawhub', slug: skillId });
       if (!result.success) return { success: false, error: result.error };
       return { success: true };
     }
@@ -204,11 +209,9 @@ export function setupSkillsIPC() {
 
   // 卸载技能
   ipcMain.handle('skills:uninstall', async (_, skillId: string) => {
-    // 远程模式：通过 HTTP API 卸载技能
+    // 远程模式：远程不支持卸载（官方 WS skills.* 未演定义 uninstall RPC）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'DELETE', path: `/api/v1/skills/${skillId}` });
-      if (!result.success) return { success: false, error: result.error };
-      return { success: true };
+      return { success: false, error: '远程模式暂不支持卸载技能' };
     }
     const r = await runCommand(['clawbot', 'uninstall', skillId]);
     if (!r.success) return { success: false, error: r.error || '卸载技能失败' };
@@ -266,13 +269,15 @@ export function setupSkillsIPC() {
   ipcMain.handle('skills:stats', async () => {
     try {
       const skills = await fetchSkillsFromCLI();
-      return { success: true, stats: {
-        total: skills.length, installed: skills.filter(s => s.status === 'installed').length,
-        available: skills.filter(s => s.status === 'available').length,
-        updatable: skills.filter(s => s.status === 'updatable').length,
-        enabled: skills.filter(s => s.enabled && s.status === 'installed').length,
-        byCategory: skills.reduce((acc, s) => { acc[s.category] = (acc[s.category] || 0) + 1; return acc; }, {} as Record<string, number>),
-      }};
+      return {
+        success: true, stats: {
+          total: skills.length, installed: skills.filter(s => s.status === 'installed').length,
+          available: skills.filter(s => s.status === 'available').length,
+          updatable: skills.filter(s => s.status === 'updatable').length,
+          enabled: skills.filter(s => s.enabled && s.status === 'installed').length,
+          byCategory: skills.reduce((acc, s) => { acc[s.category] = (acc[s.category] || 0) + 1; return acc; }, {} as Record<string, number>),
+        }
+      };
     } catch (err) { return { success: false, error: err instanceof Error ? err.message : String(err) }; }
   });
 
@@ -553,7 +558,7 @@ export function setupSkillsIPC() {
       // 创建 500ms 防抖通知器
       debouncedNotifier = createDebouncedNotifier(500, () => {
         diskCache.invalidate();
-        for (const win of BrowserWindow.getAllWindows()) { try { win.webContents.send('skills:changed'); } catch {} }
+        for (const win of BrowserWindow.getAllWindows()) { try { win.webContents.send('skills:changed'); } catch { } }
       });
       // 使用 fs.watch 监控目录
       skillsWatcher = watch(skillsDir, { recursive: true }, () => { debouncedNotifier?.notify(); });
@@ -629,7 +634,7 @@ export function setupSkillsIPC() {
           // toolNames 是真实字段（工具名数组），兼容旧字段 skills
           skills: Array.isArray(item.toolNames) ? item.toolNames.map(String)
             : Array.isArray(item.skills) ? item.skills.map(String)
-            : undefined,
+              : undefined,
           // origin 字段：bundled = 内置，global = 用户安装
           origin: item.origin ? String(item.origin) : undefined,
         };
@@ -703,7 +708,7 @@ export function setupSkillsIPC() {
   ipcMain.handle('skills:installDependency', async (_, payload: { command: string; args: string[] }) => {
     try {
       const { command, args } = payload;
-;
+      ;
       if (!command || !command.trim()) return { success: false, error: '安装命令不能为空' };
       // 安全检查：仅允许已知的包管理器命令
       const allowedCommands = ['brew', 'apt', 'apt-get', 'yum', 'dnf', 'pacman', 'npm', 'pip', 'pip3', 'cargo'];

@@ -4,10 +4,11 @@ import { resolveOpenClawCommand, runCommand as runShellCommand } from './setting
 import * as fs from 'fs';
 import * as path from 'path';
 import { asyncSendManager } from './asyncSendManager.js';
-import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 import { mapSessionsList, mapSessionDetail } from './remoteResponseMapper.js';
-// WebSocket 方案已废弃：Gateway 要求设备配对认证（connect.challenge），
-// 无法从 Electron 主进程直接建立连接。改用 CLI 方案。
+// 远程模式通过 remoteRpcProxy（WebSocket RPC）访问 Gateway 控制平面；
+// Gateway 不提供 sessions 相关 REST 端点，所有操作走 WS RPC 协议。
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
 // 基于 openclaw sessions --all-agents --json 的真实返回格式：
@@ -529,9 +530,10 @@ export function setupSessionsIPC() {
 
   // 获取 session 列表（返回带 success 标志的结构）
   ipcMain.handle('sessions:list', async () => {
-    // 远程模式：通过 HTTP API 获取会话列表
+    // 远程模式：通过 WebSocket RPC sessions.list
+    // 官方 WS RPC 方法，非 HTTP REST（/v1/sessions 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/sessions' });
+      const result = await remoteRpc<unknown>('sessions.list');
       if (!result.success) return { success: false, sessions: [], error: result.error };
       return mapSessionsList(result.data);
     }
@@ -542,9 +544,10 @@ export function setupSessionsIPC() {
   // 获取单个 session 详情 + transcript
   // 使用 stores 缓存避免每次都执行 CLI，发消息后缓存会失效确保读到最新内容
   ipcMain.handle('sessions:get', async (_event, sessionId: string) => {
-    // 远程模式：通过 HTTP API 获取会话详情
+    // 远程模式：通过 WebSocket RPC sessions.get
+    // 官方 WS RPC 方法，非 HTTP REST（/v1/sessions/:id 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: `/v1/sessions/${sessionId}` });
+      const result = await remoteRpc<unknown>('sessions.get', { sessionId });
       if (!result.success) return { success: false, error: result.error };
       return mapSessionDetail(result.data);
     }
@@ -757,21 +760,20 @@ export function setupSessionsIPC() {
     message: string,
     meta?: { sessionId?: string; agentId?: string; deliveryContext?: { channel: string; to: string; accountId?: string } },
   ): Promise<{ success: boolean; response?: string; transcript?: any[]; pending?: boolean; error?: string }> => {
-    // 远程模式：通过 HTTP API 发送消息
+    // 远程模式：通过 WebSocket RPC sessions.send 发送消息
+    // 官方 WS RPC 方法，非 HTTP REST（/v1/agent/run 不存在）
     if (isRemoteMode()) {
       const sessionId = meta?.sessionId || sessionKey;
       const agentId = meta?.agentId || sessionKey.split(':')[1] || 'main';
-      // 非流式模式：POST /v1/agent/run
-      const result = await remoteRequest<any>({
-        method: 'POST',
-        path: '/v1/agent/run',
-        body: { sessionId, agentId, message },
-        timeoutMs: 120_000,
-      });
+      const result = await remoteRpc<any>(
+        'sessions.send',
+        { sessionId, agentId, message },
+        120_000,
+      );
       if (!result.success) return { success: false, error: result.error };
-      const response = result.data?.result?.payloads?.[0]?.text
-        || result.data?.result?.text
-        || result.data?.response
+      const response = (result.data as any)?.result?.payloads?.[0]?.text
+        || (result.data as any)?.result?.text
+        || (result.data as any)?.response
         || undefined;
       return { success: true, response };
     }
@@ -806,9 +808,10 @@ export function setupSessionsIPC() {
 
   // 关闭 session
   ipcMain.handle('sessions:close', async (_event, sessionId: string): Promise<{ success: boolean; error?: string }> => {
-    // 远程模式：通过 HTTP API 删除会话
+    // 远程模式：通过 WebSocket RPC sessions.delete
+    // 官方 WS RPC 方法，非 HTTP REST（DELETE /v1/sessions/:id 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'DELETE', path: `/v1/sessions/${sessionId}` });
+      const result = await remoteRpc<unknown>('sessions.delete', { sessionId });
       if (!result.success) return { success: false, error: result.error };
       return { success: true };
     }

@@ -1,6 +1,8 @@
 import pkg from 'electron';
 const { ipcMain } = pkg;
 import { resolveOpenClawCommand, runCommand } from './settings.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
 
@@ -96,19 +98,35 @@ export async function approvalsAllowlistRemove(
 
 export function setupApprovalsIPC() {
   // 获取 approvals
-  ipcMain.handle('approvals:get', async (_, target: ApprovalsTarget) =>
-    approvalsGet(target),
-  );
+  ipcMain.handle('approvals:get', async (_, target: ApprovalsTarget) => {
+    // 远程模式：通过 WebSocket RPC exec.approvals.get 获取 Gateway 审批策略
+    // 官方 WS RPC 方法（无对应 REST 接口）
+    if (isRemoteMode()) {
+      const result = await remoteRpc<any>('exec.approvals.get');
+      if (!result.success) return { success: false, error: result.error };
+      return { success: true, data: result.data as ApprovalsData };
+    }
+    return approvalsGet(target);
+  });
 
   // allowlist 添加
   ipcMain.handle(
     'approvals:allowlist:add',
-    async (_, pattern: string, agent: string, target: ApprovalsTarget) =>
-      approvalsAllowlistAdd(pattern, agent, target),
+    async (_, pattern: string, agent: string, target: ApprovalsTarget) => {
+      // 远程模式：通过 WS RPC exec.approvals.set 更新策略（当前刷新后应小心触发全量替换）
+      if (isRemoteMode()) {
+        return { success: false, error: '远程模式暂不支持添加 allowlist（请在 Gateway 本地配置 exec-approvals.json）' };
+      }
+      return approvalsAllowlistAdd(pattern, agent, target);
+    },
   );
 
   // allowlist 移除
-  ipcMain.handle('approvals:allowlist:remove', async (_, pattern: string) =>
-    approvalsAllowlistRemove(pattern),
-  );
+  ipcMain.handle('approvals:allowlist:remove', async (_, pattern: string) => {
+    // 远程模式：无法直接修改远程文件系统
+    if (isRemoteMode()) {
+      return { success: false, error: '远程模式暂不支持移除 allowlist（请在 Gateway 本地配置 exec-approvals.json）' };
+    }
+    return approvalsAllowlistRemove(pattern);
+  });
 }

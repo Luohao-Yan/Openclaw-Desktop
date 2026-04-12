@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { AgentInfo } from '../../types/electron';
 import { useIpcCache } from '../hooks/useIpcCache';
@@ -101,7 +101,7 @@ const Agents: React.FC = () => {
       const stats = statsResult.status === 'fulfilled' && statsResult.value.success
         ? (statsResult.value.stats ?? {}) : {};
       const bindings = bindingsResult.status === 'fulfilled' && bindingsResult.value.success
-        ? (bindingsResult.value.bindings ?? {}) : {};
+        ? (bindingsResult.value.bindings ?? []) : [];
       const groups = groupsResult.status === 'fulfilled' && groupsResult.value.success
         ? (groupsResult.value.groups ?? []) : [];
       const mappings = mappingsResult.status === 'fulfilled' && mappingsResult.value.success
@@ -235,9 +235,8 @@ const Agents: React.FC = () => {
         }
       }
 
-      // 刷新分组列表
-      const grResult = await window.electronAPI.agentGroupsList();
-      if (grResult.success && grResult.groups) setGroups(grResult.groups);
+      // 刷新分组列表（通过 useIpcCache 自动刷新）
+      void refreshAgentData();
 
       // 如果获取到 groupId，计算映射差异并批量更新
       if (groupId) {
@@ -268,9 +267,8 @@ const Agents: React.FC = () => {
           }
         }
 
-        // 刷新映射数据
-        const mrResult = await window.electronAPI.agentGroupsGetMappings();
-        if (mrResult.success && mrResult.mappings) setGroupMappings(mrResult.mappings);
+        // 刷新映射数据（通过 useIpcCache 自动刷新）
+        void refreshAgentData();
       }
     } catch { /* 分组创建/更新失败，中止后续映射操作 */ }
 
@@ -287,13 +285,8 @@ const Agents: React.FC = () => {
         showToast('success', `分组「${deleteGroupTarget.name}」已删除`);
         // 如果当前筛选的是被删除的分组，重置筛选
         if (groupFilter === deleteGroupTarget.id) setGroupFilter(null);
-        // 刷新分组和映射
-        const [gr, mr] = await Promise.all([
-          window.electronAPI.agentGroupsList(),
-          window.electronAPI.agentGroupsGetMappings(),
-        ]);
-        if (gr.success && gr.groups) setGroups(gr.groups);
-        if (mr.success && mr.mappings) setGroupMappings(mr.mappings);
+        // 刷新分组和映射（通过 useIpcCache 自动刷新）
+        void refreshAgentData();
       } else {
         showToast('error', result.error || '删除失败');
       }
@@ -486,9 +479,8 @@ const Agents: React.FC = () => {
                     } else {
                       await window.electronAPI.agentGroupsRemoveAgent(agent.id);
                     }
-                    /* 刷新映射关系 */
-                    const mr = await window.electronAPI.agentGroupsGetMappings();
-                    if (mr.success && mr.mappings) setGroupMappings(mr.mappings);
+                    /* 刷新映射关系（通过 useIpcCache 自动刷新） */
+                    void refreshAgentData();
                   } catch { /* 忽略 */ }
                 }}
               >

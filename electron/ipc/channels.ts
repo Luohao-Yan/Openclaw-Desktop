@@ -14,7 +14,8 @@ import { join } from 'path';
 import { homedir } from 'os';
 import Store from 'electron-store';
 import { resolveOpenClawCommand, getShellPath } from './settings.js';
-import { isRemoteMode, remoteRequest } from './remoteApiProxy.js';
+import { isRemoteMode } from './remoteApiProxy.js';
+import { remoteRpc } from './remoteRpcProxy.js';
 import { mapChannelsList } from './remoteResponseMapper.js';
 
 /** 配对管理配置的本地存储键名 */
@@ -104,7 +105,7 @@ async function runOpenClawCommand(
       setTimeout(() => {
         try {
           child.kill();
-        } catch {}
+        } catch { }
         finish({ success: false, output, error: 'Command timeout' });
       }, timeoutMs);
     } catch (err: any) {
@@ -120,9 +121,10 @@ export function setupChannelsIPC() {
    * 执行 `openclaw channels status`，返回输出文本
    */
   ipcMain.handle('channels:status', async () => {
-    // 远程模式：通过 HTTP API 获取渠道状态
+    // 远程模式：通过 WebSocket RPC channels.status
+    // 官方 WS RPC 方法，非 HTTP REST（/v1/channels 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/channels' });
+      const result = await remoteRpc<unknown>('channels.status');
       if (!result.success) return { success: false, error: result.error };
       return mapChannelsList(result.data);
     }
@@ -153,9 +155,10 @@ export function setupChannelsIPC() {
    * 执行 `openclaw channels list`，返回输出文本
    */
   ipcMain.handle('channels:list', async () => {
-    // 远程模式：通过 HTTP API 获取渠道列表
+    // 远程模式：通过 WebSocket RPC channels.status（列表和状态共用同一层接口）
+    // 官方 WS RPC 方法，非 HTTP REST（/v1/channels 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/channels' });
+      const result = await remoteRpc<unknown>('channels.status');
       if (!result.success) return { success: false, error: result.error };
       return mapChannelsList(result.data);
     }
@@ -186,9 +189,10 @@ export function setupChannelsIPC() {
    * 执行 `openclaw channels status`，然后从输出中过滤指定渠道的信息
    */
   ipcMain.handle('channels:diagnose', async (_, channelType: string) => {
-    // 远程模式：通过 HTTP API 获取渠道状态
+    // 远程模式：通过 WebSocket RPC channels.status 获取诊断信息
+    // 官方 WS RPC 方法，非 HTTP REST（/v1/channels 不存在）
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'GET', path: '/v1/channels' });
+      const result = await remoteRpc<unknown>('channels.status', { channelType });
       if (!result.success) return { success: false, error: result.error };
       return mapChannelsList(result.data);
     }
@@ -367,11 +371,12 @@ export function setupChannelsIPC() {
    * 注意：openclaw channels reconnect 不存在，使用 login 代替
    */
   ipcMain.handle('channels:reconnect', async (_, channelType: string) => {
-    // 远程模式：通过 HTTP API 启用渠道
+    // 远程模式：通过 WebSocket RPC 重新连接渠道
+    // Gateway 没有 /v1/channels/:type/enable HTTP 接口，实际接口待进一步确认
     if (isRemoteMode()) {
-      const result = await remoteRequest<unknown>({ method: 'POST', path: `/v1/channels/${channelType}/enable` });
+      const result = await remoteRpc<unknown>('channels.reconnect', { channelType });
       if (!result.success) return { success: false, error: result.error };
-      return { success: true, output: '渠道已启用' };
+      return { success: true, output: '渠道重连请求已发送' };
     }
     try {
       const result = await runOpenClawCommand([

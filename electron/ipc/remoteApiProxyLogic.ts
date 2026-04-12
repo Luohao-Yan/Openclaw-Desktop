@@ -118,11 +118,14 @@ export function getRemoteCapabilities(): RemoteCapabilities {
     skills: true,
     skillInstall: true,
     models: true,
-    cron: false,
-    approvals: false,
+    // WS RPC cron.list / cron.add / cron.update / cron.remove / cron.run 已实现
+    cron: true,
+    // WS RPC exec.approvals.get 已实现（写操作暂不支持）
+    approvals: true,
     systemStats: false,
     tailscale: false,
-    agentCreate: false,
+    // WS RPC agents.list / agents.create / agents.delete 已实现
+    agentCreate: true,
     agentWorkspace: false,
     environmentFix: false,
     customSkills: false,

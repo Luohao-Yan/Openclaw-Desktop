@@ -22,8 +22,7 @@ import AppButton from '../components/AppButton';
 import AppModal from '../components/AppModal';
 import AppBadge from '../components/AppBadge';
 import GlobalLoading from '../components/GlobalLoading';
-import type { SkillInfo, AgentInfo } from '../types/electron';
-import { useI18n } from '../i18n/I18nContext';
+import type { SkillInfo, AgentInfo, SkillAgentBinding } from '../types/electron';
 import { useIpcCache } from '../hooks/useIpcCache';
 
 // ── 子组件导入 ──────────────────────────────────────────────────────────────
@@ -430,8 +429,8 @@ const Skills: React.FC = () => {
   const [allAgents, setAllAgents] = useState<AgentInfo[]>([]);
   /** 技能绑定的Agent列表 */
   const [boundAgents, setBoundAgents] = useState<AgentInfo[]>([]);
-  /** 加载Agent列表 */
-  const [loadingAgents, setLoadingAgents] = useState(false);
+  /** 加载Agent列表中 */
+  const [_loadingAgents, setLoadingAgents] = useState(false);
 
   // ── 市场搜索状态 ────────────────────────────────────────────────────────
   /** 市场搜索关键词 */
@@ -594,7 +593,7 @@ const Skills: React.FC = () => {
     try {
       const result = await window.electronAPI.skillsGetBoundAgents(skillId);
       if (result.success && result.bindings) {
-        const agentIds = result.bindings.map((b) => b.agentId);
+        const agentIds = result.bindings.map((b: SkillAgentBinding) => b.agentId);
         const agents = allAgents.filter((a) => agentIds.includes(a.id));
         setBoundAgents(agents);
       }

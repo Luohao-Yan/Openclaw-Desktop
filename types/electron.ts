@@ -70,6 +70,10 @@ export interface SetupEnvironmentCheckResult {
   clawhubInstalled: boolean;
   /** ClawHub CLI 版本号 */
   clawhubVersion?: string;
+  /** 可安装的 OpenClaw 版本列表 */
+  availableVersions: string[];
+  /** 推荐安装的版本（与 Desktop 版本匹配） */
+  recommendedVersion: string;
 }
 
 export interface SetupInstallResult {
@@ -317,13 +321,13 @@ export interface ModelsConfigResult {
   /** 备用模型列表 */
   fallbacks?: string[];
   /** 已配置的模型（agents.defaults.models）- 模型别名映射 */
-  configuredModels?: Record<string, { alias?: string; [key: string]: any }>;
+  configuredModels?: Record<string, { alias?: string;[key: string]: any }>;
   /** 自定义提供商配置（models.providers） */
   providers?: Record<string, {
     baseUrl?: string;
     apiKey?: string;
     api?: string;
-    models?: Array<{ id: string; name: string; [key: string]: any }>;
+    models?: Array<{ id: string; name: string;[key: string]: any }>;
     [key: string]: any;
   }>;
   error?: string;
@@ -407,11 +411,11 @@ export interface ModelsActions {
   /** 从提供商配置中删除模型 */
   modelsModelRemove(providerId: string, modelId: string): Promise<{ success: boolean; error?: string; message?: string }>;
   /** 向提供商配置中添加模型 */
-  modelsModelAdd(providerId: string, model: { id: string; name: string; alias?: string; [key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
+  modelsModelAdd(providerId: string, model: { id: string; name: string; alias?: string;[key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
   /** 更新模型配置 */
   modelsModelUpdate(providerId: string, modelId: string, updates: { [key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
   /** 保存提供商配置（baseUrl、apiKey 等） */
-  modelsProviderConfigSave(providerId: string, config: { baseUrl?: string; apiKey?: string; [key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
+  modelsProviderConfigSave(providerId: string, config: { baseUrl?: string; apiKey?: string;[key: string]: any }): Promise<{ success: boolean; error?: string; message?: string }>;
 }
 
 export interface RemoteOpenClawConnectionPayload {
@@ -502,6 +506,13 @@ export interface SettingsActions {
   autoRepairOpenClawCommand(): Promise<OpenClawCommandRepairResult>;
   remoteOpenClawTestConnection?(payload: RemoteOpenClawConnectionPayload): Promise<RemoteOpenClawTestResult>;
   remoteOpenClawSaveConnection?(payload: RemoteOpenClawConnectionPayload): Promise<{ success: boolean; error?: string; message?: string }>;
+  /**
+   * 订阅配置变更推送事件
+   *
+   * 主进程调用 updateSettings 后会自动广播最新配置，渲染层通过此方法订阅，
+   * 无需主动轮询。返回值为取消订阅函数。
+   */
+  onSettingsChanged(callback: (settings: Settings) => void): () => void;
 }
 
 export interface LogsActions {
@@ -784,16 +795,16 @@ export interface InstancesActions {
   instancesStop(instanceId: string): Promise<{ success: boolean; error?: string }>;
   instancesRestart(instanceId: string): Promise<{ success: boolean; error?: string }>;
   instancesDelete(instanceId: string): Promise<{ success: boolean; error?: string }>;
-  instancesStats(): Promise<{ 
-    success: boolean; 
+  instancesStats(): Promise<{
+    success: boolean;
     stats?: {
       total: number;
       running: number;
       stopped: number;
       error: number;
       byType: Record<string, number>;
-    }; 
-    error?: string 
+    };
+    error?: string
   }>;
 }
 
@@ -957,16 +968,16 @@ export interface SkillsActions {
   skillsUpdate(skillId: string): Promise<{ success: boolean; error?: string }>;
   skillsEnable(skillId: string): Promise<{ success: boolean; error?: string }>;
   skillsDisable(skillId: string): Promise<{ success: boolean; error?: string }>;
-  skillsStats(): Promise<{ 
-    success: boolean; 
+  skillsStats(): Promise<{
+    success: boolean;
     stats?: {
       total: number;
       installed: number;
       updatable: number;
       enabled: number;
       byCategory: Record<string, number>;
-    }; 
-    error?: string 
+    };
+    error?: string
   }>;
   skillsSearch(query: string): Promise<{ success: boolean; skills?: SkillInfo[]; error?: string }>;
 
@@ -998,6 +1009,30 @@ export interface SkillsActions {
 
   /** 监听配置文件变更事件（外部修改 openclaw.json 时触发），返回取消订阅函数 */
   onConfigChanged(callback: () => void): () => void;
+
+  // ── Agent专属技能管理 ───────────────────────────────────────────────────
+  /** 将技能绑定到一个或多个Agent */
+  skillsBindToAgents(skillId: string, agentIds: string[]): Promise<{ success: boolean; error?: string }>;
+  /** 从一个或多个Agent解绑技能 */
+  skillsUnbindFromAgents(skillId: string, agentIds: string[]): Promise<{ success: boolean; error?: string }>;
+  /** 获取技能绑定的所有Agent列表 */
+  skillsGetBoundAgents(skillId: string): Promise<{
+    success: boolean;
+    bindings?: SkillAgentBinding[];
+    error?: string;
+  }>;
+  /** 获取所有技能与Agent的绑定关系 */
+  skillsGetAllBindings(): Promise<{
+    success: boolean;
+    bindings?: SkillAgentBinding[];
+    error?: string;
+  }>;
+
+  // ── 本地文件安装 API ──────────────────────────────────────────────────────
+  /** 选择本地文件进行安装（弹出文件选择对话框） */
+  skillsInstallFromLocal(): Promise<{ success: boolean; canceled?: boolean; filePath?: string; error?: string }>;
+  /** 安装本地文件（.zip 或文件夹） */
+  skillsInstallLocalFile(filePath: string): Promise<{ success: boolean; skillId?: string; error?: string }>;
 }
 
 // ── 插件管理操作接口（需求 8.1-8.6）──────────────────────────────────────────
@@ -1029,14 +1064,14 @@ export interface FileActions {
     size?: number;
     error?: string;
   }>;
-  
+
   fileWrite(filePath: string, content: string): Promise<{
     success: boolean;
     lastModified?: string;
     size?: number;
     error?: string;
   }>;
-  
+
   fileExists(filePath: string): Promise<{
     success: boolean;
     exists?: boolean;
@@ -1107,23 +1142,23 @@ export interface AgentEnhancementActions {
     success: boolean;
     error?: string;
   }>;
-  
+
   agentsExportConfig(agentId: string): Promise<{
     success: boolean;
     filePath?: string;
     error?: string;
   }>;
-  
+
   agentsImportConfig(agentId: string): Promise<{
     success: boolean;
     error?: string;
   }>;
-  
+
   agentsRestart(agentId: string): Promise<{
     success: boolean;
     error?: string;
   }>;
-  
+
   agentsSecurityCheck(agentId: string): Promise<{
     success: boolean;
     results?: SecurityCheckResult[];
@@ -1323,19 +1358,19 @@ export interface MainActions {
   onDoctorOutput(callback: (event: DoctorOutputEvent) => void): () => void;
 }
 
-export interface ElectronAPI extends 
+export interface ElectronAPI extends
   RuntimeActions,
-  GatewayActions, 
+  GatewayActions,
   TailscaleActions,
-  TasksActions, 
-  TasksExtendedActions, 
-  SettingsActions, 
-  ConfigActions, 
-  LogsActions, 
-  AgentsActions, 
-  SystemStatsActions, 
-  SessionsActions, 
-  InstancesActions, 
+  TasksActions,
+  TasksExtendedActions,
+  SettingsActions,
+  ConfigActions,
+  LogsActions,
+  AgentsActions,
+  SystemStatsActions,
+  SessionsActions,
+  InstancesActions,
   SkillsActions,
   PluginsActions,
   FileActions,
@@ -1369,6 +1404,50 @@ export interface ElectronAPI extends
     downloadUrl?: string;
     error?: string;
   }>;
+
+  // ── Desktop 本地数据目录 API（~/.openclawdesktop/）──────────────────────
+  /** 获取各存储路径信息，供设置页面展示 */
+  desktopDirGetPaths(): Promise<{
+    success: boolean;
+    paths?: DesktopDirPaths;
+    error?: string;
+  }>;
+  /** 在系统文件管理器中打开桌面端数据目录或其子路径 */
+  desktopDirOpenInFinder(subPath?: string): Promise<{ success: boolean; error?: string }>;
+
+  // ── 桌面端应用日志 API（~/.openclawdesktop/logs/）────────────────────────
+  /** 读取最近 N 行日志（当天日志文件） */
+  appLoggerGetRecentLines(maxLines?: number): Promise<{
+    success: boolean;
+    lines: string[];
+    error?: string;
+  }>;
+  /** 获取日志文件列表 */
+  appLoggerListFiles(): Promise<{
+    success: boolean;
+    files: Array<{ filename: string; size: number; path: string }>;
+    error?: string;
+  }>;
+  /** 清除所有日志文件 */
+  appLoggerClearAll(): Promise<{
+    success: boolean;
+    deletedCount: number;
+    error?: string;
+  }>;
+}
+
+// ─── Desktop 本地数据目录路径信息 ────────────────────────────────────────────
+
+/** ~/.openclawdesktop/ 各路径信息，供设置页面展示 */
+export interface DesktopDirPaths {
+  /** 根目录：~/.openclawdesktop/ */
+  desktopDir: string;
+  /** 日志目录：~/.openclawdesktop/logs/ */
+  logsDir: string;
+  /** 缓存目录：~/.openclawdesktop/cache/ */
+  cacheDir: string;
+  /** 远程实例元数据文件：~/.openclawdesktop/instances.json */
+  instancesFile: string;
 }
 
 // ─── 远程管理类型（从 types/remote.ts 导入）────────────────────────────────

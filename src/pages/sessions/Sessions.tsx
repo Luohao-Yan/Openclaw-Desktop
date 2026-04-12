@@ -10,7 +10,6 @@ import {
   RefreshCw,
   AlertCircle,
   Search,
-  Wrench,
   Eraser,
   Activity,
   Users,
@@ -181,29 +180,6 @@ const Sessions: React.FC = () => {
       console.error('[Sessions] transcript 加载失败:', err);
     } finally {
       setTranscriptLoading(false);
-    }
-  }, []);
-
-  /**
-   * 静默刷新 transcript：不清空当前内容，加载完成后直接替换
-   * 用于发送消息后刷新，避免 UI 闪烁
-   * 只有读到非空 transcript 时才替换，防止空数组覆盖乐观消息
-   */
-  const refreshTranscript = useCallback(async (session: Session) => {
-    try {
-      const result: any = await window.electronAPI.sessionsGet(session.id);
-      if (result?.success && Array.isArray(result.transcript) && result.transcript.length > 0) {
-        setTranscript(result.transcript);
-        return;
-      }
-      // 回退：直接用 transcript 接口，同样只在非空时替换
-      const fallback: any = await window.electronAPI.sessionsTranscript(session.agent, session.id);
-      if (fallback?.success && Array.isArray(fallback.transcript) && fallback.transcript.length > 0) {
-        setTranscript(fallback.transcript);
-      }
-      // 若两个接口都返回空，保留当前 transcript（含乐观消息），不做任何覆盖
-    } catch (err) {
-      console.error('[Sessions] transcript 刷新失败:', err);
     }
   }, []);
 
