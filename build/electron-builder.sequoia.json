@@ -3,6 +3,7 @@
   "productName": "OpenClaw Desktop",
   "artifactName": "${productName}-${version}-sequoia-${arch}.${ext}",
   "icon": "resources/icns/icon_1024.icns",
+  "electronDist": "./node_modules/electron/dist",
   "directories": {
     "output": "release-artifacts/mac-arm64-sequoia"
   },
