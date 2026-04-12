@@ -537,7 +537,7 @@ function mapAgentInfo(agent: any, config: any, autoCreateWorkspace = false): Age
 
   return {
     id: agent.id || 'unknown',
-    name: agent.name || 'Unnamed Agent',
+    name: agent.name || agent.id || 'Unnamed Agent',
     workspace: agent.workspace || workspaceRoot || 'Not specified',
     model: normalizeModel(agent, config),
     agentDir: agent.agentDir,
@@ -983,8 +983,8 @@ export function setupAgentsIPC() {
         ? result.data
         : (result.data as any)?.agents ?? [];
       const agents: AgentInfo[] = rawList.map((a: any) => ({
-        id: a.id || a.name,
-        name: a.name || a.id,
+        id: a.id || a.name || 'unknown',
+        name: a.name || a.id || 'Unnamed Agent',
         workspace: a.workspace || '',
         model: a.model || 'unknown',
       }));

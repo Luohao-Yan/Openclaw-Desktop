@@ -4,12 +4,13 @@ import type { AgentInfo } from '../../types/electron';
 import { useIpcCache } from '../hooks/useIpcCache';
 import {
   Users, Cpu, Hash,
-  RefreshCw, AlertCircle, CheckCircle,
+  RefreshCw, AlertCircle, CheckCircle, CheckCircle2,
   User, FileText, Settings, ArrowRight,
   Plus,
   Zap,
   AlertTriangle,
   Trash2,
+  Edit3,
   Download, Upload, History,
   MessageSquare, Clock, Coins, Globe,
   Link2, FolderOpen,
@@ -53,6 +54,11 @@ const Agents: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<AgentInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  // 重命名对话框状态
+  const [renameTarget, setRenameTarget] = useState<AgentInfo | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState('');
   // 操作结果提示（自动消失）
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   // 分组管理状态
@@ -344,6 +350,39 @@ const Agents: React.FC = () => {
     navigate(`/agent-workspace/${agentId}`);
   };
 
+  /** 执行重命名智能体（通过 agents:rename IPC） */
+  const handleRenameAgent = async () => {
+    if (!renameTarget) return;
+    const oldName = renameTarget.name;
+    const trimmedNewName = renameValue.trim();
+
+    if (!trimmedNewName) {
+      setRenameError('请输入智能体名称');
+      return;
+    }
+
+    setRenaming(true);
+    setRenameError('');
+    try {
+      const result = await window.electronAPI.agentsRename?.(renameTarget.id, trimmedNewName);
+      if (result?.success) {
+        setRenameTarget(null);
+        showToast('success', `智能体「${oldName}」已重命名为「${trimmedNewName}」`);
+        loadAgents();
+      } else {
+        const error = result?.error || '重命名失败';
+        setRenameError(error);
+        showToast('error', `重命名失败：${error}`);
+      }
+    } catch (err: any) {
+      const msg = err.message || '重命名失败';
+      setRenameError(msg);
+      showToast('error', `重命名失败：${msg}`);
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   // 初始加载由 useIpcCache 自动处理
 
   const AgentCard = ({ agent }: { agent: AgentInfo }) => {
@@ -376,6 +415,7 @@ const Agents: React.FC = () => {
           {/* 操作按钮 */}
           <div className="flex items-center gap-1 flex-shrink-0">
             <AppButton iconOnly tint="default" onClick={() => setExportTarget(agent)} title="导出 Agent 配置" icon={<Download className="w-4 h-4" />} />
+            <AppButton iconOnly tint="default" onClick={() => { setRenameValue(agent.name); setRenameTarget(agent); setRenameError(''); }} title="重命名智能体" icon={<Edit3 className="w-4 h-4" />} />
             <AppButton iconOnly tint="blue" onClick={() => { setSelectedAgent(agent); setActiveTab('enhance'); }} title="增强智能体" icon={<Zap className="w-4 h-4" />} />
             <AppButton iconOnly tint="purple" onClick={() => openAgentWorkspace(agent.id)} title="打开智能体工作区" icon={<Settings className="w-4 h-4" />} />
             <AppButton iconOnly tint="default" onClick={() => { setDeleteError(''); setDeleteTarget(agent); }} title="删除智能体" style={{ color: '#ef4444' }} icon={<Trash2 className="w-4 h-4" />} />
@@ -899,6 +939,95 @@ const Agents: React.FC = () => {
                       style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)', color: 'var(--app-toast-error-text)' }}
                     >
                       {deleteError}
+                    </div>
+                  )}
+                </div>
+              )}
+            </AppModal>
+
+            {/* 重命名对话框 */}
+            <AppModal
+              open={!!renameTarget}
+              onClose={() => setRenameTarget(null)}
+              title="重命名智能体"
+              icon={<Edit3 size={20} />}
+              disableClose={renaming}
+              footer={
+                <>
+                  <AppButton variant="secondary" onClick={() => setRenameTarget(null)} disabled={renaming}>
+                    取消
+                  </AppButton>
+                  <AppButton
+                    variant="primary"
+                    onClick={() => void handleRenameAgent()}
+                    disabled={renaming || !renameValue.trim()}
+                    icon={renaming ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  >
+                    {renaming ? '保存中…' : '保存'}
+                  </AppButton>
+                </>
+              }
+            >
+              {renameTarget && (
+                <div className="space-y-4">
+                  {/* 说明 */}
+                  <p className="text-sm" style={{ color: 'var(--app-text-muted)' }}>
+                    修改智能体「{renameTarget.name}」的显示名称。此操作将更新 openclaw.json 中的配置。
+                  </p>
+
+                  {/* Agent 信息摘要 */}
+                  <div
+                    className="rounded-xl border px-4 py-3 space-y-2"
+                    style={{ backgroundColor: 'var(--app-bg-subtle)', borderColor: 'var(--app-border)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>ID</span>
+                      <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{renameTarget.id}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--app-text-muted)' }}>当前名称</span>
+                      <span className="text-sm font-mono" style={{ color: 'var(--app-text)' }}>{renameTarget.name}</span>
+                    </div>
+                  </div>
+
+                  {/* 新名称输入 */}
+                  <div>
+                    <label
+                      htmlFor="agent-new-name"
+                      className="mb-1.5 block text-sm font-medium"
+                      style={{ color: 'var(--app-text)' }}
+                    >
+                      新名称 <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      id="agent-new-name"
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => {
+                        setRenameValue(e.target.value);
+                        if (renameError) setRenameError('');
+                      }}
+                      placeholder="输入新的智能体名称"
+                      className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-token-normal focus:ring-2"
+                      style={{
+                        backgroundColor: 'var(--app-bg)',
+                        borderColor: renameError ? '#ef4444' : 'var(--app-border)',
+                        color: 'var(--app-text)',
+                      }}
+                      autoFocus
+                    />
+                    <p className="mt-1.5 text-xs" style={{ color: 'var(--app-text-muted)' }}>
+                      仅允许 ASCII 字母、数字、连字符（-）和下划线（_）
+                    </p>
+                  </div>
+
+                  {/* 错误提示 */}
+                  {renameError && (
+                    <div
+                      className="rounded-xl border px-4 py-2.5 text-xs"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.22)', color: 'var(--app-toast-error-text)' }}
+                    >
+                      {renameError}
                     </div>
                   )}
                 </div>
