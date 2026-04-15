@@ -94,6 +94,17 @@ export async function spawnWithShellPath(
         } catch {
           // 忽略 kill 失败
         }
+        finish(
+          buildSpawnResult({
+            exitCode: null,
+            stdout,
+            stderr,
+            error: new Error('Timeout'),
+            killed: true,
+            timeoutMs,
+            command,
+          }),
+        );
       }, timeoutMs);
 
       // 进程错误事件（如 ENOENT）

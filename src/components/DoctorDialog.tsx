@@ -16,6 +16,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Stethoscope, Loader2 } from 'lucide-react';
 import { useI18n } from '../i18n/I18nContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { parseDoctorOutput } from '../../electron/ipc/doctorLogic';
 import type { DoctorFixResult } from '../../electron/ipc/doctorLogic';
 import type { DoctorOutputEvent } from '../types/electron';
@@ -46,6 +47,23 @@ export interface DoctorDialogProps {
 
 const DoctorDialog: React.FC<DoctorDialogProps> = ({ open, onClose, onComplete }) => {
   const { t } = useI18n();
+  const { theme } = useTheme();
+
+  // 获取实际解析后的主题（考虑 system 主题）
+  const getResolvedTheme = () => {
+    if (theme === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return theme;
+  };
+
+  const resolvedTheme = getResolvedTheme();
+
+  // 终端配色
+  const terminalBg = resolvedTheme === 'dark' ? '#1e1e1e' : '#f3f4f6';
+  const terminalText = resolvedTheme === 'dark' ? '#e5e7eb' : '#1f2937';
+  const terminalError = resolvedTheme === 'dark' ? '#fca5a5' : '#dc2626';
+  const terminalMuted = resolvedTheme === 'dark' ? '#6b7280' : '#6b7280';
 
   // ── 内部状态 ────────────────────────────────────────────────────────────────
   /** 终端输出行列表 */
@@ -67,6 +85,18 @@ const DoctorDialog: React.FC<DoctorDialogProps> = ({ open, onClose, onComplete }
       scrollAnchorRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [outputLines]);
+
+  // ── 监听系统主题变化（当 theme 为 system 时）────────────────────────────────
+  const [, forceUpdate] = useState({});
+  useEffect(() => {
+    if (theme !== 'system') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => forceUpdate({});
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
 
   // ── 关闭时重置状态 ──────────────────────────────────────────────────────────
   const handleClose = useCallback(() => {
@@ -150,11 +180,14 @@ const DoctorDialog: React.FC<DoctorDialogProps> = ({ open, onClose, onComplete }
 
       {/* ── Terminal_Output 区域 ──────────────────────────────────────── */}
       <div
-        className="font-mono text-sm rounded-lg max-h-80 overflow-y-auto p-4"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
+        className="font-mono text-sm rounded-lg max-h-80 overflow-y-auto p-4 border"
+        style={{
+          backgroundColor: terminalBg,
+          borderColor: resolvedTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+        }}
       >
         {outputLines.length === 0 && isRunning && (
-          <div style={{ color: 'var(--app-text-muted)' }} className="text-xs">
+          <div style={{ color: terminalMuted }} className="text-xs">
             {t('doctor.running')}
           </div>
         )}
@@ -163,10 +196,11 @@ const DoctorDialog: React.FC<DoctorDialogProps> = ({ open, onClose, onComplete }
             key={index}
             className="whitespace-pre-wrap break-all leading-relaxed"
             style={{
-              color: line.isError ? '#fb923c' : 'var(--app-text)',
+              color: line.isError ? terminalError : terminalText,
             }}
           >
-            {line.text}
+            {/* 简单移除 ANSI 颜色码 */}
+            {line.text.replace(/\x1b\[[0-9;]*m/g, '')}
           </div>
         ))}
         {/* 滚动锚点 */}
